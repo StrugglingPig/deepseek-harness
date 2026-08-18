@@ -117,7 +117,7 @@ function toTodoList(raw: { content: string; status: string }[], allowParallel: b
 const todosProjectionSchema: ZodType<TodoItem[] | null> = zod.union([
   zod.array(zod.object({
     content: zod.string(),
-    status: zod.union([zod.literal('pending'), zod.literal('in_progress'), zod.literal('completed')]),
+    status: zod.enum(STATUSES),
   })),
   zod.null(),
 ])
@@ -214,14 +214,15 @@ export function apply(ctx: Context, config: Config): void {
         throw new Error('todo_write requires an owning agent session')
       }
       exec.agent.session.append('todo/write', { todos })
-      const count = (status: TodoItem['status']): number => todos.filter(t => t.status === status).length
+      const counts = { pending: 0, inProgress: 0, completed: 0 }
+      for (const todo of todos) {
+        if (todo.status === 'pending') counts.pending++
+        else if (todo.status === 'in_progress') counts.inProgress++
+        else if (todo.status === 'completed') counts.completed++
+      }
       return Promise.resolve({
         todos: todos.map(todo => ({ content: todo.content, status: todo.status })),
-        counts: {
-          pending: count('pending'),
-          inProgress: count('in_progress'),
-          completed: count('completed'),
-        },
+        counts,
       })
     },
     presentCall: args => ({ card: 'generic', title: 'Update todo list', kind: 'other', rawInput: args.todos }),

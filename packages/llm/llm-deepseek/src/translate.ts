@@ -9,7 +9,7 @@
  * @module dsh-llm-deepseek/translate
  */
 
-import { CallId, EMPTY_RESPONSE_CODE, LlmError } from '@deepseek-ai/dsh-llm'
+import { assertNever, CallId, EMPTY_RESPONSE_CODE, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { DONE } from './sse.ts'
 import type { WireChunk, WireUsage } from './types.ts'
@@ -73,6 +73,7 @@ function closeBlock(block: OpenBlock): ContentBlock {
       name: block.name ?? '',
       arguments: block.text,
     }
+    default: return assertNever(block, 'closeBlock')
   }
 }
 
@@ -105,15 +106,16 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
         yield { type: 'block-end', index: block.index, block: closeBlock(block) }
       }
       if (pendingUsage) yield { type: 'usage', usage: pendingUsage }
-      const reason = pendingFinish ?? { kind: 'stop' as const }
+      const resolvedFinish = pendingFinish ?? { kind: 'stop' as const }
+      const isEmptyResponse = resolvedFinish.kind === 'stop' && order.length === 0
       yield {
         type: 'finish',
-        reason: reason.kind === 'stop' && order.length === 0
+        reason: isEmptyResponse
           ? {
             kind: 'error',
             failure: { message: 'model returned a completed response with no content', code: EMPTY_RESPONSE_CODE },
           }
-          : reason,
+          : resolvedFinish,
       }
       return
     }

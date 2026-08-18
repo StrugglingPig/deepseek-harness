@@ -259,6 +259,7 @@ function assignCompiledNode(destination: NodeDestination, node: JsonSchemaNode):
     case 'one-of':
       destination.target[destination.index] = node
       break
+    default: return assertNever(destination)
   }
 }
 
@@ -289,10 +290,10 @@ function runSchemaCompiler(initial: CompileTask): void {
     }
     if (task.kind === 'property') {
       if (!isJsonSchemaRecord(task.property)) authorError(`${task.path} must be a value schema object`)
-      if (Object.hasOwn(task.property, 'required') && task.property.required !== true) {
-        authorError(`${task.path}.required must be true when present`)
+      if (Object.hasOwn(task.property, 'required')) {
+        if (task.property.required !== true) authorError(`${task.path}.required must be true when present`)
+        task.required.push(task.key)
       }
-      if (Object.hasOwn(task.property, 'required') && task.property.required === true) task.required.push(task.key)
       tasks.push({
         kind: 'value',
         input: task.property,
