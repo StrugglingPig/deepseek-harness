@@ -112,7 +112,8 @@
       "description": "Read the current same-session goal, including its exact id/revision, objective, phase, completed continuation rounds, round limit, blocker reason when present, and whether another continuation is armed. Call this before updating a goal.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": []
       }
     },
     {
@@ -156,7 +157,8 @@
       "description": "List your background jobs (running and finished) with their ids, kinds, and statuses.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": []
       }
     },
     {
@@ -197,7 +199,8 @@
               "descendants"
             ]
           }
-        }
+        },
+        "required": []
       }
     },
     {
@@ -466,7 +469,8 @@
             "type": "string",
             "description": "Target session id. Omit for the current session."
           }
-        }
+        },
+        "required": []
       }
     },
     {

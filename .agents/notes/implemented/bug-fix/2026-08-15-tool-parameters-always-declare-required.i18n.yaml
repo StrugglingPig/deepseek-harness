@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-15-tool-parameters-always-declare-required.md
+2026-08-15-tool-parameters-always-declare-required.md: b72f04679b41ed3a690a727191f54171ae74a7a8
+2026-08-15-tool-parameters-always-declare-required.zh.md: 320cc41b102e21dd525e9283445a49626d96f500

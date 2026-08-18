@@ -445,13 +445,16 @@ export function valueSchemaSpecToJsonSchema(spec: ValueSchemaSpec): JsonSchemaNo
  * Compile the implicit open parameter object into raw JSON Schema.
  * @param spec - per-property parameter definitions.
  * @returns An object-rooted raw schema with no implicit-root openness override.
+ *   `required` is always present (empty when no parameter is required):
+ *   DeepSeek's gateway rejects function schemas that omit the array with
+ *   `null is not of type "array"`.
  */
 export function parameterSchemaSpecToJsonSchema(spec: ParameterSchemaSpec): ParameterJsonSchema {
   const compiled = compilePropertyMap(spec, 'parameters')
   const schema: ParameterJsonSchema = {
     type: 'object',
     properties: compiled.properties,
-    ...(compiled.required === undefined ? {} : { required: compiled.required }),
+    required: compiled.required ?? [],
   }
   assertSupportedJsonSchema(schema)
   return schema

@@ -184,6 +184,13 @@ describe('dsh-tool-todo', () => {
     })
   })
 
+  it('instructs the model to close the list before the final reply (no stale in_progress)', async () => {
+    const ctx = await setup(true)
+    const desc = ctx.tools.schemas().find(s => s.name === 'todo_write')!.description
+    expect(desc).toContain('before sending your final reply')
+    expect(desc).toContain('stale `in_progress` at the end of a finished turn is a bug')
+  })
+
   it.each([
     { label: 'empty content', todos: [{ content: '   ', status: 'pending' }], fragment: 'non-empty' },
     { label: 'duplicate content', todos: [{ content: 'dup', status: 'pending' }, { content: 'dup', status: 'completed' }], fragment: 'duplicate' },

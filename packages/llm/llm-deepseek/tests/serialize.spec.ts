@@ -29,7 +29,7 @@ describe('serializeMessages', () => {
     expect(wire).toEqual([{ role: 'system', content: 'be brief' }])
   })
 
-  it('maps plain assistant text without reasoning_content', () => {
+  it('passes reasoning_content back on a lone (hence most-recent) assistant turn', () => {
     const wire = serializeMessages([
       createMessage({
         role: 'assistant',
@@ -40,8 +40,26 @@ describe('serializeMessages', () => {
         source: { kind: 'plugin', plugin: 'test' },
       }),
     ])
-    // Tool-call-free turn: reasoning is dropped (ignored by the API anyway).
-    expect(wire).toEqual([{ role: 'assistant', content: 'answer' }])
+    // A single assistant message is the most recent one, so it carries RC.
+    expect(wire).toEqual([{ role: 'assistant', content: 'answer', reasoning_content: 'thinking…' }])
+  })
+
+  it('sends empty reasoning_content on a tool-call turn that had no reasoning', () => {
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', id: CallId('call-1'), name: 'get_weather', arguments: '{"city":"Paris"}' },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+    expect(wire).toEqual([{
+      role: 'assistant',
+      content: '',
+      reasoning_content: '',
+      tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"Paris"}' } }],
+    }])
   })
 
   it('passes reasoning_content back on tool-call turns (official passback rule)', () => {
@@ -65,6 +83,29 @@ describe('serializeMessages', () => {
     }])
   })
 
+  it('replays reasoning_content only on the most recent assistant message', () => {
+    // DeepSeek V4 (0813) 400s when an intermediate assistant message carries
+    // reasoning_content, so earlier turns omit it and only the last replays it.
+    const assistant = (id: string, reasoning: string) => createMessage({
+      role: 'assistant',
+      content: [
+        { type: 'reasoning', text: reasoning },
+        { type: 'tool-call', id: CallId(id), name: 'bash', arguments: '{"command":"pwd"}' },
+      ],
+      source: { kind: 'plugin', plugin: 'test' },
+    })
+    const wire = serializeMessages([
+      assistant('call-1', 'first plan'),
+      { role: 'user', content: [{ type: 'tool-result', toolCallId: CallId('call-1'), content: [{ type: 'text', text: 'out1' }] }], source: { kind: 'plugin', plugin: 'test' } } as Message,
+      assistant('call-2', 'second plan'),
+      { role: 'user', content: [{ type: 'tool-result', toolCallId: CallId('call-2'), content: [{ type: 'text', text: 'out2' }] }], source: { kind: 'plugin', plugin: 'test' } } as Message,
+    ])
+    const assistants = wire.filter(m => m.role === 'assistant') as { reasoning_content?: string }[]
+    expect(assistants).toHaveLength(2)
+    expect('reasoning_content' in assistants[0]!).toBe(false)
+    expect(assistants[1]!.reasoning_content).toBe('second plan')
+  })
+
   it('serializes parallel tool calls in order', () => {
     const wire = serializeMessages([
       createMessage({
@@ -78,6 +119,63 @@ describe('serializeMessages', () => {
     ])
     const assistant = wire[0] as { tool_calls: { id: string }[] }
     expect(assistant.tool_calls.map(call => call.id)).toEqual(['a', 'b'])
+  })
+
+  it('repairs non-object tool-call arguments so the paired tool result stays replayable', () => {
+    // A v4 turn can paste two argument objects back-to-back; the serializer must
+    // send `{}` so the paired role:'tool' message keeps its tool_call, while the
+    // model still receives the tool's own error result.
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', id: CallId('call-1'), name: 'bash', arguments: '{"command":"a"}{"command":"b"}' },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      createUserMessage({
+        content: [
+          { type: 'tool-result', toolCallId: CallId('call-1'), content: [{ type: 'text', text: 'Error: invalid arguments' }] },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+    expect(wire[0]).toMatchObject({
+      role: 'assistant',
+      tool_calls: [{ id: 'call-1', function: { name: 'bash', arguments: '{}' } }],
+    })
+    expect(wire[1]).toEqual({ role: 'tool', tool_call_id: 'call-1', content: 'Error: invalid arguments' })
+  })
+
+  it('keeps well-formed object tool-call arguments byte-verbatim', () => {
+    // Whitespace + key order would be lost by a stringify(JSON.parse(x)) round
+    // trip, so this pins the raw string is passed through untouched.
+    const raw = '{"b":2,  "a": 1}'
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', id: CallId('call-1'), name: 'bash', arguments: raw },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+    expect(wire[0]).toMatchObject({ tool_calls: [{ function: { arguments: raw } }] })
+  })
+
+  it('replaces valid-JSON-but-non-object arguments with the placeholder', () => {
+    for (const args of ['[]', '[1,2]', '42', '"x"', 'true', 'null']) {
+      const wire = serializeMessages([
+        createMessage({
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', id: CallId('call-1'), name: 'bash', arguments: args },
+          ],
+          source: { kind: 'plugin', plugin: 'test' },
+        }),
+      ])
+      expect(wire[0], args).toMatchObject({ tool_calls: [{ function: { arguments: '{}' } }] })
+    }
   })
 
   it('turns tool results into role:tool messages', () => {
@@ -279,19 +377,21 @@ describe('review fixes: assistant content shapes', () => {
       role: 'assistant', content: [],
       source: { kind: 'plugin', plugin: 'test' },
     })])
-    expect(wire).toEqual([{ role: 'assistant', content: '' }])
+    // A lone assistant is the most recent one, so it carries reasoning_content
+    // (empty here) under the V4 last-assistant-only passback rule.
+    expect(wire).toEqual([{ role: 'assistant', content: '', reasoning_content: '' }])
   })
 
-  it('serializes a reasoning-ONLY assistant message as "" content with the reasoning dropped', () => {
+  it('serializes a reasoning-ONLY assistant message as "" content with reasoning replayed', () => {
     // The model can answer entirely in the reasoning channel (a v4-flash
-    // greeting did, live). The passback rule keeps reasoning_content off
-    // plain turns, and content must still be SET — a null here poisoned the
+    // greeting did, live). As the most recent assistant message its reasoning
+    // is passed back; content must still be SET — a null here poisoned the
     // session log and bricked every later turn of that session.
     const wire = serializeMessages([createMessage({
       role: 'assistant', content: [{ type: 'reasoning', text: '你好！有什么我可以帮你的吗？' }],
       source: { kind: 'plugin', plugin: 'test' },
     })])
-    expect(wire).toEqual([{ role: 'assistant', content: '' }])
+    expect(wire).toEqual([{ role: 'assistant', content: '', reasoning_content: '你好！有什么我可以帮你的吗？' }])
   })
 
   it('serializes tool-call turns with empty string content, not null', () => {

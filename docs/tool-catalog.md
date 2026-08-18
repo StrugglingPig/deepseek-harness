@@ -354,7 +354,8 @@ List every Cordis Inspect Provider currently known to the Host, including local 
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -414,7 +415,8 @@ Inspect dynamic Cordis objects owned by the current Session at increasing levels
       "type": "string",
       "description": "Exact immutable Package ID owned by pluginId; when specified, source and diagnostics are returned."
     }
-  }
+  },
+  "required": []
 }
 ```
 
@@ -805,7 +807,8 @@ List persistent terminal sessions owned by the current agent.
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -974,7 +977,8 @@ Read the current same-session goal, including its exact id/revision, objective, 
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -1121,7 +1125,8 @@ List every active reminder in the current session in creation order, including i
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -1460,7 +1465,8 @@ Read the authorized session lineage around one session, including complete visib
       "type": "string",
       "description": "Target session id. Omit for the current session."
     }
-  }
+  },
+  "required": []
 }
 ```
 
@@ -1545,7 +1551,8 @@ List your continuable background subagents by durable id and label. Use it to re
         "descendants"
       ]
     }
-  }
+  },
+  "required": []
 }
 ```
 
@@ -1642,7 +1649,8 @@ List your background jobs (running and finished) with their ids, kinds, and stat
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 

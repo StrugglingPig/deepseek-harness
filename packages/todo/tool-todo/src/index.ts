@@ -63,7 +63,10 @@ const DESCRIPTION_TAIL =
   + '`completed` the moment it is done (do not batch completions), and allow no '
   + '`in_progress` item only once all work is complete. Skip the list for trivial '
   + 'single-step tasks. Statuses: `pending` (not started), `in_progress` (being '
-  + 'worked on now), `completed` (finished).'
+  + 'worked on now), `completed` (finished). '
+  + 'Closing discipline: before sending your final reply to the user, send one last '
+  + '`todo_write` with every remaining item marked `completed` unless work is genuinely '
+  + 'unfinished — a stale `in_progress` at the end of a finished turn is a bug.'
 
 /**
  * The model-facing description for one activation. The active-status clause is the only part that

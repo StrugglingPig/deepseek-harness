@@ -1,8 +1,9 @@
 /**
  * Serialize harness messages into DeepSeek chat completions. User text is joined; assistant text
  * becomes `content`, tool calls become `tool_calls`, and tool results become separate tool messages.
- * Assistant reasoning is replayed as `reasoning_content` only on tool-call turns, as required by
- * thinking-mode passback. Core image blocks are rejected explicitly because this wire route is text-only;
+ * Assistant reasoning is replayed as `reasoning_content` on the most recent assistant message only —
+ * DeepSeek V4 (0813) thinking mode 400s if an earlier (intermediate) assistant message carries it;
+ * core image blocks are rejected explicitly because this wire route is text-only;
  * unknown declaration-merged block types retain the adapter's documented extension fallback.
  * @module dsh-llm-deepseek/serialize
  */
@@ -67,8 +68,34 @@ function assertTextOnly(blocks: readonly ContentBlock[]): void {
   }
 }
 
+/**
+ * The gateway parses each replayed `tool_calls[].function.arguments` to pair the
+ * call with the following `role:'tool'` messages, and drops a call whose
+ * arguments are not a single JSON object — the paired tool message is then
+ * rejected with "Messages with role 'tool' must be a response to a preceding
+ * message with 'tool_calls'". Model output is not guaranteed well-formed (a turn
+ * can paste two argument objects back-to-back), so replay the raw string only
+ * when it is one JSON object and fall back to an empty object otherwise. The
+ * repair is wire-only: the session log keeps the raw arguments, and the model
+ * still receives the tool's own error result.
+ * @param raw - the assembled tool-call arguments string.
+ * @returns `raw` when it is one JSON object, else `'{}'`.
+ */
+function toolCallArguments(raw: string): string {
+  let parsed: unknown
+  try {
+    // JSON.parse is the only throwing statement: SyntaxError when the string is
+    // not JSON, RangeError on pathologically deep input. Both mean "not one
+    // object", so both take the placeholder.
+    parsed = JSON.parse(raw)
+  } catch {
+    return '{}'
+  }
+  return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? raw : '{}'
+}
+
 /** Serialize one assistant message (text + reasoning + tool calls). */
-function serializeAssistant(message: Message): WireMessage {
+function serializeAssistant(message: Message, replayReasoning: boolean): WireMessage {
   const text = flattenText(message.content)
   const reasoning = message.content
     .filter(block => block.type === 'reasoning')
@@ -79,7 +106,7 @@ function serializeAssistant(message: Message): WireMessage {
     .map(block => ({
       id: block.id,
       type: 'function' as const,
-      function: { name: block.name, arguments: block.arguments },
+      function: { name: block.name, arguments: toolCallArguments(block.arguments) },
     }))
 
   return {
@@ -93,10 +120,12 @@ function serializeAssistant(message: Message): WireMessage {
     // the message sits durably in the session log, a null here bricks every
     // later turn of that session.
     content: text,
-    // Official passback rule (guides/thinking_mode.mdx): reasoning_content
-    // must return on tool-call turns; it is ignored on plain turns, so we
-    // drop it there to save tokens.
-    ...toolCalls.length > 0 && reasoning.length > 0 ? { reasoning_content: reasoning } : {},
+    // DeepSeek V4 (0813) thinking mode accepts `reasoning_content` only on the
+    // MOST RECENT assistant message; replaying it on an earlier (intermediate)
+    // assistant message — even verbatim — makes the API return 400
+    // "The `reasoning_content` in the thinking mode must be passed back".
+    // Verified live: RC-on-all and RC-on-none both 400; RC-on-last-only passes.
+    ...replayReasoning ? { reasoning_content: reasoning } : {},
     ...toolCalls.length > 0 ? { tool_calls: toolCalls } : {},
   }
 }
@@ -110,15 +139,23 @@ function serializeAssistant(message: Message): WireMessage {
  * @returns the wire messages; order preserved, each tool result expanded into its own entry.
  */
 export function serializeMessages(messages: Message[]): WireMessage[] {
+  // DeepSeek V4 (0813) only accepts `reasoning_content` on the most recent
+  // assistant message, so find it up front and replay reasoning there alone.
+  let lastAssistant = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'assistant') { lastAssistant = i; break }
+  }
   const wire: WireMessage[] = []
-  for (const message of messages) {
+  for (let idx = 0; idx < messages.length; idx++) {
+    const message = messages[idx]
+    if (!message) continue
     assertTextOnly(message.content)
     if (message.role === 'system') {
       wire.push({ role: 'system', content: flattenText(message.content) })
       continue
     }
     if (message.role === 'assistant') {
-      wire.push(serializeAssistant(message))
+      wire.push(serializeAssistant(message, idx === lastAssistant))
       continue
     }
     // user role: tool results ride in user messages in the harness
@@ -170,7 +207,7 @@ export function serializeRequest(
   // compaction calls continue to inherit the adapter's thinking defaults.
   const resolvedThinking = resolveThinking(options, defaults)
 
-  return {
+  const request: WireRequest = {
     model: options.model,
     messages,
     stream: true,
@@ -184,4 +221,5 @@ export function serializeRequest(
     ...options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens },
     ...options.stop !== undefined ? { stop: options.stop } : {},
   }
+  return request
 }

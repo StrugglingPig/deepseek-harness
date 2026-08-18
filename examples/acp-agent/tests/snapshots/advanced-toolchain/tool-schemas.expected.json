@@ -127,7 +127,8 @@
       "description": "List every Cordis Inspect Provider currently known to the Host, including local Host Providers and the latest manifests synchronized from the Client. Each entry includes its platform, purpose, read-only methods, and input/output schemas. Call this Tool before creating or modifying a Package, then select the provider and method for cordis_inspect_query from its result. Do not guess names or treat an Inspect method as a business Service that Plugin code can call.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": []
       }
     },
     {
@@ -177,7 +178,8 @@
             "type": "string",
             "description": "Exact immutable Package ID owned by pluginId; when specified, source and diagnostics are returned."
           }
-        }
+        },
+        "required": []
       }
     },
     {
@@ -309,7 +311,8 @@
       "description": "Read the current same-session goal, including its exact id/revision, objective, phase, completed continuation rounds, round limit, blocker reason when present, and whether another continuation is armed. Call this before updating a goal.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": []
       }
     },
     {
@@ -353,7 +356,8 @@
       "description": "List your background jobs (running and finished) with their ids, kinds, and statuses.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": []
       }
     },
     {
@@ -394,7 +398,8 @@
               "descendants"
             ]
           }
-        }
+        },
+        "required": []
       }
     },
     {

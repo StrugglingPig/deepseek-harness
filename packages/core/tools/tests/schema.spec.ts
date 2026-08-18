@@ -57,6 +57,14 @@ describe('the unified author schema DSL', () => {
     })
   })
 
+  it('always declares the parameter-root required array, even when empty', () => {
+    expect(parameterSchemaSpecToJsonSchema({})).toEqual({
+      type: 'object',
+      properties: {},
+      required: [],
+    })
+  })
+
   it('rejects runtime-forged author forms rather than compiling them lossily', () => {
     for (const schema of [
       { type: 'object' },

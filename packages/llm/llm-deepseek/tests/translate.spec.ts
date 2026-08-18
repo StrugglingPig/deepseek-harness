@@ -123,6 +123,76 @@ describe('translate: tool calls', () => {
     ])
   })
 
+  it('splits a second tool call that reuses an occupied wire index (DeepSeek quirk)', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a', type: 'function', function: { name: 'bash', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"command":"a"}' } }] } }] },
+      // DeepSeek reuses index 0 for a second call carrying a fresh id.
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_b', type: 'function', function: { name: 'bash', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"command":"b"}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    expect(chunks.filter(c => c.type === 'block-start')).toEqual([
+      { type: 'block-start', index: 0, blockType: 'tool-call' },
+      { type: 'block-start', index: 1, blockType: 'tool-call' },
+    ])
+    // The delta that triggers the split is emitted under the new block's index/id.
+    expect(chunks.filter(c => c.type === 'tool-call-delta' && (c as { index: number }).index === 1)).toEqual([
+      { type: 'tool-call-delta', index: 1, id: 'call_b', name: 'bash', argumentsDelta: '' },
+      { type: 'tool-call-delta', index: 1, id: 'call_b', name: 'bash', argumentsDelta: '{"command":"b"}' },
+    ])
+    const ends = chunks.filter(c => c.type === 'block-end')
+    expect(ends).toEqual([
+      { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'call_a', name: 'bash', arguments: '{"command":"a"}' } },
+      { type: 'block-end', index: 1, block: { type: 'tool-call', id: 'call_b', name: 'bash', arguments: '{"command":"b"}' } },
+    ])
+  })
+
+  it('keeps merging when a provider resends the same id on every delta', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a', type: 'function', function: { name: 'bash', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a', function: { arguments: '{"command":"a"}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    const ends = chunks.filter(c => c.type === 'block-end')
+    expect(ends).toEqual([
+      { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'call_a', name: 'bash', arguments: '{"command":"a"}' } },
+    ])
+  })
+
+  it('adopts a late-arriving id on an id-less block without splitting', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, type: 'function', function: { name: 'bash', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"command":"a"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a' }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    const ends = chunks.filter(c => c.type === 'block-end')
+    expect(ends).toEqual([
+      { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'call_a', name: 'bash', arguments: '{"command":"a"}' } },
+    ])
+  })
+
+  it('treats a null id as absent rather than a fresh call id', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a', type: 'function', function: { name: 'bash', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: null, function: { arguments: '{"command":"a"}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    const ends = chunks.filter(c => c.type === 'block-end')
+    expect(ends).toEqual([
+      { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'call_a', name: 'bash', arguments: '{"command":"a"}' } },
+    ])
+  })
+
   it('disambiguates parallel tool calls by wire index', async () => {
     const chunks = await collect(translate(feed(
       firstChunk,

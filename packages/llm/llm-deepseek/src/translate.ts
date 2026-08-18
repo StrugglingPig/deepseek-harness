@@ -1,6 +1,7 @@
 /**
- * Translate DeepSeek SSE payloads with one stateful harness block per content, reasoning, or tool
- * call index. An empty initial reasoning delta does not open a block. Finish reason and the latest
+ * Translate DeepSeek SSE payloads with one stateful harness block per content or reasoning message
+ * and per distinct tool-call id at its wire index (DeepSeek can reuse an index for a second call).
+ * An empty initial reasoning delta does not open a block. Finish reason and the latest
  * usage are deferred until `[DONE]`, covering both finish-attached and trailing usage-only shapes
  * while ensuring no chunk follows `finish`.
  *
@@ -150,13 +151,24 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
       }
 
       for (const call of delta?.tool_calls ?? []) {
+        // A gateway may serialize an omitted id as null; only a string is a real id.
+        const callId = typeof call.id === 'string' ? call.id : undefined
         let block = toolBlocks.get(call.index)
+        // DeepSeek can reuse a stream index for a second tool call in the same
+        // message. Merging by index alone would append the second call's argument
+        // fragments to the first, producing invalid JSON like {...}{...}; a new id
+        // that differs from the block's recorded callId therefore opens a new block.
+        // A first call that never delivers an id is intentionally treated as the
+        // same call, so id-less streams merge rather than fragment.
+        if (block && callId !== undefined && block.callId !== undefined && callId !== block.callId) {
+          block = undefined
+        }
         if (!block) {
           block = open('tool-call')
           toolBlocks.set(call.index, block)
           yield { type: 'block-start', index: block.index, blockType: 'tool-call' }
         }
-        if (call.id !== undefined) block.callId = call.id
+        if (callId !== undefined) block.callId = callId
         if (call.function?.name !== undefined) block.name = call.function.name
         const fragment = call.function?.arguments ?? ''
         block.text += fragment

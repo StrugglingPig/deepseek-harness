@@ -356,7 +356,8 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -416,7 +417,8 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
       "type": "string",
       "description": "Exact immutable Package ID owned by pluginId; when specified, source and diagnostics are returned."
     }
-  }
+  },
+  "required": []
 }
 ```
 
@@ -809,7 +811,8 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -978,7 +981,8 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -1125,7 +1129,8 @@ create、edit、pause 和 resume 要求直接来自人类的根权限；complete
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 
@@ -1464,7 +1469,8 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
       "type": "string",
       "description": "Target session id. Omit for the current session."
     }
-  }
+  },
+  "required": []
 }
 ```
 
@@ -1549,7 +1555,8 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
         "descendants"
       ]
     }
-  }
+  },
+  "required": []
 }
 ```
 
@@ -1646,7 +1653,8 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {},
+  "required": []
 }
 ```
 

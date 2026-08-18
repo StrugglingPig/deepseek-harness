@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-15-repair-unparseable-tool-call-arguments-on-replay.md
+2026-08-15-repair-unparseable-tool-call-arguments-on-replay.md: 9106dee13450428e6cd3919cc67346d98d15cc75
+2026-08-15-repair-unparseable-tool-call-arguments-on-replay.zh.md: d1fc3b0272431766ed2349f05f133c3102877a98
