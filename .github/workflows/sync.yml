@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  workflows: write
 
 jobs:
   sync:
@@ -27,4 +28,3 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git merge upstream/master
           git push https://x-access-token:$GITHUB_TOKEN@github.com/StrugglingPig/deepseek-harness.git HEAD:master --force-with-lease
-
