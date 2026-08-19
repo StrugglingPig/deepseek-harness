@@ -28,8 +28,8 @@ import {
   deletePath, getPath, hasPath, nodeAtPath, rehydrateSchema, setPath, validateDraft,
 } from '@deepseek-ai/dsh-client-schema-form'
 import {
-  DeepSeekModelsEditor, modelDrafts, validateDeepSeekModels,
-} from './DeepSeekModelsEditor.tsx'
+  modelDrafts, validateDeepSeekModels,
+} from './model-drafts.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
@@ -447,17 +447,22 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 </div>
               )
               : null}
-            {/* Both families edit the same rows through the same contract; only
-                the extras differ — DeepSeek's inherited capacities, pi-ai's
-                endpoint interrogation. */}
+            {/* Both families edit the same rows through one editor; the
+                deepseek card additionally passes its adapter fallbacks as the
+                capacity placeholders, and both offer the fetch action. */}
             {family === 'deepseek'
               ? (
-                <DeepSeekModelsEditor
+                <ModelListEditor
                   {...catalogProps}
-                  defaultContextWindow={typeof defaultContextWindow === 'number'
-                    ? defaultContextWindow
-                    : undefined}
-                  defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
+                  probe={probe}
+                  probeBlocked={keyFailure}
+                  api={api}
+                  {...typeof defaultContextWindow === 'number' && Number.isFinite(defaultContextWindow)
+                    ? { defaultContextWindow }
+                    : {}}
+                  {...typeof defaultMaxTokens === 'number' && Number.isFinite(defaultMaxTokens)
+                    ? { defaultMaxTokens }
+                    : {}}
                 />
               )
               : <ModelListEditor {...catalogProps} probe={probe} probeBlocked={keyFailure} api={api} />}

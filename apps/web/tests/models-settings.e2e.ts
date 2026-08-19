@@ -30,6 +30,7 @@ const EMPTY_EXPECTED = join(SNAPSHOT_DIR, 'empty.expected.md')
 const CONFIGURED_EXPECTED = join(SNAPSHOT_DIR, 'configured.expected.md')
 const DECLARED_EXPECTED = join(SNAPSHOT_DIR, 'declared.expected.md')
 const DECLARED_EDIT_EXPECTED = join(SNAPSHOT_DIR, 'declared-edit.expected.md')
+const DEEPSEEK_EDIT_EXPECTED = join(SNAPSHOT_DIR, 'deepseek-edit.expected.md')
 const NATIVE_DELETE_EXPECTED = join(SNAPSHOT_DIR, 'native-delete.expected.md')
 const DELETE_EXPECTED = join(SNAPSHOT_DIR, 'delete.expected.md')
 const MODE = webSnapshotMode()
@@ -280,7 +281,69 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'configured.expected.md', 'declared-edit.expected.md', 'declared.expected.md',
-      'delete.expected.md', 'empty.expected.md', 'native-delete.expected.md',
+      'deepseek-edit.expected.md', 'delete.expected.md', 'empty.expected.md',
+      'native-delete.expected.md',
     ])
   })
+})
+
+// The DeepSeek card's fetch action over the shipped adapter with its
+// credential masked: the setup card stores a throwaway key write-only, the
+// row editor then offers 获取可用模型, and because the probe names the owned
+// route without a typed endpoint the host answers from the live advisory
+// catalog — no network, no model call, safe keyless. The picker lists the two
+// shipped V4 models for adoption.
+describe.skipIf(MODE === 'record')('web e2e: Models settings offers the deepseek fetch action', () => {
+  let scaffold: WebScaffold
+  let browser: Browser
+  let page: Page
+  let tripwire: ReturnType<typeof watchConsole>
+
+  beforeAll(async () => {
+    scaffold = await launchWebScaffold({ deepSeekMissingCredential: true })
+    browser = await chromium.launch()
+    page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    tripwire = watchConsole(page)
+    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+  }, 120_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    await scaffold?.close()
+  })
+
+  it('offers 获取可用模型 on the DeepSeek card and lists the live catalog', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-models-deepseek-edit'))
+    // First-run posture: the credential onboarding modal opens over the app;
+    // a throwaway key completes it and turns DeepSeek into an ordinary row.
+    const onboarding = page.getByRole('dialog', { name: '添加一个 API Key 开始使用' })
+    await onboarding.waitFor({ timeout: 15_000 })
+    await onboarding.getByLabel('API 密钥', { exact: true }).fill('sk-e2e')
+    await onboarding.getByRole('button', { name: '保存并继续' }).click()
+    await onboarding.waitFor({ state: 'detached', timeout: 15_000 })
+
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '设置' })
+    await dialog.waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '模型' }).click()
+    const edit = dialog.getByRole('button', { name: '编辑 DeepSeek (deepseek-official)' })
+    await edit.waitFor({ timeout: 10_000 })
+    await edit.click()
+
+    await dialog.getByText('自定义设置').click()
+    const fetch = dialog.getByRole('button', { name: '获取可用模型' })
+    await fetch.waitFor({ timeout: 10_000 })
+    // The owned route is askable before any endpoint is typed: the adapter
+    // answers from its live catalog.
+    await expect.poll(async () => fetch.isEnabled(), { timeout: 10_000 }).toBe(true)
+    await fetch.click()
+    const picker = page.getByRole('dialog', { name: '选择要添加的模型' })
+    await picker.getByText('deepseek-v4-flash').waitFor({ timeout: 10_000 })
+    await picker.getByText('deepseek-v4-pro').waitFor({ timeout: 10_000 })
+    const snapshot = await captureStableAria(page, '[role="dialog"][aria-label="选择要添加的模型"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(DEEPSEEK_EDIT_EXPECTED, snapshot, MODE)
+    await picker.getByRole('button', { name: '取消' }).click()
+    expect(tripwire.pageErrors).toEqual([])
+  }, 60_000)
 })

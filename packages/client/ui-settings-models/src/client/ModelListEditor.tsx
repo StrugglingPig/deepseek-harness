@@ -1,13 +1,17 @@
 /**
- * The model list of one pi-ai provider profile, plus the action that asks the
- * provider what it serves.
+ * The model list of one provider profile, plus the action that asks the
+ * provider what it serves. Both settings families edit their rows here:
+ * pi-ai profiles and the DeepSeek card, whose adapter fallbacks arrive as
+ * the capacity placeholders.
  *
- * The list is the profile's `models` array as the card holds it: an empty list
- * means "serve this route's built-in catalog", and any entry replaces that
- * catalog, so a row is only ever added deliberately. Fetching asks the endpoint
- * **the form currently shows** — including a key typed but not yet saved — so
- * adding a provider is one pass instead of save-then-return; the reply is
- * candidates the user picks from, never configuration written behind them.
+ * The list is the profile's `models` array as the card holds it, and any entry
+ * replaces that catalog, so a row is only ever added deliberately. For pi-ai an
+ * empty list means "serve this route's built-in catalog"; on the DeepSeek card
+ * an explicit empty list is an empty advisory catalog — the built-in defaults
+ * return only via reset. Fetching asks the endpoint **the form currently
+ * shows** — including a key typed but not yet saved — so adding a provider is
+ * one pass instead of save-then-return; the reply is candidates the user picks
+ * from, never configuration written behind them.
  *
  * A provider that cannot be interrogated (an unreachable endpoint, a protocol
  * with no readable listing) is not a dead end: the failure is shown next to the
@@ -18,17 +22,17 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DiscoveredModelView, IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
-import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
+import { formatCapacity, parseCapacity } from './model-drafts.ts'
+import type { DeepSeekModelDraft } from './model-drafts.ts'
 import { messageOf } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
 /**
- * One configured model row. Structurally open, exactly like the DeepSeek
- * catalog editor's rows: a profile field this card does not edit — one a future
- * schema adds, or one hand-written in `settings.yaml` — has to survive being
- * edited here rather than being dropped by a rebuild.
+ * One configured model row: the shared `DeepSeekModelDraft` from
+ * `model-drafts.ts`. Structurally open, because a profile field this card does
+ * not edit — one a future schema adds, or one hand-written in `settings.yaml` —
+ * has to survive being edited here rather than being dropped by a rebuild.
  */
 export type ModelDraft = DeepSeekModelDraft
 
@@ -72,6 +76,13 @@ export interface ModelListEditorProps {
   onChange: (models: ModelDraft[]) => void
   /** Remove the user-owned array and return to inheritance; absent on a create. */
   onReset?: () => void
+  /**
+   * Adapter fallback capacities a row left blank inherits; shown as the
+   * capacity placeholders. The deepseek card passes the profile's
+   * `defaultContextWindow` and `maxTokens`; absent keeps the generic hints.
+   */
+  defaultContextWindow?: number
+  defaultMaxTokens?: number
   /** Endpoint facts for the fetch action. */
   probe: ProbeTarget
   /**
@@ -117,15 +128,11 @@ function IconTrash(): ReactNode {
 type CapacityField = 'contextWindow' | 'maxTokens'
 
 /**
- * What an empty capacity field is worth, shown as its placeholder so a row left
- * blank does not read as a model with no capacity at all.
- *
- * The magnitudes are the adapter's own route-level fallbacks (`llm-pi-ai`'s
- * `defaultContextWindow` and `defaultMaxTokens`), spelled the way a person
- * would say them. They are a hint, not a mirror: this page counts `K` as 1000,
- * so typing `256K` stores 256000 while leaving the field blank keeps the
- * adapter's 262144. A deployment that overrides those defaults is not
- * reflected here — nothing on this page can read them.
+ * Generic capacity magnitudes shown as placeholders when the owning card does
+ * not supply the adapter's own fallbacks, so a row left blank does not read as
+ * a model with no capacity at all. They are a hint, not a mirror: this page
+ * counts `K` as 1000, so typing `256K` stores 256000 while leaving the field
+ * blank keeps whatever the adapter inherits.
  */
 const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
   contextWindow: '256K',
@@ -134,8 +141,8 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
 
 /**
  * Spell a stored count for a field that may be unset. The spelling itself is
- * {@link formatCapacity}, shared with the DeepSeek catalog editor so both
- * surfaces read and write one K/M vocabulary.
+ * {@link formatCapacity} from `model-drafts.ts`, the one K/M vocabulary the
+ * card and its validators share.
  * @param value - stored capacity, or `undefined` for an unset field.
  * @returns the field text, empty when unset.
  */
@@ -143,11 +150,13 @@ function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
 }
 
-/** Adopt a candidate, keeping whatever capacities the provider disclosed. */
+/** Adopt a candidate, keeping whatever capacities the provider disclosed; the
+ * display name falls back to the id so an adopted row always reads like the
+ * model it names. */
 function adopt(candidate: DiscoveredModelView): ModelDraft {
   return {
     id: candidate.id,
-    ...candidate.name === undefined ? {} : { name: candidate.name },
+    name: candidate.name ?? candidate.id,
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
   }
@@ -186,6 +195,35 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   /** What a capacity field shows: the buffer while typing, else the stored count. */
   const capacityText = (model: ModelDraft, index: number, field: CapacityField): string =>
     editing.get(bufferKey(index, field)) ?? capacitySpelling(numberOf(model, field))
+
+  /** What an empty capacity field shows: the adapter's fallback when the card supplies one, else the generic hint. */
+  const capacityPlaceholder = (field: CapacityField): string => {
+    const fallback = field === 'contextWindow' ? props.defaultContextWindow : props.defaultMaxTokens
+    return fallback === undefined ? CAPACITY_HINT[field] : formatCapacity(fallback)
+  }
+
+  /** Drop the typing buffer once the field no longer holds unreadable text. */
+  const settleCapacity = (index: number, field: CapacityField): void => {
+    const key = bufferKey(index, field)
+    const typed = editing.get(key)
+    if (typed === undefined) return
+    // Unreadable text stays on screen past blur so the save-time rejection
+    // names a row the user can still see; a readable or cleared field drops
+    // its buffer so the row shows the canonical spelling (or the placeholder).
+    if (Number.isNaN(parseCapacity(typed))) return
+    setEditing((current) => {
+      const next = new Map(current)
+      next.delete(key)
+      return next
+    })
+  }
+
+  /** Reset returns to inheritance and drops the buffers the replaced rows annotated. */
+  const reset = (): void => {
+    setEditing(new Map())
+    setExpanded(new Set())
+    props.onReset?.()
+  }
 
   /** Drop one row's entries and shift the rows after it down, in one pass. */
   const reindexOnRemove = (
@@ -239,7 +277,9 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         ...probe.apiKey === undefined ? {} : { apiKey: probe.apiKey },
       })
       if (!response.result.ok) {
-        setFailure(response.result.error.message)
+        setFailure(response.result.error.message.length > 0
+          ? response.result.error.message
+          : t('fetchFailed'))
         return
       }
       const found = response.result.value.models
@@ -254,8 +294,10 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       setPicked(new Set(found.filter(model => !known.has(model.id)).map(model => model.id)))
     } catch (error) {
       // The transport rejected rather than answering; without this the button
-      // would stay busy with nothing shown.
-      setFailure(messageOf(error))
+      // would stay busy with nothing shown. An empty host message still names
+      // the action that failed instead of rendering a blank error line.
+      const message = messageOf(error)
+      setFailure(message.length > 0 ? message : t('fetchFailed'))
     } finally {
       setBusy(false)
     }
@@ -312,7 +354,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
               type="button"
               className={styles['linkButton']}
               disabled={disabled}
-              onClick={props.onReset}
+              onClick={reset}
             >
               {t('resetModels')}
             </button>
@@ -342,6 +384,12 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
               aria-label={`${t('modelId')} ${index + 1}`}
               disabled={disabled}
               onChange={(event) => { patch(index, { id: event.target.value }) }}
+              onBlur={(event) => {
+                // Settle a pasted id rather than trimming per keystroke,
+                // which would stop the user typing an interior space.
+                const trimmed = event.target.value.trim()
+                if (trimmed !== event.target.value) patch(index, { id: trimmed })
+              }}
             />
             <input
               className={styles['input']}
@@ -398,10 +446,11 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                     type="text"
                     inputMode="numeric"
                     value={capacityText(model, index, 'contextWindow')}
-                    placeholder={CAPACITY_HINT.contextWindow}
+                    placeholder={capacityPlaceholder('contextWindow')}
                     aria-label={`${t('modelContextWindow')} ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
+                    onBlur={() => { settleCapacity(index, 'contextWindow') }}
                   />
                 </label>
                 <label className={styles['modelField']}>
@@ -411,10 +460,11 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                     type="text"
                     inputMode="numeric"
                     value={capacityText(model, index, 'maxTokens')}
-                    placeholder={CAPACITY_HINT.maxTokens}
+                    placeholder={capacityPlaceholder('maxTokens')}
                     aria-label={`${t('modelMaxTokens')} ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
+                    onBlur={() => { settleCapacity(index, 'maxTokens') }}
                   />
                 </label>
               </div>

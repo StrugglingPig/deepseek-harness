@@ -61,8 +61,9 @@ export interface LlmApi {
    *
    * Nothing is written — the reply is candidates, and only a later
    * `settings.mutate` decides what a route serves. `apiKey` is accepted here
-   * but never stored or returned; a provider whose key is already stored omits
-   * it and the endpoint answers unauthenticated or refuses.
+   * but never stored or returned; the client sends only a key typed into the
+   * form. The owning adapter may resolve the route's stored credential host-
+   * side; absent one, the probe goes out unauthenticated.
    */
   discoverModels(
     request: RpcRequest<{

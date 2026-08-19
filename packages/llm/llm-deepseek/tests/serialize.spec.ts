@@ -9,6 +9,17 @@ function request(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
 }
 
 describe('serializeMessages', () => {
+  it('skips holes a sparse messages array may carry', () => {
+    const block: ContentBlock = { type: 'text', text: 'present' }
+    const sparse = new Array<Message>(2)
+    sparse[0] = createUserMessage({ content: [block], source: { kind: 'plugin', plugin: 'test' } })
+
+    const wire = serializeMessages(sparse)
+
+    expect(wire).toHaveLength(1)
+    expect(wire[0]).toMatchObject({ role: 'user' })
+  })
+
   it('maps user text to string content', () => {
     const wire = serializeMessages([
       createUserMessage({

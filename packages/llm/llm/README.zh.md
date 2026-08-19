@@ -17,6 +17,8 @@
 - `ctx.llm.registerModelDiscovery(settingsNs: string, discover): () => void` 为本插件拥有的 settings namespace 提供查询提供方端点的能力。每个 namespace 只能有一个（`INVALID_DISCOVERY`/`DUPLICATE_DISCOVERY`），并随调用 fiber dispose。
 - `ctx.llm.listModelDiscoveryNamespaces(): string[]` 列出可以询问端点的 namespace，让界面只在可用之处提供该动作。
 - `ctx.llm.discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest): Promise<LlmDiscoveredModel[]>` 询问某个端点它公布了哪些模型。
+- `fetchOpenAiCompatibleModels(request: LlmModelDiscoveryRequest): Promise<LlmDiscoveredModel[]>` 模型发现背后共享的 OpenAI 兼容 `GET /models` 询问：请求自带的一次性密钥作 bearer 认证、归属头、端点基址按前缀拼接、跳过无可用 id 的条目、对实收字节执行 4MiB 上限。各适配器的发现注册在其外包裹自己的 catalog 与协议决定（不可达/拒绝/非列表回复为 `DISCOVERY_FAILED`，空白或标头非法密钥为 `INVALID_CREDENTIAL`，调用方取消为 `ABORTED`）。
+- `enrichDiscoveredModels(listed: readonly LlmDiscoveredModel[], known: ReadonlyMap<string, LlmKnownModelFacts>): readonly LlmDiscoveredModel[]` 用适配器已知事实按 id 回填网络列表的缺失——多数列表只公布 id，而适配器 catalog 携带它所发布 id 的名称与容量。端点已提供的信息保持权威；未知 id 原样通过。
 - `ctx.llm.providerRetryPolicy(provider: string): ResolvedRetryPolicy` 返回注册时捕获的提供方自身的重试策略，并解析 normal 默认值。
 - `ctx.llm.listModels(provider: string): Promise<LlmModelInfo[]>` 发现某个已注册提供方当前公布的模型。
 - `ctx.llm.resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>` 从拥有该精确路由的适配器中，解析并校验确切模型身份，以及可用上下文、输出默认值和推理（reasoning）元数据；异步适配器可选地支持取消。

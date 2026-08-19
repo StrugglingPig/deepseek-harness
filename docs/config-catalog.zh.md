@@ -868,6 +868,11 @@ export interface Config {
   defaultContextWindow?: number
   /** Advisory models shown by discovery consumers; defaults to V4 Flash and V4 Pro. */
   models?: DeepSeekCatalogModel[]
+  /**
+   * Per-id name/capacity facts that enrich bare discovery listings; defaults
+   * to the built-in market-common table and overrides it id by id.
+   */
+  modelFacts?: DeepSeekModelFacts[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
   /** Provider-owned model-request retry policy; omission uses normal defaults. */
@@ -887,11 +892,27 @@ export interface DeepSeekCatalogModel {
   /** Per-request output cap for this model; omission falls back to the profile's {@link DeepSeekConnectionOptions.maxTokens}. */
   maxTokens?: number
 }
+
+/**
+ * One per-id fact that enriches a bare discovery listing: a name and the two
+ * capacities a `GET /models` reply usually omits. The configured table wins
+ * over the built-in one, id by id.
+ */
+export interface DeepSeekModelFacts {
+  /** Wire model id the facts apply to. */
+  id: string
+  /** Human-readable name offered when the endpoint discloses none. */
+  name?: string
+  /** Known combined request/response context capacity. */
+  contextWindow?: number
+  /** Known per-request output cap. */
+  maxTokens?: number
+}
 ```
 
 依赖：[`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
 
-来源：[`packages/llm/llm-deepseek/src/index.ts:62`](../packages/llm/llm-deepseek/src/index.ts)
+来源：[`packages/llm/llm-deepseek/src/index.ts:63`](../packages/llm/llm-deepseek/src/index.ts)
 
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 

@@ -8,7 +8,7 @@ import type { RpcResponse, SettingsNamespaceView } from '@deepseek-ai/dsh-api-re
 import { ModelsSection, providerCopy } from '../src/client/ModelsSection.tsx'
 import type { ModelsSectionInjected } from '../src/client/ModelsSection.tsx'
 import { CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
-import { formatCapacity, parseCapacity } from '../src/client/DeepSeekModelsEditor.tsx'
+import { formatCapacity, parseCapacity } from '../src/client/model-drafts.ts'
 import { ModelsSettingsStore, deriveKeyRef, protocolChoices } from '../src/client/store.ts'
 import { en } from '../src/client/locales.ts'
 
@@ -517,6 +517,36 @@ describe('endpoint interrogation', () => {
     await screen.findByText('carrier down')
   })
 
+  it('clears a stale refusal when the next probe succeeds', async () => {
+    const recover = vi.fn((_request: unknown) => Promise.resolve(ok({ models: [{ id: 'back' }] })))
+    recover.mockResolvedValueOnce(fail('gateway said no', 'model-discovery-failed'))
+    await mountSection({ discover: recover })
+    openEditor('openai')
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await screen.findByText('gateway said no')
+
+    // A successful probe removes the previous refusal instead of stacking it
+    // under the picker.
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await screen.findByRole('dialog', { name: en.fetchTitle })
+    expect(screen.queryByText('gateway said no')).toBeNull()
+  })
+
+  it('names the action when the host answers with an empty message', async () => {
+    const blankRefusal = vi.fn(() => Promise.resolve(fail('', 'model-discovery-failed')))
+    await mountSection({ discover: blankRefusal })
+    openEditor('openai')
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await screen.findByText(en.fetchFailed)
+    cleanup()
+
+    const blankThrow = vi.fn(() => Promise.reject(''))
+    await mountSection({ discover: blankThrow })
+    openEditor('openai')
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await screen.findByText(en.fetchFailed)
+  })
+
   it('can be asked for a configured route even with no endpoint', async () => {
     const discover = vi.fn(() => Promise.resolve(ok({ models: [{ id: 'from-registry' }] })))
     await mountSection({ discover, providers: { openai: {} } })
@@ -600,8 +630,12 @@ describe('endpoint interrogation', () => {
     fireEvent.click(screen.getByText(en.apply))
 
     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
-    // A disclosed output cap rides along with the candidate that has one.
-    expect(firstMutate(mutate).ops[0]?.value).toEqual([{ id: 'a' }, { id: 'b', maxTokens: 2048 }])
+    // A disclosed output cap rides along with the candidate that has one, and
+    // the display name defaults to the id the endpoint named.
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([
+      { id: 'a', name: 'a' },
+      { id: 'b', name: 'b', maxTokens: 2048 },
+    ])
   })
 })
 

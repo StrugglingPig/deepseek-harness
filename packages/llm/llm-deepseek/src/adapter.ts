@@ -41,6 +41,22 @@ export interface DeepSeekCatalogModel {
 }
 
 /**
+ * One per-id fact that enriches a bare discovery listing: a name and the two
+ * capacities a `GET /models` reply usually omits. The configured table wins
+ * over the built-in one, id by id.
+ */
+export interface DeepSeekModelFacts {
+  /** Wire model id the facts apply to. */
+  id: string
+  /** Human-readable name offered when the endpoint discloses none. */
+  name?: string
+  /** Known combined request/response context capacity. */
+  contextWindow?: number
+  /** Known per-request output cap. */
+  maxTokens?: number
+}
+
+/**
  * Validated connection facts for one operation. The plugin's
  * `resolveAdapterOptions` is the one explicit resolve step producing this
  * shape; the adapter trusts it and re-reads it per operation, which is what
@@ -64,6 +80,8 @@ export interface DeepSeekConnectionOptions {
   defaultContextWindow: number
   /** Advisory models exposed to discovery consumers; requests remain unrestricted. */
   models: readonly DeepSeekCatalogModel[]
+  /** Per-id name/capacity facts that enrich bare discovery listings; the configured table wins over the built-in one. */
+  modelFacts: readonly DeepSeekModelFacts[]
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs: number
   /** Provider-owned model-request retry policy, already resolved. */

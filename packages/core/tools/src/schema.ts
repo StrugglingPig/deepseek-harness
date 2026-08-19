@@ -1,6 +1,6 @@
 /** Unified JSON-value schema DSL, inference, compilation, and typed tool helper. @module dsh-tools/schema */
 
-import { HarnessError } from '@deepseek-ai/dsh-llm'
+import { assertNever, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult, ToolRunContext, ToolResult } from './index.ts'
@@ -241,6 +241,7 @@ type CompileTask =
 
 /** Install a compiled node without giving `__proto__` assignment semantics. */
 function assignCompiledNode(destination: NodeDestination, node: JsonSchemaNode): void {
+  /* v8 ignore next -- the default arm is unreachable: the switch is exhaustive over NodeDestination's closed kind union */
   switch (destination.kind) {
     case 'root':
       destination.holder.value = node
@@ -259,7 +260,8 @@ function assignCompiledNode(destination: NodeDestination, node: JsonSchemaNode):
     case 'one-of':
       destination.target[destination.index] = node
       break
-    default: return assertNever(destination)
+    default:
+      return assertNever(destination)
   }
 }
 

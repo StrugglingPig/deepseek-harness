@@ -76,6 +76,14 @@ DeepSeek 请求身份独立于应用归因。凭据解析成功后，每个提�
 
 非 2xx 响应会抛出稳定 code 的 `LlmError`：`AUTH`（401/403）、`QUOTA`（提供方详细信息标识配额、余额或点数耗尽的响应）、`RATE_LIMIT`（其他 429）、`CONTEXT_WINDOW_EXCEEDED`（提供方 code、type 或 message 标识上下文溢出的 400）、`INVALID_REQUEST`（其他 400）、`SERVER`（5xx），其他情况为 `HTTP_<status>`。其可序列化 `failure` 保留 HTTP 状态，以及有效的正 `Retry-After` 秒数／日期延迟和存在时的 `x-request-id` / `x-deepseek-request-id`。响应前传输失败（DNS、连接被拒绝、TLS、proxy）会抛出命名已配置端点的 `TRANSPORT`，并将原始拒绝作为 `cause`；调用方 abort 抛出 `ABORTED`，仍以 loop 的取消信号为准。协议违例抛出 `STREAM_CLOSED`（没有 `[DONE]`）或 `MALFORMED_RESPONSE`（JSON payload 格式错误）。未知协议 `finish_reason`（例如 `content_filter`、`insufficient_system_resource`）会变为 `finish {kind: 'error', failure}` 分片；已完成流如果使用 `stop`（或缺失）finish 但没有开启内容块，就会变为 `finish {kind: 'error'}`，code 为 `EMPTY_RESPONSE`（默认策略会重试）。
 
+## 端点询问
+
+插件提供 `ctx.llm.registerModelDiscovery('llm-deepseek', …)`，用来回答「这个提供方能服务哪些模型？」——针对配置界面正在编辑的路由或端点。与 pi-ai 的同族实现一样，它刻意**不是** catalog 刷新：什么都不存储，回复是界面供用户采纳的候选。`settings.yaml` 始终是唯一决定路由服务什么的东西。
+
+指名自有路由且**不带 API 地址**的请求，由活建议目录（`models`，默认 V4 Flash 与 V4 Pro）作答，完全不联网；该答案在每次询问时读取已解析的设置快照，因此 settings 编辑后的 catalog 无需重新注册即生效。携带 API 地址的请求——包括针对自有路由的——通过 `@deepseek-ai/dsh-llm` 中共享的 OpenAI 兼容 `GET /models` 读取器（`fetchOpenAiCompatibleModels`）询问该端点，这正是测试自定义网关或代理的情形；既未指名自有路由也未给端点的请求，会被告知去设置 API 地址或手工填写模型（`DISCOVERY_FAILED`）。随后回复会按 id 与活目录匹配：端点未提供的名称与容量从目录继承（`enrichDiscoveredModels`），因此被采纳的行与内置行一致；端点已提供的信息保持权威。知识源是活目录与按 id 的事实表的合并：内置的市面常用模型默认表（每个数字都镜像 pi-ai twin 随附的厂商 catalog 数据）被 `modelFacts` 设置项按 id 覆盖，因此代理改名或新增模型的部署仍能自动填充其容量；内置建议目录额外携带每个 V4 路由的输出上限。
+
+键入的密钥优先；没有时，询问会通过凭据缝解析该区的 `apiKeyEnv` 并发送。没有存储密钥的区以**未认证**方式探针，而不是报 `MISSING_CREDENTIAL`——缺失的密钥是被测试的姿态，而非要报告的失败；而 HTTP 标头无法承载的已存储密钥仍会以 `INVALID_CREDENTIAL` 拒绝。
+
 ## 模型体验
 
 ### DeepSeek 请求
@@ -112,3 +120,4 @@ loop 保留的响应块会追加到下一个请求，并保留其较早可复用
 - **未映射 `tool_choice`**：它不属于核心词汇（MVP 取舍，与 pi-ai twin 共享）。
 - **请求使用原始 `fetch`，而非 `@cordisjs/plugin-http`**：没有共享 proxy／拦截配置；采用暂缓到第二个适配器需要该功能时（`TODO(http)`）。
 - **序列化会将 user 与工具结果内容展平为文本块**：会跳过插件添加的块类型，空工具输出会以字面 `(no output)` 通过协议发送。
+- **重放的 assistant 工具调用参数会被修复为合法 JSON 对象**——网关会解析每个 `tool_calls[].function.arguments`，以把该调用与随后的 `role:'tool'` 消息配对，并丢弃无法解析的调用；被丢弃调用所配对的工具消息随即以 `INVALID_REQUEST` 被拒绝。因此，不是单个 JSON 对象的原始参数字符串（一轮可能把两个对象首尾相接地粘回来）会被重放为 `{}`。该修复只发生在协议层：会话日志保留原始参数，模型也仍然收到工具自身的错误结果。

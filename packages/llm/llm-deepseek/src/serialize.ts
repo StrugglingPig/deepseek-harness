@@ -141,6 +141,9 @@ function serializeAssistant(message: Message, replayReasoning: boolean): WireMes
 export function serializeMessages(messages: Message[]): WireMessage[] {
   // DeepSeek V4 (0813) only accepts `reasoning_content` on the most recent
   // assistant message, so find it up front and replay reasoning there alone.
+  // Holes are absent from the Message type yet reach the callback at runtime,
+  // so the optional chain is load-bearing against sparse arrays.
+  // oxlint-disable-next-line typescript/no-unnecessary-condition
   const lastAssistant = messages.findLastIndex(m => m?.role === 'assistant')
   const wire: WireMessage[] = []
   for (let idx = 0; idx < messages.length; idx++) {

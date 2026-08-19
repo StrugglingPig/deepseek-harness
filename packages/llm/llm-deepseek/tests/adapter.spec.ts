@@ -75,7 +75,7 @@ describe('DeepSeekAdapter against a mock server', () => {
     // The wire request carried the auth header contents we configured.
     expect(server.requests[0]).toMatchObject({
       model: 'deepseek-v4-flash',
-      max_tokens: 256_000,
+      max_tokens: 384_000,
       reasoning_effort: 'high',
       stream: true,
       stream_options: { include_usage: true },
@@ -186,18 +186,23 @@ describe('DeepSeekAdapter against a mock server', () => {
     })
   })
 
-  it('uses the configured maxTokens default and preserves an explicit request cap', async () => {
+  it('lets the model cap, the profile default, and an explicit cap win in order', async () => {
     const server = await mockServer([
+      { kind: 'sse', events: textEvents },
       { kind: 'sse', events: textEvents },
       { kind: 'sse', events: textEvents },
     ])
     const ctx = await harness(server.url, { maxTokens: 32_000 })
 
     await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    await assemble(ctx, { model: 'unlisted-model', messages: [] })
     await assemble(ctx, { model: 'deepseek-v4-flash', messages: [], maxTokens: 8_192 })
 
-    expect(server.requests[0]).toMatchObject({ max_tokens: 32_000 })
-    expect(server.requests[1]).toMatchObject({ max_tokens: 8_192 })
+    // The catalog's own cap sizes a listed model; the profile default sizes an
+    // unlisted one; an explicit request cap beats both.
+    expect(server.requests[0]).toMatchObject({ max_tokens: 384_000 })
+    expect(server.requests[1]).toMatchObject({ max_tokens: 32_000 })
+    expect(server.requests[2]).toMatchObject({ max_tokens: 8_192 })
   })
 
   it('publishes only off and omits the wire effort when thinking is disabled', async () => {
@@ -667,7 +672,7 @@ describe('plugin registration and config', () => {
         id: 'deepseek-v4-flash',
         name: 'DeepSeek-V4-Flash',
         context: { contextWindow: 1_000_000 },
-        defaultMaxTokens: 256_000,
+        defaultMaxTokens: 384_000,
         reasoning: {
           efforts: [
             { id: ReasoningEffortId('off'), name: 'Off' },

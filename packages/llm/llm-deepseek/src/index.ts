@@ -26,7 +26,8 @@ import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
-import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
+import type { DeepSeekCatalogModel, DeepSeekConnectionOptions, DeepSeekModelFacts } from './adapter.ts'
+import { discoverModels } from './discovery.ts'
 
 export {
   DEFAULT_CONTEXT_WINDOW,
@@ -34,7 +35,7 @@ export {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
-export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
+export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions, DeepSeekModelFacts } from './adapter.ts'
 export type { RequestDefaults } from './serialize.ts'
 export type * from './types.ts'
 
@@ -46,9 +47,40 @@ const DEFAULT_API_KEY_ENV = 'DEEPSEEK_API_KEY'
 /** The single provider route this plugin owns. */
 const PROVIDER = 'deepseek-official'
 
+/** The output cap pi-ai's bundled catalog reports for both V4 routes. */
+const DEFAULT_MODEL_MAX_TOKENS = 384_000
+
 const DEFAULT_MODELS: DeepSeekCatalogModel[] = [
-  { id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash', contextWindow: DEFAULT_CONTEXT_WINDOW },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro', contextWindow: DEFAULT_CONTEXT_WINDOW },
+  {
+    id: 'deepseek-v4-flash',
+    name: 'DeepSeek-V4-Flash',
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+  },
+  {
+    id: 'deepseek-v4-pro',
+    name: 'DeepSeek-V4-Pro',
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+  },
+]
+
+/**
+ * Built-in per-id capacities for market-common models, used to enrich bare
+ * `GET /models` replies. Every figure mirrors the vendor catalog data bundled
+ * with the pi-ai twin (deepseek, azure-openai-responses, opencode-go, zai,
+ * google), so the defaults are prior art, not invention; the `modelFacts`
+ * settings field overrides id by id for ids a deployment's proxy renames.
+ */
+const BUILTIN_MODEL_FACTS: DeepSeekModelFacts[] = [
+  { id: 'deepseek-v4-flash', contextWindow: 1_000_000, maxTokens: 384_000 },
+  { id: 'deepseek-v4-pro', contextWindow: 1_000_000, maxTokens: 384_000 },
+  { id: 'deepseek-v3.2', contextWindow: 131_072, maxTokens: 65_536 },
+  { id: 'gpt-5.4', contextWindow: 1_050_000, maxTokens: 128_000 },
+  { id: 'gpt-5.5', contextWindow: 1_050_000, maxTokens: 128_000 },
+  { id: 'qwen3.7-plus', contextWindow: 1_000_000, maxTokens: 65_536 },
+  { id: 'glm-5.2', contextWindow: 1_000_000, maxTokens: 131_072 },
+  { id: 'gemini-2.5-flash', contextWindow: 1_048_576, maxTokens: 65_536 },
 ]
 
 /**
@@ -74,6 +106,11 @@ export interface Config {
   defaultContextWindow?: number
   /** Advisory models shown by discovery consumers; defaults to V4 Flash and V4 Pro. */
   models?: DeepSeekCatalogModel[]
+  /**
+   * Per-id name/capacity facts that enrich bare discovery listings; defaults
+   * to the built-in market-common table and overrides it id by id.
+   */
+  modelFacts?: DeepSeekModelFacts[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
   /** Provider-owned model-request retry policy; omission uses normal defaults. */
@@ -88,6 +125,13 @@ const catalogModel: z<DeepSeekCatalogModel> = z.object({
   maxTokens: z.number().step(1).min(1),
 })
 
+const modelFacts: z<DeepSeekModelFacts> = z.object({
+  id: z.string().required(),
+  name: z.string(),
+  contextWindow: z.number().step(1).min(1),
+  maxTokens: z.number().step(1).min(1),
+})
+
 export const Config: z<Config> = z.object({
   apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
   baseURL: z.string(),
@@ -96,6 +140,7 @@ export const Config: z<Config> = z.object({
   maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS),
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   models: z.array(catalogModel).default(DEFAULT_MODELS),
+  modelFacts: z.array(modelFacts).default(BUILTIN_MODEL_FACTS),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
   retryPolicy: RetryPolicySchema,
 })
@@ -113,6 +158,16 @@ const BASE_URL_ENV = 'DEEPSEEK_BASE_URL'
  * newer key.
  */
 export type ResolvedDeepSeekOptions = DeepSeekConnectionOptions
+
+/** Merge the configured facts over the built-in table, configured ids winning. */
+function resolveModelFacts(configured: readonly DeepSeekModelFacts[] | undefined): DeepSeekModelFacts[] {
+  const merged = new Map(BUILTIN_MODEL_FACTS.map(facts => [facts.id, facts]))
+  for (const facts of configured ?? []) {
+    if (facts.id.length === 0) throw new Error('llm-deepseek: model fact ids must be non-empty')
+    merged.set(facts.id, facts)
+  }
+  return [...merged.values()]
+}
 
 /** Resolve, validate, and detach the advisory model catalog. */
 function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): DeepSeekCatalogModel[] {
@@ -192,6 +247,7 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
     maxTokens: config.maxTokens ?? DEFAULT_MAX_TOKENS,
     defaultContextWindow: config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
     models: resolveModels(config.models),
+    modelFacts: resolveModelFacts(config.modelFacts),
     streamIdleTimeoutMs,
     retryPolicy: resolveRetryPolicy(config.retryPolicy, 'llm-deepseek: retryPolicy'),
   }
@@ -222,7 +278,14 @@ export function apply(ctx: Context, config: Config): void {
   }
   options()
 
-  const resolveApiKey = async (connection: ResolvedDeepSeekOptions): Promise<string> => {
+  /**
+   * The credential the section currently resolves, or `undefined` when
+   * nothing is stored. Discovery probes unauthenticated in that posture —
+   * a missing key is how an ambient-credential deployment is meant to be
+   * asked — while the request path ({@link resolveApiKey}) reports it as
+   * `MISSING_CREDENTIAL`.
+   */
+  const storedApiKey = async (connection: ResolvedDeepSeekOptions): Promise<string | undefined> => {
     // Every credential fact comes from the caller's snapshot, so a rejected
     // settings generation cannot leak its key onto the previous endpoint.
     const ref = connection.apiKeyEnv
@@ -238,6 +301,13 @@ export function apply(ctx: Context, config: Config): void {
         return assertUsableApiKey(ambient.value, 'llm-deepseek', ref)
       }
     }
+    return undefined
+  }
+
+  const resolveApiKey = async (connection: ResolvedDeepSeekOptions): Promise<string> => {
+    const stored = await storedApiKey(connection)
+    if (stored !== undefined) return stored
+    const ref = connection.apiKeyEnv
     throw new LlmError(
       `llm-deepseek: no API key for provider route "${PROVIDER}"; store ${ref} through the credentials`
       + ` service (the web Models page writes it), or export ${ref} in the launching environment`,
@@ -251,6 +321,16 @@ export function apply(ctx: Context, config: Config): void {
   ctx.llm.registerConfigurableProviders([
     { provider: PROVIDER, displayName: 'DeepSeek', settingsNs: NS, settingsPath: [] },
   ])
+  // Interrogating a draft: the owned route answers from its live advisory
+  // catalog, a typed base URL from the shared OpenAI-compatible wire reader.
+  // The closure reads `options()` per ask, so a settings edit is reflected
+  // without re-registration; disposal rides this apply fiber like the adapter.
+  ctx.llm.registerModelDiscovery(NS, request => discoverModels(request, {
+    provider: PROVIDER,
+    models: () => options().models,
+    modelFacts: () => options().modelFacts,
+    storedApiKey: () => storedApiKey(options()),
+  }))
   // Route effects bind to this apply fiber via the stable `ctx` reference,
   // even when a swap runs inside the scoped settings callback below.
   const registration = ctx.llm.registerAdapter([PROVIDER], adapter)

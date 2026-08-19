@@ -218,7 +218,7 @@ export function apply(ctx: Context, config: Config): void {
       for (const todo of todos) {
         if (todo.status === 'pending') counts.pending++
         else if (todo.status === 'in_progress') counts.inProgress++
-        else if (todo.status === 'completed') counts.completed++
+        else counts.completed++
       }
       return Promise.resolve({
         todos: todos.map(todo => ({ content: todo.content, status: todo.status })),

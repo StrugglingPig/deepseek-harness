@@ -10,9 +10,8 @@ import {
 } from '../src/client/ModelsSection.tsx'
 import type { ModelsSectionInjected, ModelsSectionProps } from '../src/client/ModelsSection.tsx'
 import { pathOps } from '../src/client/ProviderEditor.tsx'
-import {
-  DeepSeekModelsEditor, formatCapacity, modelDrafts, parseCapacity, validateDeepSeekModels,
-} from '../src/client/DeepSeekModelsEditor.tsx'
+import { formatCapacity, modelDrafts, parseCapacity, validateDeepSeekModels } from '../src/client/model-drafts.ts'
+import { ModelListEditor } from '../src/client/ModelListEditor.tsx'
 import { apiKeyFailure } from '../src/client/apiKey.ts'
 import { deriveKeyRef, ModelsSettingsStore } from '../src/client/store.ts'
 import type { ProviderRow } from '../src/client/store.ts'
@@ -140,12 +139,14 @@ function scriptedFace(overrides: {
   mutate?: ReturnType<typeof vi.fn>
   set?: ReturnType<typeof vi.fn>
   unset?: ReturnType<typeof vi.fn>
+  discover?: ReturnType<typeof vi.fn>
 } = {}) {
   const update = overrides.update ?? vi.fn(() => Promise.resolve(ok(wireNamespaces()[2])))
   const replace = overrides.replace ?? vi.fn(() => Promise.resolve(ok(wireNamespaces()[2])))
   const mutate = overrides.mutate ?? vi.fn(() => Promise.resolve(ok(wireNamespaces()[2])))
   const set = overrides.set ?? vi.fn(() => Promise.resolve(ok({})))
   const unset = overrides.unset ?? vi.fn(() => Promise.resolve(ok({})))
+  const discover = overrides.discover ?? vi.fn(() => Promise.resolve(ok({ models: [] })))
   const face = {
     llm: {
       providers: vi.fn(() => Promise.resolve(ok({
@@ -159,6 +160,7 @@ function scriptedFace(overrides: {
         ],
       }))),
       models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
+      discoverModels: discover,
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
@@ -178,7 +180,7 @@ function scriptedFace(overrides: {
       unset,
     },
   }
-  return { face, update, replace, mutate, set, unset }
+  return { face, update, replace, mutate, set, unset, discover }
 }
 
 type WireFace = ConstructorParameters<typeof ModelsSettingsStore>[0]
@@ -547,6 +549,8 @@ describe('ModelsSection', () => {
     expandRow(1)
     expandRow(2)
     const windows = capacityInputs(en.contextWindow)
+    // The profile's own fallbacks size the placeholders.
+    expect((windows[0] as HTMLInputElement).placeholder).toBe('1M')
     // The inherited 1000000 reads back short.
     expect((windows[0] as HTMLInputElement).value).toBe('1M')
 
@@ -766,22 +770,113 @@ describe('ModelsSection', () => {
   })
 
   it('renders malformed draft fallbacks without inventing catalog values', () => {
-    render(<DeepSeekModelsEditor
+    render(<ModelListEditor
       models={[{}]}
-      overridden={false}
-      defaultContextWindow={undefined}
-      defaultMaxTokens={undefined}
+      probe={{ settingsNs: 'llm-pi-ai' }}
+      api={{ llm: { discoverModels: vi.fn() } } as never}
       t={t}
       disabled={true}
       onChange={vi.fn()}
-      onReset={vi.fn()}
     />)
     expect(screen.getByLabelText<HTMLInputElement>(`${en.modelId} 1`).value).toBe('')
     expandRow(1)
-    expect(screen.getByLabelText<HTMLInputElement>(`${en.contextWindow} 1`).placeholder)
-      .toBe(en.contextWindowPlaceholder)
-    expect(screen.getByLabelText<HTMLInputElement>(`${en.maxTokens} 1`).placeholder)
-      .toBe(en.maxTokensPlaceholder)
+    // Without adapter fallbacks the placeholders are the generic magnitudes.
+    expect(screen.getByLabelText<HTMLInputElement>(`${en.modelContextWindow} 1`).placeholder).toBe('256K')
+    expect(screen.getByLabelText<HTMLInputElement>(`${en.modelMaxTokens} 1`).placeholder).toBe('32K')
+  })
+
+  it('offers the fetch action on the deepseek card and names the route in the probe', async () => {
+    const discover = vi.fn((_request: unknown) => Promise.resolve(ok({ models: [] })))
+    await mountDeepSeekCard({ discover })
+    fireEvent.click(screen.getByText(en.customized))
+    // The owned route is askable without a typed endpoint: the card shows the
+    // effective base URL, and the adapter answers from its live catalog.
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await waitFor(() => { expect(discover).toHaveBeenCalledTimes(1) })
+    expect(discover.mock.calls[0]?.[0]).toEqual({
+      settingsNs: 'llm-deepseek',
+      provider: 'deepseek-official',
+      baseURL: 'https://base',
+    })
+
+    // An edited endpoint travels with the probe, like the pi-ai card.
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next2' } })
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await waitFor(() => { expect(discover).toHaveBeenCalledTimes(2) })
+    expect(discover.mock.calls[1]?.[0]).toEqual({
+      settingsNs: 'llm-deepseek',
+      provider: 'deepseek-official',
+      baseURL: 'https://next2',
+    })
+  })
+
+  it('adopts fetched deepseek models without clobbering tuned rows', async () => {
+    const discover = vi.fn(() => Promise.resolve(ok({
+      models: [
+        { id: 'deepseek-v4-flash', contextWindow: 2 },
+        { id: 'new-model', contextWindow: 65_536 },
+      ],
+    })))
+    const { mutate } = await mountDeepSeekCard({
+      discover,
+      mutate: vi.fn(() => Promise.resolve(ok(wireNamespaces()[0]))),
+    })
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.click(screen.getByText(en.fetchModels))
+    const dialog = await screen.findByRole('dialog', { name: en.fetchTitle })
+    // Already configured starts unchecked, so adoption never rewrites it.
+    const boxes = within(dialog).getAllByRole('checkbox') as HTMLInputElement[]
+    expect(boxes.map(box => box.checked)).toEqual([false, true])
+
+    fireEvent.click(within(dialog).getByRole('button', { name: en.fetchAdopt }))
+    fireEvent.click(screen.getByText(en.apply))
+
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
+    expect(mutate.mock.calls[0]?.[0]).toEqual({
+      ns: 'llm-deepseek',
+      ops: [{
+        op: 'set',
+        path: ['models'],
+        value: [...DEFAULT_DEEPSEEK_MODELS, { id: 'new-model', name: 'new-model', contextWindow: 65_536 }],
+      }],
+      expectedRevision: 0,
+    })
+  })
+
+  it('keeps a tuned row when the user deliberately re-checks it', async () => {
+    const discover = vi.fn((_request: unknown) => Promise.resolve(ok({
+      models: [{ id: 'deepseek-v4-flash', contextWindow: 2 }],
+    })))
+    const { mutate } = await mountDeepSeekCard({
+      discover,
+      mutate: vi.fn(() => Promise.resolve(ok(wireNamespaces()[0]))),
+    })
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.click(screen.getByText(en.fetchModels))
+    const picker = await screen.findByRole('dialog', { name: en.fetchTitle })
+    const box = within(picker).getByRole('checkbox') as HTMLInputElement
+    expect(box.checked).toBe(false)
+    fireEvent.click(box)
+    fireEvent.click(within(picker).getByRole('button', { name: en.fetchAdopt }))
+    fireEvent.click(screen.getByText(en.apply))
+
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
+    // Re-checking a configured candidate adopts nothing over the tuned row:
+    // the hidden detail and the shipped capacity survive.
+    expect(mutate.mock.calls[0]?.[0]).toEqual({
+      ns: 'llm-deepseek',
+      ops: [{ op: 'set', path: ['models'], value: DEFAULT_DEEPSEEK_MODELS }],
+      expectedRevision: 0,
+    })
+  })
+
+  it('blocks the deepseek fetch while the key field already refuses the key', async () => {
+    await mountDeepSeekCard()
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'sk-你好' } })
+    const fetch = screen.getByText(en.fetchModels) as HTMLButtonElement
+    expect(fetch.disabled).toBe(true)
+    expect(fetch.getAttribute('title')).toBe(en.keyIllegalCharacters)
   })
 
   it('can empty and reset the model override, then clear optional fields without dropping hidden data', async () => {

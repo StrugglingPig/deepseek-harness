@@ -2,3 +2,6 @@ node_modules/
 .cache/
 .dist/
 .generated/
+.vitepress/.temp/
+.vitepress/.cache/
+.vitepress/dist/
