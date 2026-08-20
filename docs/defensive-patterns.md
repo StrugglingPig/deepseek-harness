@@ -31,3 +31,7 @@ Spawned commands get a scrubbed env (drop `*KEY*`/`*SECRET*`/`*TOKEN*`/`*PASSWOR
 ## Unlink link-shaped paths
 
 A path that may be a symlink or Windows junction is removed with `lstatSync().isSymbolicLink()` then `unlinkSync`: unlink deletes only the link and refuses a real directory, so it never follows the link into its target. Windows `rmSync(link)` throws `ERR_FS_EISDIR` on a junction; recursive deletion may descend through one into its target. Reserve recursive `rmSync` for known real directories.
+
+## A reconcile loop marks a change seen only once applied
+
+Recording the observed mtime before the generation succeeds loses a mid-generation write — the tick consumes the delta, the in-flight generation read before the write, no later tick re-kicks — and wedges a failed generation until the next external write. Advance the seen-marker only after success, at the start mtime; mid-generation requests coalesce into one re-run; failure leaves it stale so the next tick self-heals ([incident](../.agents/notes/implemented/architecture/2026-08-19-live-profile-bundle-recomposition.md)).

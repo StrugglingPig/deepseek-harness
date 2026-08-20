@@ -12,12 +12,13 @@ const NAME = 'dsh-jsonrpc-agent'
 
 /**
  * Boot the explicitly selected external configuration and own process exit.
- * @param bareModuleBaseUrl - optional installed-runtime base for bare plugins;
- * omit it when the configuration project owns its plugin packages.
+ * @param bareModuleAnchors - optional installed-runtime bases for bare
+ * plugins, tried in order; omit them when the configuration project owns its
+ * plugin packages.
  * @returns after process handlers are installed; process lifetime then belongs
  * to stdin and signal events.
  */
-export async function runJsonrpcAgent(bareModuleBaseUrl?: string): Promise<void> {
+export async function runJsonrpcAgent(bareModuleAnchors?: readonly string[]): Promise<void> {
   installFailLoud(NAME)
   loadEnv(NAME)
 
@@ -35,7 +36,7 @@ export async function runJsonrpcAgent(bareModuleBaseUrl?: string): Promise<void>
     process.exit(1)
   }
 
-  const ctx = await boot(NAME, configPath, undefined, undefined, bareModuleBaseUrl)
+  const ctx = await boot(NAME, configPath, undefined, undefined, bareModuleAnchors)
   let exiting = false
 
   async function disposeAndExit(code: number): Promise<void> {

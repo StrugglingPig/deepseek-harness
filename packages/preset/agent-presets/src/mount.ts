@@ -22,6 +22,18 @@ import type { EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /**
+     * Launcher-provided installation anchor package.json paths (the dsh app
+     * plus every composed bundle), tried in order before the composition
+     * base (same contract as the client module table). Frozen at boot: a
+     * bundle live-installed afterwards joins the set at the next restart.
+     */
+    dshInstallAnchors?: readonly string[]
+  }
+}
+
 /** What one mounted subtree publishes about itself for the audit to read. */
 interface MountedTree {
   /** The rows the composition created. */
@@ -80,15 +92,36 @@ class PresetTree extends Include {
    */
   override import(name: string, getOuterStack?: () => string[]): unknown {
     const specifier = isAbsolute(name) ? pathToFileURL(name).href : name
+    if (name.startsWith('.') || name.startsWith('cordis:')) return super.import(name, getOuterStack)
     const base = harnessBase.get(this.config)
     /* v8 ignore next -- every PresetTree is constructed by `mountPreset`, which records the base first */
     if (base === undefined) return super.import(specifier, getOuterStack)
-    if (name.startsWith('.') || name.startsWith('cordis:')) return super.import(name, getOuterStack)
     const internal = this.ctx.loader.internal
     /* v8 ignore next -- Node always supplies the internal module loader; the branch keeps a
        hypothetical embedder from losing the row's name in a resolution error. */
     if (internal === undefined) return super.import(specifier, getOuterStack)
-    return internal.import(specifier, base, {})
+    // Launcher-provided installation anchors win over the composition base:
+    // a preset's bare rows must load the SAME package instances as the host
+    // tree, while a stale profile-hoisted copy inside the base's upward
+    // node_modules walk would split module identity (two dsh-scope instances,
+    // an unscoped agent). Names no anchor carries keep the harness base.
+    const anchors = this.ctx.get('dshInstallAnchors')
+    if (anchors === undefined || anchors.length === 0) return internal.import(specifier, base, {})
+    // Sequential fallback as a promise chain (this override is synchronous).
+    // Only a "name not carried" rejection falls through to the next base; any
+    // other failure propagates loud instead of silently loading a
+    // profile-hoisted stale copy, and the composition base's own diagnostic
+    // surfaces when no anchor carries the name.
+    const anchorUrls = anchors.map(anchor => pathToFileURL(anchor).href)
+    const attempt = (rest: readonly string[]): Promise<unknown> => {
+      const [current, ...tail] = rest
+      if (current === undefined) return internal.import(specifier, base, {})
+      return internal.import(specifier, current, {}).catch((error: unknown) => {
+        if ((error as { code?: string } | null)?.code !== 'ERR_MODULE_NOT_FOUND') throw error
+        return attempt(tail)
+      })
+    }
+    return attempt(anchorUrls)
   }
 
   /**

@@ -3,6 +3,7 @@
  * report through clientModuleHost.rebuilt, and everything dies with the fiber.
  */
 import { mkdtempSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -200,5 +201,32 @@ describe('hmr node half', () => {
 
     await vi.waitFor(() => { expect(clientModuleHost.rebuiltCalls).toEqual(['pkg-a', 'pkg-a']) }, { timeout: 3_000 })
     await fiber.dispose()
+  })
+
+  it('broadcasts graph frames to connected event clients and stops on dispose', async () => {
+    const clientModuleHost = fakeClientModuleHost(new Map([['pkg-a', join(dir, 'a.js')]]))
+    const routes: WebRoute[] = []
+    const fiber = await mount(clientModuleHost, fakeHttpServer(routes))
+    const route = routes.find(candidate => candidate.path === EVENTS_ENDPOINT)
+    if (route === undefined) throw new Error('events route not registered')
+    const writes: string[] = []
+    const res = {
+      writeHead: () => {},
+      write: (line: string) => { writes.push(line) },
+      on: () => {},
+      destroy: () => {},
+    } as unknown as ServerResponse
+    void route.handler({ method: 'GET' } as IncomingMessage, res)
+    // The connect handshake sends the current graph snapshot.
+    expect(writes.some(line => line.includes('"type":"graph"'))).toBe(true)
+
+    const before = writes.length
+    clientModuleHost.fireGraphChanged()
+    expect(writes.length).toBe(before + 1)
+    expect(writes[writes.length - 1]).toContain('"type":"graph"')
+
+    await fiber.dispose()
+    clientModuleHost.fireGraphChanged()
+    expect(writes.length).toBe(before + 1)
   })
 })

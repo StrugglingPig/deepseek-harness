@@ -3,19 +3,25 @@
  * `.env`, install the fail-loud Loader guards, resolve the config path (snapshot-aware), load the
  * optional user patch layers from the Harness home (`~/.dsh`), expose its path resolver to
  * config expressions, and drive the Cordis Loader against a leaf `cordis.yml` until the tree settles.
+ * Long-lived surfaces additionally register the live watchers: the user patch
+ * files (`watchUserPatches`) and the profile manifest a package manager
+ * rewrites (`watchProfileManifest`), with ephemeral hot mounts reconciled
+ * against the durable bundle layer (`installBundleLayerGuard` /
+ * `disposeDuplicateSubtreeEntries`).
  * @module @deepseek-ai/dsh-app-boot
  */
 
 import { pathToFileURL } from 'node:url'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
 import { Context, type FiberState } from '@deepseek-ai/cordis'
-import Loader, { type Entry, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
+import Loader, { type Entry, type EntryOptions, type EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import Include, { applyEntryPatches, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/cordis-plugin-hmr'
 // Side-effect type import: resolves `ctx.get('systemPrompt')` to the service.
@@ -38,7 +44,9 @@ export {
   PROFILE_TEMPLATES,
   PROFILES_DIR,
   readProfileManifest,
+  reloadProfileLayers,
   resolveBundleDir,
+  resolveBundleLayers,
   resolveProfileDir,
   writeProfileManifest,
   type DshBundleManifest,
@@ -264,6 +272,236 @@ export async function watchUserPatches(
   }
 }
 
+/** Options for live profile-manifest reconciliation. */
+export interface ProfileManifestWatchOptions {
+  /** Diagnostic prefix. */
+  binName: string
+  /** Absolute path of the watched profile manifest (`package.json`). */
+  filename: string
+  /** Compose the full patch list for a fresh generation, bundle layers included; may be async. */
+  compose: () => PatchOptions[] | Promise<PatchOptions[]>
+  /** Runs after a successful root include update (hot-mount reconciliation). */
+  afterUpdate?: () => Promise<void> | void
+  /** Bounded retry for a throwing refresh (a manifest naming a not-yet-installed bundle). */
+  retry?: { attempts: number; delayMs: number }
+  /** Stat-backstop interval in ms; reconciles manifest writes whose native watch event was dropped. */
+  pollMs?: number
+}
+
+/** Default manifest backstop interval: event delivery is low-latency, the poll is the reliability floor. */
+const PROFILE_MANIFEST_POLL_MS = 2_000
+
+/**
+ * Watch the profile manifest and transactionally re-apply the full layer
+ * stack to the boot include on every change. Unlike {@link watchUserPatches}
+ * the watched file is NOT parsed as a patch list — it is the JSON manifest a
+ * package manager rewrites; the `compose` callback supplies the fresh stack.
+ * Native event delivery can drop the rewrite under heavy package-manager
+ * churn (FSEvents queue pressure), so a stat backstop reconciles the mtime on
+ * an interval and re-kicks the same serialized generation path.
+ * @param ctx - settled app context containing the root Include and an active HMR service.
+ * @param options - diagnostic, file, composition, reconciliation, retry, and poll inputs.
+ * @returns an asynchronous disposer after the exact-path watcher is ready.
+ * @throws when HMR or the root Include is absent, or watcher setup fails.
+ */
+export async function watchProfileManifest(
+  ctx: Context,
+  options: ProfileManifestWatchOptions,
+): Promise<() => Promise<void>> {
+  const { binName, filename, compose, afterUpdate, retry, pollMs = PROFILE_MANIFEST_POLL_MS } = options
+  const hmr = ctx.get('hmr')
+  if (hmr === undefined) throw new Error(`${binName}: profile manifest watching requires the Cordis HMR service`)
+  const entry = bootstrapIncludes.get(ctx)
+  if (entry === undefined) throw new Error(`${binName}: profile manifest watching requires the root Include entry`)
+  const refresh = async (): Promise<void> => {
+    // Re-read the include's non-patch options per refresh, like the user-layer
+    // watcher, so other option writers are never reverted by a recomposition.
+    const { patches: _previousPatches, ...includeConfig } = entry.options.config as Include.Config
+    await entry.update({ config: { ...includeConfig, patches: await compose() } })
+    await afterUpdate?.()
+  }
+  const runGeneration = async (): Promise<void> => {
+    if (retry === undefined) return refresh()
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await refresh()
+        return
+      } catch (error) {
+        // A manifest naming a not-yet-installed bundle (pnpm mid-install, a
+        // hand edit ahead of the install) throws in layer resolution; a
+        // bounded retry lets a single write self-heal without a second event.
+        if (attempt >= retry.attempts) throw error
+        ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+        await new Promise<void>(resolve => setTimeout(resolve, retry.delayMs))
+      }
+    }
+  }
+  // Serialized kicks: the event callback and the stat backstop share one
+  // generation lane. A request that lands mid-generation is coalesced into
+  // one queued re-run, because the in-flight generation may have read the
+  // manifest before the write — dropping the request would lose the write
+  // forever (the poll compares mtimes and would never see it again).
+  const manifestMtime = (): number | undefined => {
+    try {
+      return statSync(filename).mtimeMs
+    } catch {
+      /* v8 ignore next -- the manifest vanishing mid-watch is a teardown race; the disposer follows. */
+      return undefined
+    }
+  }
+  let lastMtimeMs = manifestMtime()
+  let running = false
+  let queued = false
+  let inflight: Promise<void> = Promise.resolve()
+  // Events and the poll may each kick the same write; an identical-patch
+  // `entry.update` is a no-op diff, so one redundant generation is cheap.
+  const kick = (): Promise<void> => {
+    if (running) {
+      queued = true
+      return Promise.resolve()
+    }
+    running = true
+    const startMtime = manifestMtime()
+    const run = runGeneration().finally(() => { running = false })
+    inflight = run.then(() => {
+      // Mark the manifest applied only on success and only at the mtime the
+      // generation started: a failed generation leaves lastMtimeMs stale so
+      // the next poll re-kicks (self-heal), and a write landing mid-run
+      // (seen moved) re-kicks once instead of being consumed unseen.
+      const seen = manifestMtime()
+      if (seen !== undefined && seen === startMtime) lastMtimeMs = seen
+      if (queued || (seen !== undefined && seen !== startMtime)) {
+        queued = false
+        return kick()
+      }
+      return undefined
+    })
+    return inflight
+  }
+  const register = hmr.registerConfig(filename, () => kick())
+  const timer = setInterval(() => {
+    const current = manifestMtime()
+    if (current === undefined || current === lastMtimeMs) return
+    void kick().catch((error: unknown) => {
+      ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+    })
+  }, pollMs)
+  timer.unref()
+  try {
+    const disposeRegister = await register
+    return async () => {
+      clearInterval(timer)
+      await disposeRegister()
+      // A poll-triggered generation is not tracked by the HMR service's own
+      // refresh state; await it so disposal is quiescent.
+      await inflight.catch(() => {})
+    }
+  } catch (error) {
+    clearInterval(timer)
+    // Same rationale as watchUserPatches: a surface can dispose the whole tree
+    // while the HMR effect registration is still opening; INACTIVE_EFFECT is
+    // the app exiting exactly as asked, not a watch failure.
+    if ((error as { code?: string } | null)?.code === 'INACTIVE_EFFECT') return async () => {}
+    throw error
+  }
+}
+
+/**
+ * The root Include entry's own subtree; the durable layer's rows live at its
+ * top level.
+ * @param ctx - the booted root context whose bootstrap include is located.
+ * @returns the include's subtree, or `undefined` before boot mounts it.
+ */
+export function rootIncludeSubtree(ctx: Context): EntryTree | undefined {
+  return bootstrapIncludes.get(ctx)?.subtree
+}
+
+/**
+ * The nested-subtree entry a live bundle-layer recomposition must dispose, if
+ * any: a loader row that is NOT one of the durable layer's top-level rows and
+ * whose package name duplicates a live durable row is an ephemeral hot mount
+ * (a market-style row hanging one level deeper in the forest, or a row from
+ * another loader realm) and must yield — the durable bundle layer is
+ * authoritative. Membership reads the durable tree's top-level store only:
+ * every composed patch inserts there, while forest recursion would wrongly
+ * shield a hot mount's own nested rows. Durable rows, entry-less fibers
+ * (preset trees, direct plugins), rows of a scoped per-session composition
+ * (agent presets deliberately mount same-named rows behind `dsh-scope`), and
+ * rows without a live same-name durable row are never flagged.
+ * @param durable - the root include's own subtree (its top level is the durable layer).
+ * @param fiber - one `internal/plugin` lifecycle fiber, or a tree-scan shim carrying a numeric uid.
+ * @returns the entry to remove, or `undefined` when nothing must yield.
+ */
+export function duplicateSubtreeEntry(
+  durable: EntryTree,
+  fiber: { uid?: unknown; entry?: Entry },
+): Entry | undefined {
+  // Vendored Cordis nulls `uid` before the disposal half of the lifecycle
+  // event fires (fiber.ts sets it, then emits), so only a CREATED fiber carries
+  // a number; tree scans pass one explicitly. The disposal half and synthetic
+  // fixtures without a number never reach the duplicate check.
+  if (typeof fiber.uid !== 'number') return undefined
+  const entry = fiber.entry
+  if (entry === undefined) return undefined
+  // A scoped context is an intentional per-session composition (an agent
+  // preset's standing mount), not a hot-mount double: presets compose the
+  // same in-box package names the durable layer carries.
+  if (scopeOf(entry.ctx) !== undefined) return undefined
+  const rows = Object.values(durable.store)
+  if (rows.includes(entry)) return undefined
+  const duplicated = rows.some(live =>
+    live !== entry && live.fiber !== undefined && !live.disabled && live.options.name === entry.options.name)
+  return duplicated ? entry : undefined
+}
+
+/**
+ * Dispose every nested-subtree row flagged by {@link duplicateSubtreeEntry}:
+ * the reconciliation half of the hot-mount guard, run after each successful
+ * manifest recomposition (covers a hot mount that landed before the
+ * recomposition; the `internal/plugin` guard covers the reverse ordering).
+ * The scan walks this loader's forest, so a hot mount hanging in it yields
+ * here; rows of another loader realm are only reachable through the event
+ * guard at creation time.
+ * @param ctx - settled app context whose loader tree is scanned.
+ * @param binName - the diagnostic prefix on contained warnings.
+ */
+export async function disposeDuplicateSubtreeEntries(ctx: Context, binName: string): Promise<void> {
+  const durable = rootIncludeSubtree(ctx)
+  if (durable === undefined) return
+  for (const entry of ctx.loader.entries()) {
+    // Tree scans see created (and not-yet-removed disabled) rows; the numeric
+    // uid stands in for the creation half the event guard reads for real.
+    if (duplicateSubtreeEntry(durable, { uid: 0, entry }) === undefined) continue
+    try {
+      await entry.parent.remove(entry.options.id, true)
+    } catch (error) {
+      // A broken hot row must not fail the re-composition it follows.
+      ctx.logger.warn(`${binName}: duplicate subtree entry dispose failed: ${String(error)}`)
+    }
+  }
+}
+
+/**
+ * Live guard for the reverse ordering of {@link disposeDuplicateSubtreeEntries}:
+ * a newly created nested-subtree fiber whose package name duplicates a live
+ * durable row is removed as soon as it appears.
+ * @param ctx - settled app context to subscribe the loader lifecycle event on.
+ * @param binName - the diagnostic prefix on contained warnings.
+ * @returns the subscription disposer.
+ * @throws when the root Include is absent.
+ */
+export function installBundleLayerGuard(ctx: Context, binName: string): () => Promise<void> {
+  const durable = rootIncludeSubtree(ctx)
+  if (durable === undefined) throw new Error(`${binName}: bundle-layer guard requires the root Include entry`)
+  return ctx.effect(() => ctx.on('internal/plugin', (fiber) => {
+    const entry = duplicateSubtreeEntry(durable, fiber)
+    if (entry === undefined) return
+    void entry.parent.remove(entry.options.id, true).catch((error: unknown) => {
+      ctx.logger.warn(`${binName}: duplicate subtree entry dispose failed: ${String(error)}`)
+    })
+  }))
+}
+
 /**
  * Load an optional patch-list file: a top-level YAML array of loader patch
  * entries (`@deepseek-ai/cordis-plugin-include`'s `PatchOptions`): id-targeted config
@@ -473,12 +711,48 @@ function groupedDump(
 }
 
 /**
+ * Import one bare specifier through the anchor bases in order, falling back
+ * to the config base for names no anchor carries. Only a "name not carried"
+ * rejection falls through to the next anchor; any other failure (a broken
+ * installed copy) propagates loud instead of silently loading a
+ * profile-hoisted stale copy. When the final fallback also rejects, its own
+ * diagnostic surfaces — the actionable one for an out-of-tree name.
+ * @param internal - the Loader's internal module loader.
+ * @param specifier - bare (or absolute-URL-converted) module specifier.
+ * @param anchors - installed-host base URLs, authoritative, in order.
+ * @param configBaseUrl - the root config file's URL (out-of-tree fallback base).
+ * @returns the imported module namespace.
+ */
+async function importFromFirst(
+  internal: NonNullable<Context['loader']['internal']>,
+  specifier: string,
+  anchors: readonly string[],
+  configBaseUrl: string | undefined,
+): Promise<unknown> {
+  let notFound: unknown
+  for (const base of anchors) {
+    try {
+      return await internal.import(specifier, base, {})
+    } catch (error: unknown) {
+      if ((error as { code?: string } | null)?.code !== 'ERR_MODULE_NOT_FOUND') throw error
+      notFound ??= error
+    }
+  }
+  /* v8 ignore next -- every boot() caller supplies a config base. */
+  if (configBaseUrl === undefined) throw notFound
+  return internal.import(specifier, configBaseUrl, {})
+}
+
+/**
  * Mount and remember the exact root Include entry used by app boot and user patch-layer HMR.
  * @param ctx - context carrying an initialized Loader service.
  * @param absoluteConfigPath - absolute YAML or JSON configuration path.
  * @param patches - initial app and user patches, applied in order.
- * @param bareModuleBaseUrl - optional installed-host base for bare package
- * names; relative names continue to resolve beside the configuration file.
+ * @param bareModuleAnchors - optional installed-host bases (directory or
+ * package.json URLs) for bare package names, tried in order and authoritative
+ * over the config directory; bare names no anchor carries (out-of-tree
+ * plugins) fall back to the config directory's own resolution. Relative names
+ * continue to resolve beside the configuration file.
  * @returns the created root Include entry, or `undefined` when a surface
  * disposed the whole tree (taking the Loader service with it) while the
  * transactional create was still settling entry lifecycle.
@@ -487,9 +761,13 @@ export async function mountRootInclude(
   ctx: Context,
   absoluteConfigPath: string,
   patches: readonly PatchOptions[] = [],
-  bareModuleBaseUrl?: string,
+  bareModuleAnchors?: readonly string[],
 ): Promise<Entry | undefined> {
-  ctx.loader.builtins.include = bareModuleBaseUrl === undefined
+  const configBaseUrl = ctx.baseUrl
+  const anchors = bareModuleAnchors === undefined || bareModuleAnchors.length === 0
+    ? undefined
+    : bareModuleAnchors
+  ctx.loader.builtins.include = anchors === undefined
     ? Include
     : class HostResolvedRootInclude extends Include {
       override import(name: string, getOuterStack?: () => string[]): unknown {
@@ -499,7 +777,13 @@ export async function mountRootInclude(
         /* v8 ignore next -- Node supplies the internal loader; this preserves the
            original diagnostic for hypothetical embedders without it. */
         if (internal === undefined) return super.import(specifier, getOuterStack)
-        return internal.import(specifier, bareModuleBaseUrl, {})
+        // The installed package tree is authoritative: a profile-hoisted copy of
+        // an in-box package would shadow it (and dangle once a later uninstall
+        // prunes it). No single installation package.json carries the whole
+        // in-box closure (the app's own dependencies cover only part of it), so
+        // every anchor is tried in order. Bare names no anchor carries —
+        // out-of-tree plugins — fall back to the config directory's resolution.
+        return importFromFirst(internal, specifier, anchors, configBaseUrl)
       }
     }
   // `cordis:group` alongside it: a group row is how a composition gives one
@@ -728,7 +1012,7 @@ export async function assertEntriesActivated(ctx: Context, binName: string): Pro
  * Boot the Loader against `absoluteConfigPath` and return only after the whole
  * tree settles. Relative entry names resolve against the config directory;
  * bare package names resolve there by default or against an explicit
- * `bareModuleBaseUrl` for closed packaged runtimes. The bootstrap include
+ * `bareModuleAnchors` for closed packaged runtimes. The bootstrap include
  * is statically imported and mounted as the `cordis:include` builtin, loading
  * through the ambient module pipeline (vite/tsx/plain ESM). The package build
  * embeds Include while leaving Loader external, so the built include tree and
@@ -745,9 +1029,10 @@ export async function assertEntriesActivated(ctx: Context, binName: string): Pro
  * @param patches - optional overlay patches applied over the included tree
  * (see {@link loadOptionalPatches}); an empty list mounts none.
  * @param prepare - optional host setup run after Loader installation and before any config-tree entry mounts.
- * @param bareModuleBaseUrl - optional installed-host base for bare package
- * names; use it when the host, rather than the configuration project, owns the
- * complete plugin set.
+ * @param bareModuleAnchors - optional installed-host bases for bare package
+ * names, tried in order and authoritative over the config directory, with a
+ * config-directory fallback for names no anchor carries; use them when the
+ * host, rather than the configuration project, owns the in-box plugin set.
  * @returns the root context once every entry has started, or as soon as a
  * surface disposed the tree while startup was still in flight.
  * @throws a labelled error after disposing the partial context — `host
@@ -759,7 +1044,7 @@ export async function boot(
   absoluteConfigPath: string,
   patches?: PatchOptions[],
   prepare?: (ctx: Context) => Promise<void> | void,
-  bareModuleBaseUrl?: string,
+  bareModuleAnchors?: readonly string[],
 ): Promise<Context> {
   const ctx = new Context()
   // Two failure labels: `prepare` runs before any config-tree entry mounts,
@@ -771,7 +1056,7 @@ export async function boot(
     await ctx.plugin(Loader)
     await prepare?.(ctx)
     stage = 'plugin tree failed to load'
-    await mountRootInclude(ctx, absoluteConfigPath, patches, bareModuleBaseUrl)
+    await mountRootInclude(ctx, absoluteConfigPath, patches, bareModuleAnchors)
     // A surface can finish and dispose the whole tree while startup is still
     // in flight, before the last entry settles. The Loader service goes with
     // it, and the activation audit describes a live tree — reading `ctx.loader`

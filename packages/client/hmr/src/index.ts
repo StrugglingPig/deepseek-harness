@@ -3,10 +3,13 @@
  * stat-polls every graph row's client bundle (polling by design: network
  * mounts deliver no inotify events), reports content changes through
  * `clientModuleHost.rebuilt(id)`, and serves the `/plugins/events` SSE channel
- * broadcasting graph/rebuilt frames to the browser half (src/client/).
- * The web bundle mounts this row unconditionally: without a rebuild
- * watcher rewriting client bundles, the poll observes no changes and the
- * chain stays idle.
+ * broadcasting rebuilt frames plus a fresh `graph` frame on every graph
+ * recomposition (an entry-set change or a rebuilt rev change), so the browser
+ * half can detect live installs/uninstalls without a manual reload
+ * (src/client/): a same-set frame cancels a pending reload, a differing set
+ * schedules one. The web bundle mounts this row unconditionally:
+ * without a rebuild watcher rewriting client bundles, the poll observes no
+ * changes and the chain stays idle.
  */
 import { statSync } from 'node:fs'
 import type { ServerResponse } from 'node:http'
@@ -181,8 +184,16 @@ export function apply(ctx: Context, config: Config): void {
       const line = sseData({ type: 'rebuilt', id, rev })
       for (const res of connections) res.write(line)
     })
+    // Push the entry-set graph on every change so a browser can detect plugin
+    // rows appearing or disappearing without a manual reload; content-only
+    // rebuilds keep riding `rebuilt` frames (browsers ignore same-id graphs).
+    const unsubscribeGraph = ctx.clientModules.onGraphChanged(() => {
+      const line = sseData({ type: 'graph', graph: ctx.clientModules.graph() })
+      for (const res of connections) res.write(line)
+    })
     return () => {
       unsubscribe()
+      unsubscribeGraph()
       disposeRoute()
       for (const res of connections) res.destroy()
       connections.clear()

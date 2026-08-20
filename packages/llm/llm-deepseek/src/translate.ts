@@ -73,9 +73,8 @@ function closeBlock(block: OpenBlock): ContentBlock {
       name: block.name ?? '',
       arguments: block.text,
     }
-    default:
-      /* v8 ignore next -- the switch is exhaustive over OpenBlock's closed kind union */
-      return assertNever(block.kind, 'closeBlock')
+    /* v8 ignore next -- the switch is exhaustive over OpenBlock's closed kind union */
+    default: return assertNever(block.kind, 'closeBlock')
   }
 }
 

@@ -57,12 +57,23 @@
  * apply opens a fresh channel. Frames arriving during the gap are lost —
  * acceptable for the dev channel, the next rebuild renotifies.
  *
+ * Entry-set changes (a plugin row appearing or disappearing on the host,
+ * e.g. a market install recomposing the bundle layer live) cannot ride the
+ * `rebuilt` hot-swap: a new entry's factory was never registered and a
+ * removed entry's fiber must not linger. On a `graph` frame whose id set
+ * differs from this page's boot manifest, the page reloads after a short
+ * debounce (re-checked at fire time, cancelled when a later frame restores
+ * the set) so the fresh `window.__DSH_BOOT__` materializes the change.
+ * Content-only rebuilds keep the in-place swap. Incremental add/remove
+ * without a reload is a later extension of the same frame protocol.
+ *
  * Failure policy: no rollback. An import failure leaves the entry
  * fiberless (the next rebuilt frame retries from scratch); an apply failure
  * leaves a FAILED fiber for the shell's status projection. Both log loudly.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Entry, Loader } from '@deepseek-ai/cordis-plugin-loader'
+import type { WebBootGraph } from '@deepseek-ai/dsh-client-modules'
 import type { PluginsEventFrame } from '../events.ts'
 import { EVENTS_ENDPOINT } from '../events.ts'
 
@@ -142,6 +153,40 @@ export function apply(ctx: Context): void {
   // Serialize reloads: frames can arrive faster than a swap completes, and
   // interleaved dispose/execute chains would corrupt the single-slot handoff.
   let queue: Promise<void> = Promise.resolve()
+
+  // --- entry-set change auto-reload ----------------------------------
+  // The page's entry set is frozen at boot (`window.__DSH_BOOT__`); a graph
+  // frame naming a different set means the host recomposed its bundle layer
+  // (a live install/uninstall). Reload, debounced, so the fresh manifest
+  // materializes it; a restoring frame cancels the pending reload.
+  const bootGraph = (window as { __DSH_BOOT__?: WebBootGraph }).__DSH_BOOT__
+  const bootIds = bootGraph === undefined
+    ? undefined
+    : new Set(bootGraph.entries.map(entry => entry.id))
+  let latestGraph: WebBootGraph | undefined
+  let pendingReload: ReturnType<typeof setTimeout> | undefined
+  const sameIds = (ids: Set<string>): boolean =>
+    bootIds !== undefined && ids.size === bootIds.size && [...bootIds].every(id => ids.has(id))
+  const noteGraph = (graph: WebBootGraph): void => {
+    latestGraph = graph
+    if (bootIds === undefined) return // no manifest: never reload on frames
+    if (sameIds(new Set(graph.entries.map(entry => entry.id)))) {
+      if (pendingReload !== undefined) {
+        clearTimeout(pendingReload)
+        pendingReload = undefined
+      }
+      return
+    }
+    if (pendingReload !== undefined) return
+    pendingReload = setTimeout(() => {
+      pendingReload = undefined
+      // A later frame may have restored the set; re-check at fire time.
+      if (latestGraph !== undefined && !sameIds(new Set(latestGraph.entries.map(entry => entry.id)))) {
+        location.reload()
+      }
+    }, 750)
+  }
+
   const handle = (frame: PluginsEventFrame): void => {
     switch (frame.type) {
       case 'rebuilt':
@@ -150,12 +195,19 @@ export function apply(ctx: Context): void {
           ctx.logger.error(error)
         })
         break
-      case 'graph':
-        // Connect-time snapshot, unused. The loader's cached graph rev
-        // goes stale after rebuilds — harmless, since prefetch hits the
-        // network anyway (host serves bundles no-cache); graph rev refresh
-        // lands with the reconnect-handshake mechanism.
+      case 'graph': {
+        // Live entry-set snapshots from the host; rev-only changes (content
+        // rebuilds) carry the same id set and cancel any pending reload.
+        // Wire boundary: a version-skewed host can send a frame without the
+        // entries array — drop it loudly instead of throwing in the handler.
+        const entries = (frame.graph as { entries?: unknown }).entries
+        if (!Array.isArray(entries)) {
+          ctx.logger.warn('client-hmr: malformed graph frame dropped (no entries array)')
+          break
+        }
+        noteGraph(frame.graph)
         break
+      }
       default:
         // Merge-extensible frame union: unknown frame types from newer hosts
         // are ignored by design.
@@ -176,6 +228,9 @@ export function apply(ctx: Context): void {
       }
       handle(frame)
     })
-    return () => { source.close() }
+    return () => {
+      source.close()
+      if (pendingReload !== undefined) clearTimeout(pendingReload)
+    }
   }, 'client-hmr: event source')
 }

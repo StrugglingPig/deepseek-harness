@@ -31,6 +31,13 @@ async function eventually(test: () => boolean, message: string): Promise<void> {
   }
 }
 
+/**
+ * Native watch streams establish asynchronously after `ready`, and a change
+ * landing on the heels of the previous event's delivery is dropped; space
+ * registrations and consecutive writes past both windows.
+ */
+const settleChokidarChangeThrottle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 75))
+
 describe('HMR exact config paths', () => {
   it('observes module changes when its watch base is a filesystem alias', { timeout: 30_000 }, async () => {
     const target = mkdtempSync(join(tmpdir(), 'dsh-hmr-module-canonical-'))
@@ -98,10 +105,13 @@ describe('HMR exact config paths', () => {
         }
       })
 
+      await settleChokidarChangeThrottle()
       writeFileSync(filename, 'one', { flag: 'wx' })
       await eventually(() => observed.includes('one'), 'HMR did not observe config creation')
+      await settleChokidarChangeThrottle()
       writeFileSync(filename, 'two')
       await eventually(() => observed.includes('two'), 'HMR did not observe config change')
+      await settleChokidarChangeThrottle()
       unlinkSync(filename)
       await eventually(() => observed.includes('missing'), 'HMR did not observe config removal')
     } finally {
@@ -119,6 +129,7 @@ describe('HMR exact config paths', () => {
       await ctx.hmr.registerConfig(filename, () => {
         observed.push(readFileSync(filename, 'utf8'))
       })
+      await settleChokidarChangeThrottle()
       mkdirSync(dir)
       writeFileSync(filename, 'created')
       await eventually(() => observed.includes('created'), 'HMR did not observe config creation under a new parent')
@@ -149,6 +160,9 @@ describe('HMR exact config paths', () => {
         active -= 1
       })
       await started.promise
+      // Space the write past the initial event's delivery window; the
+      // refresh stays blocked on release, so serialization is what is tested.
+      await settleChokidarChangeThrottle()
       writeFileSync(filename, 'two')
       // Chokidar coalesces atomic writes for 100 ms by default. Wait beyond
       // that window so this edit is queued before registration disposal.
@@ -183,6 +197,7 @@ describe('HMR exact config paths', () => {
         failure.resolve({ filename: failedFilename, error })
       })
       await ctx.hmr.registerConfig(filename, () => { throw 42 })
+      await settleChokidarChangeThrottle()
       writeFileSync(filename, 'invalid')
 
       const observed = await failure.promise

@@ -272,6 +272,13 @@ describe('enrichDiscoveredModels', () => {
     )).toEqual([{ id: 'shipped-model', name: 'Gateway Rename', contextWindow: 32_000, maxTokens: 64_000 }])
   })
 
+  it('keeps a disclosed output ceiling over the catalog\'s', () => {
+    expect(enrichDiscoveredModels(
+      [{ id: 'shipped-model', maxTokens: 8_192 }],
+      known,
+    )).toEqual([{ id: 'shipped-model', name: 'Shipped Model', contextWindow: 1_000_000, maxTokens: 8_192 }])
+  })
+
   it('passes ids the catalog does not ship through bare', () => {
     expect(enrichDiscoveredModels([{ id: 'foreign' }], known)).toEqual([{ id: 'foreign' }])
   })

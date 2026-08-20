@@ -614,7 +614,7 @@ describe('boot', () => {
       await configOwned.fiber.dispose()
     }
     const harnessBaseUrl = pathToFileURL(join(harness, 'entry.mjs')).href
-    const ctx = await boot(NAME, hostOwnedPath, undefined, undefined, harnessBaseUrl)
+    const ctx = await boot(NAME, hostOwnedPath, undefined, undefined, [harnessBaseUrl])
     try {
       expect(ctx.get('harnessPluginLoaded')).toBe(true)
       expect(ctx.get('shadowPluginLoaded')).toBeUndefined()
@@ -831,5 +831,99 @@ describe('addHarnessSourceSection', () => {
     } finally {
       await ctx.fiber.dispose()
     }
+  })
+})
+
+describe('mountRootInclude installed-host resolution', () => {
+  /** Stage a bare-name plugin under a base dir whose apply provides a marker service. */
+  function stagePlugin(baseDir: string, name: string, marker: string): void {
+    const dir = join(baseDir, 'node_modules', name)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, version: '0.0.0', type: 'module', main: './index.js' }))
+    writeFileSync(join(dir, 'index.js'), [
+      `export const name = ${JSON.stringify(name)}`,
+      `export function apply(ctx) { ctx.provide(${JSON.stringify(`probe-${name}`)}, ${JSON.stringify(marker)}) }`,
+      '',
+    ].join('\n'))
+  }
+
+  const anchorBase = (anchorDir: string): string => pathToFileURL(join(anchorDir, 'package.json')).href
+
+  it('prefers the installed base and falls back to the config directory', async () => {
+    const anchor = tmp()
+    writeFileSync(join(anchor, 'package.json'), JSON.stringify({ name: 'dsh-anchor', dependencies: {} }))
+    stagePlugin(anchor, 'shared-plugin', 'from-anchor')
+    const configDir = tmp()
+    writeFileSync(join(configDir, 'cordis.yml'), '- name: shared-plugin\n- name: config-only\n')
+    stagePlugin(configDir, 'shared-plugin', 'from-config')
+    stagePlugin(configDir, 'config-only', 'from-config')
+
+    const ctx = await boot(NAME, join(configDir, 'cordis.yml'), [], undefined, [anchorBase(anchor)])
+    try {
+      // The installed copy wins over a same-named config-dir shadow...
+      expect(ctx.get('probe-shared-plugin')).toBe('from-anchor')
+      // ...while names the installation does not carry resolve from the config.
+      expect(ctx.get('probe-config-only')).toBe('from-config')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('walks the anchor list in order before the config directory', async () => {
+    // No single anchor carries the whole closure: the app anchor misses names
+    // a bundle anchor declares, and a stale config-dir shadow of a bundle
+    // anchor's plugin must still lose to the bundle's own copy.
+    const appAnchor = tmp()
+    writeFileSync(join(appAnchor, 'package.json'), JSON.stringify({ name: 'dsh-app', dependencies: {} }))
+    stagePlugin(appAnchor, 'app-plugin', 'from-app')
+    const bundleAnchor = tmp()
+    writeFileSync(join(bundleAnchor, 'package.json'), JSON.stringify({ name: 'dsh-bundle', dependencies: {} }))
+    stagePlugin(bundleAnchor, 'bundle-plugin', 'from-bundle')
+    const configDir = tmp()
+    writeFileSync(join(configDir, 'cordis.yml'), '- name: app-plugin\n- name: bundle-plugin\n- name: out-of-tree\n')
+    stagePlugin(configDir, 'bundle-plugin', 'stale-config-shadow')
+    stagePlugin(configDir, 'out-of-tree', 'from-config')
+
+    const ctx = await boot(
+      NAME, join(configDir, 'cordis.yml'), [], undefined,
+      [anchorBase(appAnchor), anchorBase(bundleAnchor)],
+    )
+    try {
+      expect(ctx.get('probe-app-plugin')).toBe('from-app')
+      expect(ctx.get('probe-bundle-plugin')).toBe('from-bundle')
+      expect(ctx.get('probe-out-of-tree')).toBe('from-config')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('keeps the installed-base diagnostic when neither base carries the name', async () => {
+    const anchor = tmp()
+    writeFileSync(join(anchor, 'package.json'), JSON.stringify({ name: 'dsh-anchor', dependencies: {} }))
+    const configDir = tmp()
+    writeFileSync(join(configDir, 'cordis.yml'), '- name: ghost-plugin\n')
+
+    await expect(boot(NAME, join(configDir, 'cordis.yml'), [], undefined, [anchorBase(anchor)]))
+      .rejects.toThrow('ghost-plugin')
+  })
+
+  it('propagates a load failure at an owning anchor instead of falling back', async () => {
+    const anchor = tmp()
+    writeFileSync(join(anchor, 'package.json'), JSON.stringify({ name: 'dsh-anchor', dependencies: {} }))
+    // Distinct throw messages per copy: the rejection must name the anchor
+    // copy — falling back to the config directory on a load failure is the
+    // stale-shadow regression the error classification prevents.
+    const brokenDir = join(anchor, 'node_modules', 'broken-plugin')
+    mkdirSync(brokenDir, { recursive: true })
+    writeFileSync(join(brokenDir, 'package.json'), JSON.stringify({
+      name: 'broken-plugin', version: '0.0.0', type: 'module', main: './index.js',
+    }))
+    writeFileSync(join(brokenDir, 'index.js'), 'throw new Error(\'anchor copy evaluation failed\')\n')
+    const configDir = tmp()
+    writeFileSync(join(configDir, 'cordis.yml'), '- name: broken-plugin\n')
+    stagePlugin(configDir, 'broken-plugin', 'stale-config-copy')
+
+    await expect(boot(NAME, join(configDir, 'cordis.yml'), [], undefined, [anchorBase(anchor)]))
+      .rejects.toThrow('anchor copy evaluation failed')
   })
 })

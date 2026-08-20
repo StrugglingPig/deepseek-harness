@@ -540,7 +540,7 @@ describe('endpoint interrogation', () => {
     await screen.findByText(en.fetchFailed)
     cleanup()
 
-    const blankThrow = vi.fn(() => Promise.reject(''))
+    const blankThrow = vi.fn(() => Promise.reject(new Error('')))
     await mountSection({ discover: blankThrow })
     openEditor('openai')
     fireEvent.click(screen.getByText(en.fetchModels))

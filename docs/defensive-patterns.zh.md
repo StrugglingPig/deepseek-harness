@@ -31,3 +31,7 @@
 ## 用 unlink 删除链接形态的路径
 
 可能是符号链接或 Windows junction 的路径，应先用 `lstatSync().isSymbolicLink()` 判断，再用 `unlinkSync` 删除：unlink 只删除链接本身并拒绝真实目录，因此绝不会跟随链接进入其目标。Windows 上对 junction 调用 `rmSync(link)` 会抛 `ERR_FS_EISDIR`；递归删除可能穿过 junction 进入其目标。真实目录才使用带 `recursive` 的 `rmSync`。
+
+## 调和循环只在应用成功后才把变更记为已见
+
+文件监听调和车道若在一代成功之前就记录观察到的 mtime，会静默丢失落在该代运行中的写入：该次 tick 消费了差量，运行中的那代却在写入落盘前就读了文件，之后的 tick 也不会再触发。失败的一代同样会卡住，直到下一次外部写入。只在成功后、以该代启动时的 mtime 推进 seen 标记；在某代运行中落下的请求（事件或轮询）合并为一次重跑；失败则让标记保持陈旧，下一个 tick 高声自愈（[事故](../.agents/notes/implemented/architecture/2026-08-19-live-profile-bundle-recomposition.md)）。

@@ -11,6 +11,7 @@ import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { FileSettingsProvider } from '@deepseek-ai/dsh-settings-file'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
+import { discoverModels } from '../src/discovery.ts'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 
 const NS = settingsNamespace('llm-deepseek')
@@ -101,6 +102,16 @@ describe('llm-deepseek model discovery', () => {
     ])
   })
 
+  it('maps a bare catalog model without inventing fields', async () => {
+    const dir = await home()
+    const ctx = await boot(dir, {})
+
+    await ctx.settings.update(NS, { models: [{ id: 'bare' }] })
+
+    const models = await ctx.llm.discoverModels('llm-deepseek', { provider: 'deepseek-official' })
+    expect(models).toEqual([{ id: 'bare' }])
+  })
+
   it('interrogates the endpoint when the draft names a baseURL', async () => {
     const server = await listingServer({
       body: JSON.stringify({
@@ -183,13 +194,15 @@ describe('llm-deepseek model discovery', () => {
 
   it('enriches market-common ids from the facts table, configured ids winning', async () => {
     const server = await listingServer({
-      body: JSON.stringify({ data: [{ id: 'k3' }, { id: 'gpt-5.5' }, { id: 'deepseek-v4-pro' }] }),
+      body: JSON.stringify({ data: [{ id: 'k3' }, { id: 'gpt-5.5' }, { id: 'deepseek-v4-pro' }, { id: 'named-only' }] }),
     })
     const dir = await home()
     const ctx = await boot(dir, {
       modelFacts: [
         { id: 'k3', contextWindow: 1_048_576, maxTokens: 131_072 },
         { id: 'deepseek-v4-pro', maxTokens: 2048 },
+        // A name-only fact: no capacity to merge beside the name.
+        { id: 'named-only', name: 'Named Only' },
       ],
     })
 
@@ -202,6 +215,7 @@ describe('llm-deepseek model discovery', () => {
       { id: 'gpt-5.5', contextWindow: 1_050_000, maxTokens: 128_000 },
       // Configuration wins over the live catalog; the catalog keeps the rest.
       { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro', contextWindow: 1_000_000, maxTokens: 2048 },
+      { id: 'named-only', name: 'Named Only' },
     ])
   })
 
@@ -223,6 +237,24 @@ describe('llm-deepseek model discovery', () => {
 
     await expect(ctx.llm.discoverModels('llm-deepseek', { provider: 'acme-gateway' }))
       .rejects.toThrow(/owns provider "deepseek-official", not "acme-gateway"/)
+  })
+
+  it('names no server when the draft carries neither provider nor base URL', async () => {
+    // Adapter-level contract: both request fields are optional; the product
+    // gate above them never forwards such a draft, but the message must not
+    // crash on the missing provider.
+    await expect(discoverModels({}, {
+      provider: 'deepseek-official',
+      models: () => [],
+      modelFacts: () => [],
+      storedApiKey: async () => undefined,
+    })).rejects.toThrow(/owns provider "deepseek-official", not ""/)
+  })
+
+  it('refuses a configured model fact with an empty id', async () => {
+    const dir = await home()
+    await expect(boot(dir, { modelFacts: [{ id: '', name: 'No Id' }] }))
+      .rejects.toThrow('model fact ids must be non-empty')
   })
 
   it('is offered for the namespace and withdraws when the plugin unloads', async () => {

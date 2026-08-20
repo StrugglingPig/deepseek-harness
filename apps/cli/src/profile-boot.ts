@@ -2,8 +2,10 @@
  * Shared profile boot for every `dsh` surface: resolve the profile, stack its
  * patch layers (bundle layers in `dsh.profile.bundles` order, the profile's
  * own `cordis.patch.yml`, `--patch` overlays, the telemetry switch), mount the
- * tree over the profile's empty root config, keep the profile patch layer
- * live, and wire fail-loud plus bounded shutdown.
+ * tree over the profile's empty root config, keep the user patch layers AND
+ * the bundle layer live (recomposing per generation from the profile manifest
+ * a package manager rewrites, with ephemeral hot mounts reconciled against
+ * the durable layer), and wire fail-loud plus bounded shutdown.
  *
  * App flags are not the launcher's business: the invocation's inner arguments
  * are provided to the tree through `ctx.cmdlineArgs`, where any injected app
@@ -12,20 +14,25 @@
  */
 
 import { writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { FiberState, type Context } from '@deepseek-ai/cordis'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import {
   boot,
   composeEntries,
+  disposeDuplicateSubtreeEntries,
   healProfilesModuleFallback,
+  installBundleLayerGuard,
   installFailLoud,
   loadOptionalPatches,
   loadOverlayPatches,
   loadProfile,
   PROFILE_PATCH_FILENAME,
+  reloadProfileLayers,
+  watchProfileManifest,
   watchUserPatches,
   type Profile,
 } from '@deepseek-ai/dsh-app-boot'
@@ -40,6 +47,18 @@ import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.
 
 const NAME = 'dsh'
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /**
+     * Launcher-provided installation anchor package.json paths (the app plus
+     * every composed bundle at boot, frozen for the process lifetime); the
+     * resolution sites try them in order before the config directory. Same
+     * member as the client-modules and agent-presets augmentations.
+     */
+    dshInstallAnchors?: readonly string[]
+  }
+}
+
 /**
  * The home-level user patch layer (`$DSH_HOME/cordis.patch.yml`), applied
  * over every profile's own layer. Resolved per call, not at module load:
@@ -52,6 +71,31 @@ export function homePatchPath(): string {
 
 /** Absolute path of this dsh installation's package.json (both anchors: src/ and lib/ sit one level under apps/cli). */
 export const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.meta.url))
+
+/**
+ * The installation-authoritative anchor set for bare plugin resolution: the
+ * app's package.json plus every bundle's, because no single one carries the
+ * whole in-box closure (the app's dependencies cover only part of it; each
+ * bundle declares its own rows). Out-of-tree bundle names simply do not
+ * resolve here and keep the config-directory fallback.
+ * @param bundles - the profile's composed bundle package names, in manifest order.
+ * @returns anchor package.json paths, app first, duplicates removed.
+ */
+export function installAnchors(bundles: readonly string[]): string[] {
+  const appRequire = createRequire(INSTALL_ANCHOR)
+  const anchors = [INSTALL_ANCHOR]
+  for (const bundle of bundles) {
+    try {
+      anchors.push(appRequire.resolve(`${bundle}/package.json`))
+    } catch (error: unknown) {
+      // Out-of-tree bundle: the profile directory resolves its rows. A
+      // present-but-broken anchor (e.g. an exports map missing ./package.json)
+      // must not silently lose its anchor — that re-opens the stale-shadow hole.
+      if ((error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND') throw error
+    }
+  }
+  return [...new Set(anchors)]
+}
 
 /** The session-telemetry row id the DSH_TELEMETRY_DISABLED switch targets. */
 const TELEMETRY_ROW_ID = 'session-telemetry-otel'
@@ -109,7 +153,9 @@ interface ComposedProfile {
   bundlePatches: PatchOptions[]
   /** The home-level user layer (`$DSH_HOME/cordis.patch.yml`), applied after the profile's own. */
   homePatches: PatchOptions[]
-  /** Layers above the user layers on a live reload: `--patch` overlays and the telemetry switch. */
+  /** `--patch` overlay layers in argv order; frozen for the process lifetime. */
+  overlayFiles: PatchOptions[]
+  /** The boot stack's top layers: argv overlays plus the derived overlays. */
   overlays: PatchOptions[]
   /**
    * id → row of the composed tree (bundles + user layers + overlays), for the
@@ -145,19 +191,31 @@ function composeProfile(
 ): ComposedProfile {
   const profile = prepareProfile(name)
   const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
-  const overlays = patchFiles.flatMap(file => loadOverlayPatches(NAME, resolve(file)))
+  const overlayFiles = patchFiles.flatMap(file => loadOverlayPatches(NAME, resolve(file)))
   const bundlePatches = profile.layers.flatMap(layer => layer.patches)
   const rows = new Map<string, EntryOptions>()
-  for (const row of composeEntries([bundlePatches, profile.patches, homePatches, overlays])) {
+  for (const row of composeEntries([bundlePatches, profile.patches, homePatches, overlayFiles])) {
     if (typeof row.id === 'string') rows.set(row.id, row)
   }
-  const composedOverlays = [...overlays]
+  return { profile, bundlePatches, homePatches, overlayFiles, overlays: [...overlayFiles, ...deriveOverlays(rows)], rows }
+}
+
+/**
+ * The launcher-derived overlays of one generation: the agent-presets shipped
+ * root (only when the roster carries the row) and the telemetry switch.
+ * Re-derived per live generation so a bundle add/remove moves them with the
+ * rows they depend on.
+ * @param rows - id → row index of the generation's own composition.
+ * @returns the derived overlay patches, in stack order.
+ */
+function deriveOverlays(rows: ReadonlyMap<string, EntryOptions>): PatchOptions[] {
+  const derived: PatchOptions[] = []
   // The SHIPPED root is the part of the roster only this app can resolve: it
   // sits beside this app's own config, in both the source and built layouts.
   // The writable root the roster appends is `dsh-agent-presets`' own, so a
   // launcher that never reaches this patch still finds a person's presets.
   if (rows.has('agent-presets')) {
-    composedOverlays.push({
+    derived.push({
       id: 'agent-presets',
       config: {
         ...(rows.get('agent-presets')?.config ?? {}) as Record<string, unknown>,
@@ -166,8 +224,8 @@ function composeProfile(
     })
   }
   const telemetryPatch = resolveTelemetryPatch(process.env.DSH_TELEMETRY_DISABLED, rows.has(TELEMETRY_ROW_ID))
-  if (telemetryPatch !== undefined) composedOverlays.push(telemetryPatch)
-  return { profile, bundlePatches, homePatches, overlays: composedOverlays, rows }
+  if (telemetryPatch !== undefined) derived.push(telemetryPatch)
+  return derived
 }
 
 /** Options for {@link runProfile}. */
@@ -225,24 +283,42 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   })
 
   const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)
-  // Recomposition for the live user layers: bundle layers below, overlays
-  // above, so a user edit can never displace them. Parsed app arguments are
-  // not in here at all — they live in app-provided services that survive a
-  // recomposition. BOTH
-  // user files are re-read per generation (the HMR watcher hands us only the
-  // changed file's patches, which one of the reads duplicates — fresh reads
-  // keep the two watchers from stitching in each other's stale copy).
-  // Fresh clones per generation: the include pushes `insert` rows into the
-  // mounted tree BY REFERENCE and later id-targeted patches mutate those
+  // Installation-authoritative bare resolution: the app anchor plus every
+  // bundle's, so the whole in-box closure resolves from the running
+  // installation and a profile-hoisted stale copy can never split module
+  // identity (host rows, the client table, and preset subtrees share it).
+  const anchors = installAnchors(composed.profile.layers.map(layer => layer.packageName))
+  const anchorUrls = anchors.map(anchor => pathToFileURL(anchor).href)
+  // Recomposition for the live layers: EVERY layer is re-read per generation —
+  // the profile manifest (bundle layers) can change behind a package-manager
+  // write, and the two user patch files like before. Bundle layers sit below
+  // the user layers, derived overlays above, so neither user edit nor a live
+  // bundle change can displace the launcher-owned rows. Parsed app arguments
+  // are not in here at all — they live in app-provided services that survive a
+  // recomposition; argv overlays stay frozen (argv is immutable).
+  // Fresh reads keep the three watchers from stitching in each other's stale
+  // copy. Fresh clones per generation: the include pushes `insert` rows into
+  // the mounted tree BY REFERENCE and later id-targeted patches mutate those
   // objects in place. Reusing one parsed patch object across applications
   // would bake a user override into the bundle's in-memory insert row, so
   // removing the override could never revert the row to the bundle default.
-  const composeLive = (): PatchOptions[] => structuredClone([
-    ...composed.bundlePatches,
-    ...loadOptionalPatches(NAME, composed.profile.patchPath) ?? [],
-    ...loadOptionalPatches(NAME, homePatchPath()) ?? [],
-    ...composed.overlays,
-  ])
+  const composeLive = (): PatchOptions[] => {
+    const live = reloadProfileLayers(NAME, composed.profile.name, INSTALL_ANCHOR)
+    const bundlePatches = live.layers.flatMap(layer => layer.patches)
+    const profilePatches = loadOptionalPatches(NAME, composed.profile.patchPath) ?? []
+    const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
+    const rows = new Map<string, EntryOptions>()
+    for (const row of composeEntries([bundlePatches, profilePatches, homePatches, composed.overlayFiles])) {
+      if (typeof row.id === 'string') rows.set(row.id, row)
+    }
+    return structuredClone([
+      ...bundlePatches,
+      ...profilePatches,
+      ...homePatches,
+      ...composed.overlayFiles,
+      ...deriveOverlays(rows),
+    ])
+  }
   // Cloned for the same insert-aliasing reason as composeLive: the boot
   // application must not mutate the objects later reloads recompose from.
   const ctx = await boot(NAME, rootConfig, structuredClone(allPatches(composed)), (hostCtx) => {
@@ -250,13 +326,17 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     // Before any config-tree entry mounts, so plugins resolve all launch-time
     // environment values from the same immutable provenance snapshot.
     hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, options.environment)
+    // In-box plugin packages resolve from this installation first (the client
+    // table, the root include, and preset subtrees share the anchor set); the
+    // profile directory stays the fallback for out-of-tree plugins only.
+    hostCtx.provide('dshInstallAnchors', anchors)
     // The command line and bounded exit request are launcher facts available
     // to every app plugin that injects the argument snapshot.
     provideCmdline(hostCtx, {
       args: options.args,
       exit: code => void shutdown.shutdown(code),
     })
-  })
+  }, anchorUrls)
   app.current = ctx
   // A surface can dispose the whole tree while boot or this post-boot watcher
   // setup is still in flight — a signal, or a fast one-shot's appExit. Loader
@@ -291,6 +371,21 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
         binName: NAME,
         filename: homePatchPath(),
         compose: composeLive,
+      })
+      // Ephemeral hot mounts (a market-style subtree Include) yield to the
+      // durable bundle layer in both orderings: the guard removes a hot row
+      // landing after a recomposition; the reconciliation removes one that
+      // landed before it.
+      installBundleLayerGuard(ctx, NAME)
+      // The third live layer: the profile manifest a package manager rewrites
+      // on install/uninstall. A throwing generation (a bundle listed but not
+      // yet installed) self-heals through the bounded retry.
+      await watchProfileManifest(ctx, {
+        binName: NAME,
+        filename: join(composed.profile.dir, 'package.json'),
+        compose: composeLive,
+        afterUpdate: () => disposeDuplicateSubtreeEntries(ctx, NAME),
+        retry: { attempts: 5, delayMs: 2_000 },
       })
     } catch (error) {
       suppressShutdownError(ctx, signalShutdown.signal, error)

@@ -384,9 +384,29 @@ export function loadProfile(
   }
   const manifest = normalizeShippedProfile(name, dir, readProfileManifest(binName, dir))
   // A hand-written profile manifest may omit the dsh section entirely.
-  const bundles = manifest.dsh?.profile?.bundles ?? []
-  const layers = bundles.map((packageName): ProfileLayer => {
-    const packageDir = resolveBundleDir(binName, packageName, installAnchor, dir)
+  const layers = resolveBundleLayers(binName, manifest.dsh?.profile?.bundles ?? [], installAnchor, dir)
+  const patchPath = join(dir, PROFILE_PATCH_FILENAME)
+  const patches = options.userLayer !== false && existsSync(patchPath)
+    ? loadOverlayPatches(binName, patchPath)
+    : []
+  return { name, dir, layers, patchPath, patches }
+}
+
+/**
+ * Resolve a bundle list to its patch layers, in list order. Extracted from
+ * {@link loadProfile} so a live recomposition can re-resolve the bundle layer
+ * per generation without re-reading the user layer.
+ * @param binName - the diagnostic prefix on thrown errors.
+ * @param bundles - package names from `dsh.profile.bundles`.
+ * @param installAnchor - absolute path of the dsh app's package.json (first resolution anchor).
+ * @param profileDir - the profile directory (second anchor).
+ * @returns one patch layer per listed bundle, in order.
+ */
+export function resolveBundleLayers(
+  binName: string, bundles: readonly string[], installAnchor: string, profileDir: string,
+): ProfileLayer[] {
+  return bundles.map((packageName): ProfileLayer => {
+    const packageDir = resolveBundleDir(binName, packageName, installAnchor, profileDir)
     const bundleManifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8')) as ProfileManifest
     const declared = bundleManifest.dsh?.bundle?.patch
     if (declared === undefined) {
@@ -395,11 +415,31 @@ export function loadProfile(
     const patchPath = join(packageDir, declared)
     return { packageName, packageDir, patchPath, patches: loadOverlayPatches(binName, patchPath) }
   })
-  const patchPath = join(dir, PROFILE_PATCH_FILENAME)
-  const patches = options.userLayer !== false && existsSync(patchPath)
-    ? loadOverlayPatches(binName, patchPath)
-    : []
-  return { name, dir, layers, patchPath, patches }
+}
+
+/**
+ * Re-resolve a profile's bundle layers for a live recomposition generation:
+ * heals the shared module fallback (idempotent), then reads the manifest and
+ * resolves layers exactly like {@link loadProfile}. The user patch layer is
+ * deliberately NOT read — live recomposition re-reads it per generation
+ * through the same `compose` contract the boot-time stack uses, so this
+ * returns it empty. The launcher's `prepareProfile` rewrites `cordis.yml` once
+ * at boot; this never does: a mid-run rewrite would trigger a redundant root
+ * include refresh.
+ * @param binName - the diagnostic prefix on thrown errors.
+ * @param name - the profile name.
+ * @param installAnchor - absolute path of the dsh app's package.json.
+ * @param home - the Harness home; defaults to {@link resolveDshHome}.
+ * @returns the profile with fresh bundle layers and empty user patches.
+ */
+export function reloadProfileLayers(
+  binName: string, name: string, installAnchor: string, home: string = resolveDshHome(),
+): Profile {
+  healProfilesModuleFallback(installAnchor, home)
+  const dir = resolveProfileDir(name, home)
+  const manifest = normalizeShippedProfile(name, dir, readProfileManifest(binName, dir))
+  const layers = resolveBundleLayers(binName, manifest.dsh?.profile?.bundles ?? [], installAnchor, dir)
+  return { name, dir, layers, patchPath: join(dir, PROFILE_PATCH_FILENAME), patches: [] }
 }
 
 /**

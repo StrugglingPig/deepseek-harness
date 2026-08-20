@@ -9,4 +9,4 @@
 import { runJsonrpcAgent } from './runner.ts'
 
 /* v8 ignore next -- exercised through the built Python runtime carriers */
-await runJsonrpcAgent(import.meta.url)
+await runJsonrpcAgent([new URL('../package.json', import.meta.url).href])

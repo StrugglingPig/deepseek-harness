@@ -40,6 +40,15 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The web plugin table (provided by the client-modules node half). */
     clientModules: ClientModuleRegistry
+    /**
+     * Absolute package.json paths of the running installation's anchor set
+     * (the dsh app plus every composed bundle) when a launcher provides it;
+     * in-box plugin packages resolve from those installations first, in
+     * order. Frozen at boot: a bundle live-installed afterwards joins the set
+     * at the next restart (its rows resolve through the healed profile
+     * fallback until then).
+     */
+    dshInstallAnchors?: readonly string[]
   }
 }
 
@@ -210,7 +219,27 @@ export class ClientModuleRegistry extends Service {
       throw new Error('client-modules: ctx.baseUrl is unset — the node half needs the config-tree anchor to resolve plugin packages')
     }
     const require = createRequire(ctx.baseUrl)
-    this.resolvePkgJson = spec => require.resolve(`${spec}/package.json`)
+    // In-box packages stay installation-authoritative: a profile-hoisted copy
+    // of one would shadow the running installation's own build (version skew)
+    // and dangle the table once a later uninstall prunes it. The anchor set is
+    // the app plus every composed bundle — no single package.json carries the
+    // whole in-box closure, so each anchor is tried in order. Names no anchor
+    // carries — out-of-tree plugins — fall back to the config directory's
+    // nearest-wins walk.
+    const installRequires = (ctx.get('dshInstallAnchors') ?? []).map(anchor => createRequire(anchor))
+    this.resolvePkgJson = (spec) => {
+      for (const installRequire of installRequires) {
+        try {
+          return installRequire.resolve(`${spec}/package.json`)
+        } catch (error: unknown) {
+          // Only "this anchor does not carry the name" falls through; a
+          // broken installed copy propagates loud instead of degrading the
+          // row to the config-directory walk (stale-shadow hole).
+          if ((error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND') throw error
+        }
+      }
+      return require.resolve(`${spec}/package.json`)
+    }
 
     // Subscribe before seeding so a fiber arriving mid-activation lands in the
     // same dirty set (Set idempotence makes the overlap harmless). An entry-less

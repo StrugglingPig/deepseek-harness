@@ -734,3 +734,115 @@ describe('editing a composition file', () => {
     expect(livePresetMounts().filter(mount => mount.presetId === 'stale')).toHaveLength(1)
   })
 })
+
+describe('bare row resolution', () => {
+  /** Stage a bare-name plugin package under one base dir's node_modules. */
+  async function stageBare(baseDir: string, name: string, applyBody: string): Promise<void> {
+    const dir = join(baseDir, 'node_modules', name)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'package.json'), JSON.stringify({
+      name, version: '0.0.0', type: 'module', main: './index.js',
+    }))
+    await writeFile(join(dir, 'index.js'), `export const name = ${JSON.stringify(name)}\nexport function apply() { ${applyBody} }\n`)
+  }
+
+  it('resolves bare rows from launcher anchors before the composition base', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'dsh-presets-base-'))
+    const anchor = await mkdtemp(join(tmpdir(), 'dsh-presets-anchor-'))
+    try {
+      await writeFile(join(anchor, 'package.json'), JSON.stringify({ name: 'fixture-anchor', dependencies: {} }))
+      // The composition base's stale copy poisons the mount if it loads; the
+      // anchor's own copy is inert. A second row only the base carries proves
+      // names no anchor declares still fall back to the composition base.
+      await stageBare(base, 'fixture-bare-plugin', 'throw new Error(\'stale base copy loaded\')')
+      await stageBare(base, 'base-only-plugin', '')
+      await stageBare(anchor, 'fixture-bare-plugin', '')
+      const presetDir = join(base, 'preset')
+      await mkdir(presetDir, { recursive: true })
+      const composition = join(presetDir, 'agent.cordis.yml')
+      await writeFile(composition, '- id: probe\n  name: fixture-bare-plugin\n- id: base-only\n  name: base-only-plugin\n')
+
+      const ctx = new Context()
+      ctx.baseUrl = pathToFileURL(base).href + '/'
+      await ctx.plugin(Loader)
+      ctx.loader.builtins.include = Include
+      ctx.provide('dshInstallAnchors', [join(anchor, 'package.json')])
+      const scope = createScope(ctx, { anchorResolution: true })
+      try {
+        await mountPreset(scope.ctx, { id: 'baretest', trust: 'user', path: composition })
+      } finally {
+        await ctx.fiber.dispose()
+      }
+    } finally {
+      await rm(base, { recursive: true, force: true })
+      await rm(anchor, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates an evaluation failure at an owning anchor instead of loading the base copy', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'dsh-presets-base-'))
+    const anchor = await mkdtemp(join(tmpdir(), 'dsh-presets-anchor-'))
+    try {
+      await writeFile(join(anchor, 'package.json'), JSON.stringify({ name: 'fixture-anchor', dependencies: {} }))
+      // Both copies throw with distinct messages: the rejection must name the
+      // ANCHOR copy — falling through to the base copy on a load failure is
+      // exactly the stale-shadow regression the classification prevents. The
+      // anchor copy throws at EVALUATION so the import itself rejects.
+      await stageBare(base, 'fixture-bare-plugin', 'throw new Error(\'stale base copy loaded\')')
+      const brokenDir = join(anchor, 'node_modules', 'fixture-bare-plugin')
+      await mkdir(brokenDir, { recursive: true })
+      await writeFile(join(brokenDir, 'package.json'), JSON.stringify({
+        name: 'fixture-bare-plugin', version: '0.0.0', type: 'module', main: './index.js',
+      }))
+      await writeFile(join(brokenDir, 'index.js'), 'throw new Error(\'anchor copy evaluation failed\')\n')
+      const presetDir = join(base, 'preset')
+      await mkdir(presetDir, { recursive: true })
+      const composition = join(presetDir, 'agent.cordis.yml')
+      await writeFile(composition, '- id: probe\n  name: fixture-bare-plugin\n')
+
+      const ctx = new Context()
+      ctx.baseUrl = pathToFileURL(base).href + '/'
+      await ctx.plugin(Loader)
+      ctx.loader.builtins.include = Include
+      ctx.provide('dshInstallAnchors', [join(anchor, 'package.json')])
+      const scope = createScope(ctx, { anchorLoadFailure: true })
+      try {
+        await expect(mountPreset(scope.ctx, { id: 'baretest', trust: 'user', path: composition }))
+          .rejects.toThrow(/anchor copy evaluation failed/)
+      } finally {
+        await ctx.fiber.dispose()
+      }
+    } finally {
+      await rm(base, { recursive: true, force: true })
+      await rm(anchor, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves the anchor diagnostic when no base carries a bare row', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'dsh-presets-base-'))
+    const anchor = await mkdtemp(join(tmpdir(), 'dsh-presets-anchor-'))
+    try {
+      await writeFile(join(anchor, 'package.json'), JSON.stringify({ name: 'fixture-anchor', dependencies: {} }))
+      const presetDir = join(base, 'preset')
+      await mkdir(presetDir, { recursive: true })
+      const composition = join(presetDir, 'agent.cordis.yml')
+      await writeFile(composition, '- id: ghost\n  name: ghost-bare-plugin\n')
+
+      const ctx = new Context()
+      ctx.baseUrl = pathToFileURL(base).href + '/'
+      await ctx.plugin(Loader)
+      ctx.loader.builtins.include = Include
+      ctx.provide('dshInstallAnchors', [join(anchor, 'package.json')])
+      const scope = createScope(ctx, { anchorDiagnostic: true })
+      try {
+        await expect(mountPreset(scope.ctx, { id: 'baretest', trust: 'user', path: composition }))
+          .rejects.toThrow(/ghost-bare-plugin/)
+      } finally {
+        await ctx.fiber.dispose()
+      }
+    } finally {
+      await rm(base, { recursive: true, force: true })
+      await rm(anchor, { recursive: true, force: true })
+    }
+  })
+})

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { boot, healProfilesModuleFallback, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
+import { boot, healProfilesModuleFallback, installBundleLayerGuard, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -155,6 +155,11 @@ beforeAll(async () => {
   const settingsFile = join(await mkdtemp(join(tmpdir(), 'dsh-web-presets-')), 'settings.yaml')
   await writeFile(settingsFile, '{}\n')
   ctx = await bootWeb(settingsFile)
+  // The live bundle-layer guard must coexist with preset-composed agents:
+  // preset rows share package names with durable host rows by design, and the
+  // guard's scope exclusion keeps it from disposing them (the tool asserts
+  // below are the regression).
+  installBundleLayerGuard(ctx, 'dsh-test')
 }, 120_000)
 
 describe('the shipped Web composition', () => {

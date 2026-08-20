@@ -330,9 +330,14 @@ describe('boot with user patches', () => {
       compose: userPatches => [...basePatches, ...userPatches],
     })
     try {
+      // Let the native watch stream establish before the first write, and
+      // space consecutive writes past the prior event's delivery window —
+      // a change landing on the heels of the last one is dropped.
+      await settleChokidarChangeThrottle()
       writeFileSync(filename, '- id: noop\n  config:\n    value: live\n')
       await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied')
 
+      await settleChokidarChangeThrottle()
       writeFileSync(filename, '- id: noop\n  config:\n    fail: true\n')
       await eventually(() => failures.length === 1, 'failed candidate was not broadcast')
       expect(failures[0]).toMatchObject({ filename })
@@ -360,6 +365,7 @@ describe('boot with user patches', () => {
       await dispose()
       const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename })
       try {
+        await settleChokidarChangeThrottle()
         writeFileSync(filename, '- id: noop\n  config:\n    value: identity\n')
         await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied')
       } finally {

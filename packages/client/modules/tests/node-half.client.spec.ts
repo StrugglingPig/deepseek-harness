@@ -68,6 +68,45 @@ function construct(packageNames: string[]): ClientModuleRegistry {
   return constructWithRoute(packageNames).service
 }
 
+/** Construct with launcher-provided installation anchors (the resolution slot). */
+function constructAnchored(packageNames: string[], anchors: readonly string[]): ClientModuleRegistry {
+  root ??= realpathSync(mkdtempSync(join(tmpdir(), 'dsh-client-modules-')))
+  const ctx = new Context()
+  ctx.baseUrl = pathToFileURL(root).href + '/'
+  ctx.provide('dshInstallAnchors', anchors)
+  ctx.provide('loader', {
+    *entries() {
+      for (const packageName of packageNames) {
+        yield { options: { name: packageName }, fiber: {}, disabled: false }
+      }
+    },
+  })
+  const webServer: Pick<WebServer, 'port' | 'register' | 'tapIndex'> = {
+    port: 0,
+    register: () => () => {},
+    tapIndex: () => () => {},
+  }
+  ctx.provide('webServer', webServer as WebServer)
+  return new ClientModuleRegistry(ctx)
+}
+
+/** Stage a client package under an arbitrary base dir's node_modules. */
+function writePackageAt(baseDir: string, packageName: string): string {
+  const pkgRoot = join(baseDir, 'node_modules', ...packageName.split('/'))
+  const clientPath = join(pkgRoot, 'lib', 'client.js')
+  mkdirSync(dirname(clientPath), { recursive: true })
+  writeFileSync(join(pkgRoot, 'package.json'), JSON.stringify({
+    name: packageName,
+    exports: {
+      './client': './lib/client.js',
+      './package.json': './package.json',
+    },
+    dsh: { client: { platform: 'web' } },
+  }))
+  writeFileSync(clientPath, `module.exports = ${JSON.stringify(packageName)}\n`)
+  return clientPath
+}
+
 describe('client bundle activation', () => {
   it('allows sibling dsh roles', () => {
     const currentName = '@fixture/current-client-field'
@@ -81,6 +120,28 @@ describe('client bundle activation', () => {
     mkdirSync(dirname(clientPath), { recursive: true })
     writeFileSync(clientPath, 'module.exports = {}\n')
     expect(construct([currentName]).graph().entries.map(entry => entry.id)).toEqual([currentName])
+  })
+
+  it('resolves in-box packages from launcher anchors before the config directory', () => {
+    // A profile-hoisted stale copy of an in-box package must lose to the
+    // anchor's own build; a name no anchor carries (out-of-tree) still
+    // resolves from the config directory.
+    const shadowedName = '@fixture/anchor-shadowed'
+    const outOfTreeName = '@fixture/out-of-tree-client'
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-client-modules-')))
+    const anchorDir = join(root, 'anchor')
+    mkdirSync(anchorDir, { recursive: true })
+    writeFileSync(join(anchorDir, 'package.json'), JSON.stringify({ name: 'fixture-anchor', dependencies: {} }))
+    const anchorClientPath = writePackageAt(anchorDir, shadowedName)
+    const configClientPath = writePackage(shadowedName)
+    const outOfTreePath = writePackage(outOfTreeName)
+    mkdirSync(dirname(outOfTreePath), { recursive: true })
+    writeFileSync(outOfTreePath, `module.exports = ${JSON.stringify(outOfTreeName)}\n`)
+
+    const service = constructAnchored([shadowedName, outOfTreeName], [join(anchorDir, 'package.json')])
+    expect(service.clientPath(shadowedName)).toBe(anchorClientPath)
+    expect(service.clientPath(shadowedName)).not.toBe(configClientPath)
+    expect(service.clientPath(outOfTreeName)).toBe(join(root, 'node_modules', ...outOfTreeName.split('/'), 'lib', 'client.js'))
   })
 
   it('groups missing bundles under one source-build instruction with a package/path list', () => {
