@@ -14,7 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
-import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
+import type { ModelModality, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
@@ -22,21 +22,25 @@ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import {
   DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_REQUEST_IMAGE_BYTES,
   DEFAULT_MAX_TOKENS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions, DeepSeekModelFacts } from './adapter.ts'
+import { DEFAULT_REASONING_PASSBACK, type ReasoningPassback } from './serialize.ts'
 import { discoverModels } from './discovery.ts'
 
 export {
   DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_REQUEST_IMAGE_BYTES,
   DEFAULT_MAX_TOKENS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
+export { DEFAULT_REASONING_PASSBACK } from './serialize.ts'
 export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions, DeepSeekModelFacts } from './adapter.ts'
-export type { RequestDefaults } from './serialize.ts'
+export type { ReasoningPassback, RequestDefaults } from './serialize.ts'
 export type * from './types.ts'
 
 export const name = 'llm-deepseek'
@@ -83,6 +87,8 @@ const BUILTIN_MODEL_FACTS: DeepSeekModelFacts[] = [
   { id: 'gemini-2.5-flash', contextWindow: 1_048_576, maxTokens: 65_536 },
 ]
 
+const MODEL_MODALITIES = ['text', 'image'] as const satisfies readonly ModelModality[]
+
 /**
  * Plugin config, validated by the same-named schemastery schema and doubling
  * as the `llm-deepseek` settings-section shape. Every field is optional in
@@ -100,6 +106,13 @@ export interface Config {
   thinking?: 'enabled' | 'disabled'
   /** Default thinking effort (default `high`); `off` disables thinking per request. */
   reasoningEffort?: 'off' | 'low' | 'high' | 'max'
+  /**
+   * Which assistant turns replay `reasoning_content` (default `last-assistant`,
+   * what `api.deepseek.com` accepts). Set `every-turn` only for a gateway that
+   * recovers each turn's upstream thinking signature from the replayed chain of
+   * thought; against the public endpoint it makes thinking requests fail with 400.
+   */
+  reasoningPassback?: ReasoningPassback
   /** Default per-request output cap (default 256,000); a model's own cap and explicit request values win. */
   maxTokens?: number
   /** Positive context capacity used when the selected model has no exact value (default 1,000,000). */
@@ -113,7 +126,9 @@ export interface Config {
   modelFacts?: DeepSeekModelFacts[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
-  /** Provider-owned model-request retry policy; omission uses normal defaults. */
+  /** Maximum accumulated base64 image payload per request (default 20 MiB). */
+  maxRequestImageBytes?: number
+  /** Provider-owned model-request retry policy; omission uses normal mode with five retries. */
   retryPolicy?: RetryPolicyConfig
 }
 
@@ -123,6 +138,7 @@ const catalogModel: z<DeepSeekCatalogModel> = z.object({
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
+  inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text']),
 })
 
 const modelFacts: z<DeepSeekModelFacts> = z.object({
@@ -137,11 +153,13 @@ export const Config: z<Config> = z.object({
   baseURL: z.string(),
   thinking: z.union(['enabled', 'disabled']),
   reasoningEffort: z.union(['off', 'low', 'high', 'max']),
+  reasoningPassback: z.union(['last-assistant', 'every-turn']).default(DEFAULT_REASONING_PASSBACK),
   maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS),
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   models: z.array(catalogModel).default(DEFAULT_MODELS),
   modelFacts: z.array(modelFacts).default(BUILTIN_MODEL_FACTS),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
   retryPolicy: RetryPolicySchema,
 })
 
@@ -189,6 +207,18 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
         `llm-deepseek: catalog model "${model.id}" maxTokens must be a positive integer`,
       )
     }
+    const inputModalities = model.inputModalities ?? ['text']
+    if (inputModalities.length === 0) {
+      throw new Error(`llm-deepseek: catalog model "${model.id}" inputModalities must not be empty`)
+    }
+    if (inputModalities.some(modality => !MODEL_MODALITIES.includes(modality))) {
+      throw new Error(
+        `llm-deepseek: catalog model "${model.id}" inputModalities must contain only "text" and "image"`,
+      )
+    }
+    if (new Set(inputModalities).size !== inputModalities.length) {
+      throw new Error(`llm-deepseek: catalog model "${model.id}" inputModalities must not contain duplicates`)
+    }
     if (seen.has(model.id)) throw new Error(`llm-deepseek: duplicate catalog model "${model.id}"`)
     seen.add(model.id)
     return {
@@ -197,6 +227,7 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
       ...model.description === undefined ? {} : { description: model.description },
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+      inputModalities: [...inputModalities],
     }
   })
 }
@@ -235,6 +266,10 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
       `llm-deepseek: streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
     )
   }
+  const maxRequestImageBytes = config.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES
+  if (!Number.isSafeInteger(maxRequestImageBytes) || maxRequestImageBytes <= 0) {
+    throw new Error('llm-deepseek: maxRequestImageBytes must be a positive safe integer')
+  }
   return {
     apiKeyEnv: credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV),
     baseURL: config.baseURL
@@ -243,12 +278,14 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
     defaults: {
       thinking: config.thinking,
       reasoningEffort: config.reasoningEffort,
+      reasoningPassback: config.reasoningPassback ?? DEFAULT_REASONING_PASSBACK,
     },
     maxTokens: config.maxTokens ?? DEFAULT_MAX_TOKENS,
     defaultContextWindow: config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
     models: resolveModels(config.models),
     modelFacts: resolveModelFacts(config.modelFacts),
     streamIdleTimeoutMs,
+    maxRequestImageBytes,
     retryPolicy: resolveRetryPolicy(config.retryPolicy, 'llm-deepseek: retryPolicy'),
   }
 }
@@ -317,7 +354,12 @@ export function apply(ctx: Context, config: Config): void {
 
   let userId: AnonymousUserId | undefined
   const resolveUserId = (): AnonymousUserId => userId ??= getOrCreateAnonymousUserId()
-  const adapter = new DeepSeekAdapter({ options, resolveApiKey, resolveUserId })
+  const adapter = new DeepSeekAdapter({
+    options,
+    resolveApiKey,
+    resolveUserId,
+    resolveAttachments: () => ctx.get('attachments'),
+  })
   ctx.llm.registerConfigurableProviders([
     { provider: PROVIDER, displayName: 'DeepSeek', settingsNs: NS, settingsPath: [] },
   ])

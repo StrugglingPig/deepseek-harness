@@ -1,11 +1,36 @@
-import { describe, expect, it } from 'vitest'
-import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import { describe, expect, it, vi } from 'vitest'
+import { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
+import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage, CallId, ReasoningEffortId, createMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
-import { serializeMessages, serializeRequest } from '../src/serialize.ts'
+import {
+  serializeMessages,
+  serializeMessagesWithImages,
+  serializeRequest,
+  serializeRequestWithImages,
+} from '../src/serialize.ts'
 
 function request(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
   return { provider: 'deepseek-official', model: 'deepseek-v4-flash', messages: [], ...overrides }
+}
+
+function imageRef(mediaType: ImageMediaType = 'image/png', bytes = 3): ImageAttachmentRef {
+  return {
+    attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+    mediaType,
+    bytes,
+    width: 1,
+    height: 1,
+  }
+}
+
+function attachmentStore(
+  readImage = vi.fn((ref: ImageAttachmentRef, _signal?: AbortSignal) => Promise.resolve({
+    ref,
+    data: Uint8Array.of(1, 2, 3),
+  })),
+): AttachmentStore {
+  return { readImage } as unknown as AttachmentStore
 }
 
 describe('serializeMessages', () => {
@@ -262,6 +287,63 @@ describe('serializeMessages', () => {
     })])
     expect(wire).toEqual([{ role: 'user', content: '' }])
   })
+
+  it('replays reasoning_content on every reasoned assistant turn under every-turn', () => {
+    // The gateway contract: an intermediate assistant that called no tool needs
+    // its chain of thought on the wire so the signature recovery hash matches
+    // the original delivery. Selecting this against api.deepseek.com V4 400s.
+    const assistant = (reasoning: string, text: string) => createMessage({
+      role: 'assistant',
+      content: [
+        { type: 'reasoning', text: reasoning },
+        { type: 'text', text },
+      ],
+      source: { kind: 'plugin', plugin: 'test' },
+    })
+    const wire = serializeMessages([
+      assistant('first plan', 'answer-1'),
+      { role: 'user', content: [{ type: 'text', text: 'continue' }], source: { kind: 'plugin', plugin: 'test' } } as Message,
+      assistant('second plan', 'answer-2'),
+    ], 'every-turn')
+    const assistants = wire.filter(m => m.role === 'assistant') as { reasoning_content?: string }[]
+    expect(assistants.map(a => a.reasoning_content)).toEqual(['first plan', 'second plan'])
+  })
+
+  it('omits reasoning_content on a non-reasoning assistant turn under every-turn', () => {
+    // Mirrors the lone tool-call-free assistant test above, with an explicit
+    // policy override; the default test omits a 'reasoning_content' field on a
+    // turn whose assistant content carried no reasoning text.
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'plain answer' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ], 'every-turn')
+    expect('reasoning_content' in (wire[0] as object)).toBe(false)
+  })
+
+  it('still drops an intermediate assistant\'s reasoning under every-turn when the turn itself had none', () => {
+    // Under every-turn the gate is "did this turn carry reasoning text?", not
+    // "is this turn the most recent assistant?". The lone no-reasoning tool
+    // call passback rule (reasoning_content: '') is exclusive to last-assistant.
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'tool-call', id: CallId('c'), name: 'f', arguments: '{}' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      { role: 'user', content: [{ type: 'text', text: 'go on' }], source: { kind: 'plugin', plugin: 'test' } } as Message,
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'plain answer' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ], 'every-turn')
+    const assistants = wire.filter(m => m.role === 'assistant') as { reasoning_content?: string }[]
+    expect('reasoning_content' in assistants[0]!).toBe(false)
+    expect('reasoning_content' in assistants[1]!).toBe(false)
+  })
 })
 
 describe('serializeRequest', () => {
@@ -284,6 +366,45 @@ describe('serializeRequest', () => {
     const wire = serializeRequest(request({ messages: history, system: 'be helpful' }))
     expect(wire.messages[0]).toEqual({ role: 'system', content: 'be helpful' })
     expect(wire.messages[1]).toEqual({ role: 'user', content: 'hi' })
+  })
+
+  it('defaults reasoning replay to last-assistant when defaults omit reasoningPassback', () => {
+    const history: Message[] = [
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'first plan' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      { role: 'user', content: [{ type: 'text', text: 'go on' }], source: { kind: 'plugin', plugin: 'test' } } as Message,
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'second plan' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ]
+    const wire = serializeRequest(request({ messages: history }))
+    const assistants = wire.messages.filter(m => m.role === 'assistant') as { reasoning_content?: string }[]
+    expect('reasoning_content' in assistants[0]!).toBe(false)
+    expect(assistants[1]!.reasoning_content).toBe('second plan')
+  })
+
+  it('honors defaults.reasoningPassback for the entry-point policy', () => {
+    const history: Message[] = [
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'first plan' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      { role: 'user', content: [{ type: 'text', text: 'go on' }], source: { kind: 'plugin', plugin: 'test' } } as Message,
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'second plan' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ]
+    const wire = serializeRequest(request({ messages: history }), { reasoningPassback: 'every-turn' })
+    const assistants = wire.messages.filter(m => m.role === 'assistant') as { reasoning_content?: string }[]
+    expect(assistants.map(a => a.reasoning_content)).toEqual(['first plan', 'second plan'])
   })
 
   it('maps sampling params and stop sequences', () => {
@@ -376,6 +497,290 @@ describe('serializeRequest', () => {
       messages: history,
       reasoningEffort: ReasoningEffortId('medium'),
     }))).toThrow(expect.objectContaining({ code: 'UNSUPPORTED_REASONING_EFFORT' }))
+  })
+})
+
+describe('image serialization', () => {
+  it.each([
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+  ] as const)('preserves ordered text and %s image parts', async (mediaType) => {
+    const signal = new AbortController().signal
+    const readImage = vi.fn((ref: ImageAttachmentRef, received?: AbortSignal) => {
+      expect(received).toBe(signal)
+      return Promise.resolve({ ref, data: Uint8Array.of(1, 2, 3) })
+    })
+    const wire = await serializeRequestWithImages(request({
+      model: 'deepseek-v4-flash-vision-exp',
+      messages: [createUserMessage({
+        content: [
+          { type: 'text', text: 'before' },
+          { type: 'image', attachment: imageRef(mediaType) },
+          { type: 'text', text: 'after' },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }), {
+      attachments: attachmentStore(readImage),
+      maxRequestImageBytes: 20 * 1024 * 1024,
+      signal,
+    })
+
+    expect(wire.messages).toEqual([{
+      role: 'user',
+      content: [
+        { type: 'text', text: 'before' },
+        { type: 'image_url', image_url: { url: `data:${mediaType};base64,AQID` } },
+        { type: 'text', text: 'after' },
+      ],
+    }])
+  })
+
+  it('serializes image-only user content without synthetic text', async () => {
+    const wire = await serializeRequestWithImages(request({
+      model: 'deepseek-v4-flash-vision-exp',
+      messages: [createUserMessage({
+        content: [{ type: 'image', attachment: imageRef() }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }), {
+      attachments: attachmentStore(),
+      maxRequestImageBytes: 20 * 1024 * 1024,
+      signal: new AbortController().signal,
+    })
+
+    expect(wire.messages).toEqual([{
+      role: 'user',
+      content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AQID' } }],
+    }])
+  })
+
+  it('keeps tool content textual and groups consecutive tool-result images afterward', async () => {
+    const messages = [
+      createUserMessage({
+        content: [{
+          type: 'tool-result',
+          toolCallId: CallId('first'),
+          content: [{ type: 'image', attachment: imageRef() }],
+        }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      createUserMessage({
+        content: [{
+          type: 'tool-result',
+          toolCallId: CallId('second'),
+          content: [
+            { type: 'text', text: 'caption' },
+            { type: 'image', attachment: imageRef('image/jpeg') },
+          ],
+        }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ]
+
+    await expect(serializeMessagesWithImages(
+      messages,
+      attachmentStore(),
+      new AbortController().signal,
+    )).resolves.toEqual([
+      { role: 'tool', tool_call_id: 'first', content: '(see attached image)' },
+      { role: 'tool', tool_call_id: 'second', content: 'caption' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Attached image(s) from tool result:' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,AQID' } },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AQID' } },
+        ],
+      },
+    ])
+  })
+
+  it('does not emit an empty user message for ignored content beside a tool result', async () => {
+    const messages = [createUserMessage({
+      content: [
+        { type: 'text', text: '' },
+        { type: 'chart', data: 'ignored' } as unknown as ContentBlock,
+        {
+          type: 'tool-result',
+          toolCallId: CallId('result'),
+          content: [{ type: 'text', text: 'ok' }],
+        },
+      ],
+      source: { kind: 'plugin', plugin: 'test' },
+    })]
+
+    await expect(serializeMessagesWithImages(
+      messages,
+      attachmentStore(),
+      new AbortController().signal,
+    )).resolves.toEqual([
+      { role: 'tool', tool_call_id: 'result', content: 'ok' },
+    ])
+  })
+
+  it('recursively converts nested tool-result content and preserves the empty fallback', async () => {
+    const messages = [createUserMessage({
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId: CallId('nested'),
+          content: [{
+            type: 'tool-result',
+            toolCallId: CallId('inner'),
+            content: [{ type: 'text', text: 'inside' }],
+          }],
+        },
+        { type: 'tool-result', toolCallId: CallId('empty'), content: [] },
+      ],
+      source: { kind: 'plugin', plugin: 'test' },
+    })]
+
+    await expect(serializeMessagesWithImages(
+      messages,
+      attachmentStore(),
+      new AbortController().signal,
+    )).resolves.toEqual([
+      { role: 'tool', tool_call_id: 'nested', content: 'inside' },
+      { role: 'tool', tool_call_id: 'empty', content: '(no output)' },
+    ])
+  })
+
+  it('flushes tool-result images before system and assistant history', async () => {
+    const imageResult = (id: string) => createUserMessage({
+      content: [{
+        type: 'tool-result',
+        toolCallId: CallId(id),
+        content: [{ type: 'image', attachment: imageRef() }],
+      }],
+      source: { kind: 'plugin' as const, plugin: 'test' },
+    })
+    const messages = [
+      imageResult('before-system'),
+      createMessage({
+        role: 'system',
+        content: [{ type: 'text', text: 'system history' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      imageResult('before-assistant'),
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'assistant history' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ]
+
+    const wire = await serializeMessagesWithImages(
+      messages,
+      attachmentStore(),
+      new AbortController().signal,
+    )
+    expect(wire).toEqual([
+      { role: 'tool', tool_call_id: 'before-system', content: '(see attached image)' },
+      expect.objectContaining({ role: 'user' }),
+      { role: 'system', content: 'system history' },
+      { role: 'tool', tool_call_id: 'before-assistant', content: '(see attached image)' },
+      expect.objectContaining({ role: 'user' }),
+      // Last assistant on the image path also follows the text-only default
+      // (last-assistant) — the lone replay target carries `reasoning_content: ''`.
+      { role: 'assistant', content: 'assistant history', reasoning_content: '' },
+    ])
+  })
+
+  it('offloads oldest images before reads and keeps the newest image', async () => {
+    const readImage = vi.fn((ref: ImageAttachmentRef) => Promise.resolve({
+      ref,
+      data: Uint8Array.of(1, 2, 3),
+    }))
+    const wire = await serializeRequestWithImages(request({
+      model: 'deepseek-v4-flash-vision-exp',
+      messages: [createUserMessage({
+        content: [
+          { type: 'image', attachment: imageRef('image/png', 3) },
+          { type: 'image', attachment: imageRef('image/jpeg', 3) },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }), {
+      attachments: attachmentStore(readImage),
+      maxRequestImageBytes: 4,
+      signal: new AbortController().signal,
+    })
+
+    expect(wire.messages[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: expect.stringContaining('older images are omitted first') as string },
+        { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AQID' } },
+      ],
+    })
+    expect(readImage).toHaveBeenCalledTimes(1)
+    expect(readImage.mock.calls[0]?.[0]).toMatchObject({ mediaType: 'image/jpeg' })
+  })
+
+  it.each(['system', 'assistant'] as const)('rejects an image in %s history before reading attachments', async (role) => {
+    const readImage = vi.fn()
+    await expect(serializeMessagesWithImages([createMessage({
+      role,
+      content: [{ type: 'image', attachment: imageRef() }],
+      source: { kind: 'plugin', plugin: 'test' },
+    })], attachmentStore(readImage), new AbortController().signal))
+      .rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
+    expect(readImage).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsupported image history before request offloading can replace it', async () => {
+    const readImage = vi.fn()
+    await expect(serializeRequestWithImages(request({
+      messages: [createMessage({
+        role: 'system',
+        content: [{ type: 'image', attachment: imageRef('image/png', 300) }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }), {
+      attachments: attachmentStore(readImage),
+      maxRequestImageBytes: 1,
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
+    expect(readImage).not.toHaveBeenCalled()
+  })
+
+  it('prepends the request system prompt on the image path', async () => {
+    const wire = await serializeRequestWithImages(request({
+      system: 'system prompt',
+      messages: [createUserMessage({
+        content: [{ type: 'image', attachment: imageRef() }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }), {
+      attachments: attachmentStore(),
+      maxRequestImageBytes: 20 * 1024 * 1024,
+      signal: new AbortController().signal,
+    })
+    expect(wire.messages[0]).toEqual({ role: 'system', content: 'system prompt' })
+  })
+
+  it('preserves stable attachment failure codes', async () => {
+    const readImage = vi.fn(() => Promise.reject(new AttachmentError(
+      'Stored attachment bytes are corrupt.',
+      'ATTACHMENT_CORRUPT',
+    )))
+    await expect(serializeMessagesWithImages([createUserMessage({
+      content: [{ type: 'image', attachment: imageRef() }],
+      source: { kind: 'plugin', plugin: 'test' },
+    })], attachmentStore(readImage), new AbortController().signal))
+      .rejects.toMatchObject({ code: 'ATTACHMENT_CORRUPT' })
+  })
+
+  it('preserves non-attachment resolver failures', async () => {
+    const failure = new Error('resolver failed')
+    const readImage = vi.fn(() => Promise.reject(failure))
+    await expect(serializeMessagesWithImages([createUserMessage({
+      content: [{ type: 'image', attachment: imageRef() }],
+      source: { kind: 'plugin', plugin: 'test' },
+    })], attachmentStore(readImage), new AbortController().signal)).rejects.toBe(failure)
   })
 })
 

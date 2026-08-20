@@ -1,27 +1,70 @@
 /**
- * Serialize harness messages into DeepSeek chat completions. User text is joined; assistant text
- * becomes `content`, tool calls become `tool_calls`, and tool results become separate tool messages.
- * Assistant reasoning is replayed as `reasoning_content` on the most recent assistant message only —
- * DeepSeek V4 (0813) thinking mode 400s if an earlier (intermediate) assistant message carries it;
- * core image blocks are rejected explicitly because this wire route is text-only;
- * unknown declaration-merged block types retain the adapter's documented extension fallback.
+ * Serialize harness messages into DeepSeek chat completions. Text-only
+ * requests retain string user content; the image path resolves durable
+ * attachments into ordered data-URL parts. Tool-result images follow their
+ * string-only tool messages in a separate user message. Assistant reasoning
+ * replays as `reasoning_content` under the deployment's
+ * {@link ReasoningPassback} policy; core image blocks are rejected explicitly
+ * on the text-only route, and unknown declaration-merged block types retain
+ * the adapter's documented extension fallback.
  * @module dsh-llm-deepseek/serialize
  */
 
-import { contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
+import { contentHasImage, LlmError, offloadRequestImages } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
-import type { WireMessage, WireRequest, WireTool } from './types.ts'
+import { AttachmentError } from '@deepseek-ai/dsh-attachment'
+import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import type {
+  WireImageContentPart,
+  WireMessage,
+  WireRequest,
+  WireTool,
+  WireUserContentPart,
+} from './types.ts'
+
+/**
+ * Which assistant turns replay `reasoning_content` in history.
+ *
+ * `last-assistant` is what `api.deepseek.com` accepts: V4 (0813) thinking mode
+ * rejects a request whose *earlier* assistant message carries the field — even
+ * verbatim — with 400 "The `reasoning_content` in the thinking mode must be
+ * passed back", and rejects one where no assistant carries it at all, so the
+ * most recent assistant always sends the field and every earlier one omits it.
+ *
+ * `every-turn` serves a gateway that re-encodes the conversation for another
+ * vendor and recovers each turn's upstream thinking signature by hashing the
+ * replayed chain of thought, which a tool-call-free turn carries nowhere else.
+ * Selecting it against `api.deepseek.com` produces the 400 above rather than
+ * degrading silently.
+ */
+export type ReasoningPassback = 'last-assistant' | 'every-turn'
+
+/** Passback policy of the public DeepSeek endpoint, used when config names none. */
+export const DEFAULT_REASONING_PASSBACK: ReasoningPassback = 'last-assistant'
 
 /** Adapter-level request defaults (from plugin config). */
 export interface RequestDefaults {
   thinking?: 'enabled' | 'disabled' | undefined
   reasoningEffort?: 'off' | 'low' | 'high' | 'max' | undefined
+  reasoningPassback?: ReasoningPassback | undefined
 }
 
 interface ResolvedThinking {
   thinking?: 'enabled' | 'disabled'
   reasoningEffort?: 'low' | 'high' | 'max'
 }
+
+/** Dependencies required only when the request contains image input. */
+export interface ImageSerializationOptions {
+  /** Durable resolver for canonical image references. */
+  attachments: AttachmentStore
+  /** Positive bound on accumulated base64 image payload. */
+  maxRequestImageBytes: number
+  /** Cancellation shared with the provider request. */
+  signal: AbortSignal
+}
+
+const TOOL_RESULT_IMAGE_TEXT = 'Attached image(s) from tool result:'
 
 /** Validate the adapter-owned effort before resolving its DeepSeek wire fields. */
 function reasoningEffort(effort: NonNullable<GenerateOptions['reasoningEffort']>): 'off' | 'low' | 'high' | 'max' {
@@ -94,8 +137,88 @@ function toolCallArguments(raw: string): string {
   return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? raw : '{}'
 }
 
-/** Serialize one assistant message (text + reasoning + tool calls). */
-function serializeAssistant(message: Message, replayReasoning: boolean): WireMessage {
+/** Reject roles whose DeepSeek history format cannot carry image input. */
+function assertSupportedImageRoles(messages: readonly Message[]): void {
+  for (const message of messages) {
+    if (message.role !== 'user' && contentHasImage(message.content)) {
+      throw new LlmError(
+        `The DeepSeek chat-completions adapter cannot represent image content in a ${message.role} message.`,
+        'UNSUPPORTED_CONTENT',
+      )
+    }
+  }
+}
+
+/** Resolve one durable image into its transient DeepSeek data-URL part. */
+async function imagePart(
+  block: Extract<ContentBlock, { type: 'image' }>,
+  attachments: AttachmentStore,
+  signal: AbortSignal,
+): Promise<WireImageContentPart> {
+  try {
+    const stored = await attachments.readImage(block.attachment, signal)
+    return {
+      type: 'image_url',
+      image_url: {
+        url: `data:${stored.ref.mediaType};base64,${Buffer.from(stored.data).toString('base64')}`,
+      },
+    }
+  } catch (error: unknown) {
+    if (error instanceof AttachmentError) {
+      throw new LlmError(error.message, error.code, { cause: error })
+    }
+    throw error
+  }
+}
+
+/** Convert user or nested tool-result blocks into ordered wire parts. */
+async function contentParts(
+  blocks: readonly ContentBlock[],
+  attachments: AttachmentStore,
+  signal: AbortSignal,
+): Promise<WireUserContentPart[]> {
+  const parts: WireUserContentPart[] = []
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'text':
+        if (block.text.length > 0) parts.push({ type: 'text', text: block.text })
+        break
+      case 'image':
+        parts.push(await imagePart(block, attachments, signal))
+        break
+      case 'tool-result':
+        parts.push(...await contentParts(block.content, attachments, signal))
+        break
+      default:
+        // Other merge-extensible blocks are not DeepSeek user-input vocabulary.
+        break
+    }
+  }
+  return parts
+}
+
+/** Keep text-only user messages on the compact string wire form. */
+function userContent(parts: readonly WireUserContentPart[]): string | WireUserContentPart[] {
+  const text: string[] = []
+  for (const part of parts) {
+    if (part.type === 'image_url') return [...parts]
+    text.push(part.text)
+  }
+  return text.join('')
+}
+
+/**
+ * Serialize one assistant message (text + reasoning + tool calls).
+ * @param message - the assistant turn to convert.
+ * @param passback - the deployment's reasoning replay policy.
+ * @param isLastAssistant - whether this is the most recent assistant turn of the request.
+ * @returns the assistant wire message.
+ */
+function serializeAssistant(
+  message: Message,
+  passback: ReasoningPassback,
+  isLastAssistant: boolean,
+): WireMessage {
   const text = flattenText(message.content)
   const reasoning = message.content
     .filter(block => block.type === 'reasoning')
@@ -108,6 +231,11 @@ function serializeAssistant(message: Message, replayReasoning: boolean): WireMes
       type: 'function' as const,
       function: { name: block.name, arguments: toolCallArguments(block.arguments) },
     }))
+  // The two policies differ on the empty case as well as on which turns carry
+  // the field: `last-assistant` sends `""` on a reasoning-free newest assistant
+  // because the endpoint rejects a thinking request that replays the field
+  // nowhere, while `every-turn` omits it so a non-thinking turn stays untouched.
+  const replayReasoning = passback === 'every-turn' ? reasoning.length > 0 : isLastAssistant
 
   return {
     role: 'assistant',
@@ -120,11 +248,6 @@ function serializeAssistant(message: Message, replayReasoning: boolean): WireMes
     // the message sits durably in the session log, a null here bricks every
     // later turn of that session.
     content: text,
-    // DeepSeek V4 (0813) thinking mode accepts `reasoning_content` only on the
-    // MOST RECENT assistant message; replaying it on an earlier (intermediate)
-    // assistant message — even verbatim — makes the API return 400
-    // "The `reasoning_content` in the thinking mode must be passed back".
-    // Verified live: RC-on-all and RC-on-none both 400; RC-on-last-only passes.
     ...replayReasoning ? { reasoning_content: reasoning } : {},
     ...toolCalls.length > 0 ? { tool_calls: toolCalls } : {},
   }
@@ -136,11 +259,13 @@ function serializeAssistant(message: Message, replayReasoning: boolean): WireMes
  * user-role message, so a mixed user message contributes its text first and
  * its tool results as separate wire messages after.
  * @param messages - the harness conversation, in order.
+ * @param passback - reasoning replay policy; omitted uses {@link DEFAULT_REASONING_PASSBACK}.
  * @returns the wire messages; order preserved, each tool result expanded into its own entry.
  */
-export function serializeMessages(messages: Message[]): WireMessage[] {
-  // DeepSeek V4 (0813) only accepts `reasoning_content` on the most recent
-  // assistant message, so find it up front and replay reasoning there alone.
+export function serializeMessages(
+  messages: Message[],
+  passback: ReasoningPassback = DEFAULT_REASONING_PASSBACK,
+): WireMessage[] {
   // Holes are absent from the Message type yet reach the callback at runtime,
   // so the optional chain is load-bearing against sparse arrays.
   // oxlint-disable-next-line typescript/no-unnecessary-condition
@@ -155,7 +280,7 @@ export function serializeMessages(messages: Message[]): WireMessage[] {
       continue
     }
     if (message.role === 'assistant') {
-      wire.push(serializeAssistant(message, idx === lastAssistant))
+      wire.push(serializeAssistant(message, passback, idx === lastAssistant))
       continue
     }
     // user role: tool results ride in user messages in the harness
@@ -178,6 +303,109 @@ export function serializeMessages(messages: Message[]): WireMessage[] {
 }
 
 /**
+ * Serialize image-capable history after resolving durable attachments.
+ * Consecutive tool results keep string `tool` messages and share one following
+ * user message containing their images.
+ * @param messages - transient request history after request-size offloading.
+ * @param attachments - durable image resolver.
+ * @param signal - cancellation for attachment reads.
+ * @param passback - reasoning replay policy; omitted uses {@link DEFAULT_REASONING_PASSBACK}.
+ * @returns ordered DeepSeek wire messages.
+ */
+export async function serializeMessagesWithImages(
+  messages: readonly Message[],
+  attachments: AttachmentStore,
+  signal: AbortSignal,
+  passback: ReasoningPassback = DEFAULT_REASONING_PASSBACK,
+): Promise<WireMessage[]> {
+  assertSupportedImageRoles(messages)
+  // oxlint-disable-next-line typescript/no-unnecessary-condition
+  const lastAssistant = messages.findLastIndex(m => m?.role === 'assistant')
+  const wire: WireMessage[] = []
+  let pendingToolImages: WireImageContentPart[] = []
+  const flushToolImages = (): void => {
+    if (pendingToolImages.length === 0) return
+    wire.push({
+      role: 'user',
+      content: [{ type: 'text', text: TOOL_RESULT_IMAGE_TEXT }, ...pendingToolImages],
+    })
+    pendingToolImages = []
+  }
+
+  for (let idx = 0; idx < messages.length; idx++) {
+    const message = messages[idx]
+    if (!message) continue
+    if (message.role === 'system') {
+      flushToolImages()
+      wire.push({ role: 'system', content: flattenText(message.content) })
+      continue
+    }
+    if (message.role === 'assistant') {
+      flushToolImages()
+      wire.push(serializeAssistant(message, passback, idx === lastAssistant))
+      continue
+    }
+
+    const regular = message.content.filter(block => block.type !== 'tool-result')
+    const toolResults = message.content.filter((block): block is Extract<ContentBlock, { type: 'tool-result' }> => (
+      block.type === 'tool-result'
+    ))
+    const content = userContent(await contentParts(regular, attachments, signal))
+    if (content.length > 0 || toolResults.length === 0) {
+      flushToolImages()
+      wire.push({
+        role: 'user',
+        content,
+      })
+    }
+    for (const result of toolResults) {
+      const parts = await contentParts(result.content, attachments, signal)
+      const images = parts.filter((part): part is WireImageContentPart => part.type === 'image_url')
+      const text = parts.filter(part => part.type === 'text').map(part => part.text).join('')
+      wire.push({
+        role: 'tool',
+        tool_call_id: result.toolCallId,
+        content: text || (images.length > 0 ? '(see attached image)' : '(no output)'),
+      })
+      pendingToolImages.push(...images)
+    }
+  }
+  flushToolImages()
+  return wire
+}
+
+/** Assemble request fields shared by text-only and image-capable conversion. */
+function requestWithMessages(
+  options: GenerateOptions,
+  messages: WireMessage[],
+  defaults: RequestDefaults,
+): WireRequest {
+  const tools: WireTool[] | undefined = options.tools?.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    },
+  }))
+  const resolvedThinking = resolveThinking(options, defaults)
+  return {
+    model: options.model,
+    messages,
+    stream: true,
+    stream_options: { include_usage: true },
+    ...resolvedThinking.thinking !== undefined ? { thinking: { type: resolvedThinking.thinking } } : {},
+    ...resolvedThinking.reasoningEffort !== undefined
+      ? { reasoning_effort: resolvedThinking.reasoningEffort }
+      : {},
+    ...tools !== undefined && tools.length > 0 ? { tools } : {},
+    ...options.temperature !== undefined ? { temperature: options.temperature } : {},
+    ...options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens },
+    ...options.stop !== undefined ? { stop: options.stop } : {},
+  }
+}
+
+/**
  * Build the full wire request. Always streaming (`stream: true`, usage
  * reporting on); optional fields are omitted rather than sent as null, so
  * provider defaults apply.
@@ -193,33 +421,39 @@ export function serializeRequest(
   if (options.system !== undefined) {
     messages.push({ role: 'system', content: options.system })
   }
-  messages.push(...serializeMessages(options.messages))
+  messages.push(...serializeMessages(
+    options.messages,
+    defaults.reasoningPassback ?? DEFAULT_REASONING_PASSBACK,
+  ))
 
-  const tools: WireTool[] | undefined = options.tools?.map(tool => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-    },
-  }))
-  // A short title budget must produce visible text; conversation and
-  // compaction calls continue to inherit the adapter's thinking defaults.
-  const resolvedThinking = resolveThinking(options, defaults)
+  return requestWithMessages(options, messages, defaults)
+}
 
-  const request: WireRequest = {
-    model: options.model,
-    messages,
-    stream: true,
-    stream_options: { include_usage: true },
-    ...resolvedThinking.thinking !== undefined ? { thinking: { type: resolvedThinking.thinking } } : {},
-    ...resolvedThinking.reasoningEffort !== undefined
-      ? { reasoning_effort: resolvedThinking.reasoningEffort }
-      : {},
-    ...tools !== undefined && tools.length > 0 ? { tools } : {},
-    ...options.temperature !== undefined ? { temperature: options.temperature } : {},
-    ...options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens },
-    ...options.stop !== undefined ? { stop: options.stop } : {},
+/**
+ * Build one image-capable request while keeping durable bytes out of session
+ * messages. Oversized oldest images become deterministic text before any
+ * attachment read.
+ * @param options - harness request containing image-capable user content.
+ * @param images - attachment resolver, request bound, and cancellation.
+ * @param defaults - adapter-level thinking defaults.
+ * @returns the fully materialized DeepSeek request body.
+ */
+export async function serializeRequestWithImages(
+  options: GenerateOptions,
+  images: ImageSerializationOptions,
+  defaults: RequestDefaults = {},
+): Promise<WireRequest> {
+  assertSupportedImageRoles(options.messages)
+  const requestMessages = offloadRequestImages(options.messages, images.maxRequestImageBytes)
+  const messages: WireMessage[] = []
+  if (options.system !== undefined) {
+    messages.push({ role: 'system', content: options.system })
   }
-  return request
+  messages.push(...await serializeMessagesWithImages(
+    requestMessages,
+    images.attachments,
+    images.signal,
+    defaults.reasoningPassback ?? DEFAULT_REASONING_PASSBACK,
+  ))
+  return requestWithMessages(options, messages, defaults)
 }

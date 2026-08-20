@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/archived/bug-fix/2026-08-19-deepseek-reasoning-passback-every-turn.md
+2026-08-19-deepseek-reasoning-passback-every-turn.md: b264904d2dd2947217d4de780208aba178f02a85
+2026-08-19-deepseek-reasoning-passback-every-turn.zh.md: 3fd34542f5dd4085f48ef8c940594178e32ee6e9
