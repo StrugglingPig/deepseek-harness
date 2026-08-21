@@ -33,3 +33,9 @@ Profile 的 bundle 层过去在启动时冻结：`loadProfile` 只解析一次 `
 - 浏览器在每次 entry 集合变化时 reload 一次；页内插件状态丢失，与它所替代的手动刷新完全一致，而内容重建保留原位热替换。
 - **插件更新（版本升级）仍需重启**：Node 的 ESM import 缓存会对同一解析 URL 返回已导入的模块，重组后的行会挂载过时代码。安装/卸载按设计是活路径；更新保持重启要求。
 - 重试有界且高声：耗尽重试预算后仍失败的一代经 `hmr/config-update-failed` 暴露，上一棵良好的树继续服务。
+
+### 现场观察
+
+- **不同 bundle 的同包行在全局注册上冲突。** 当两个持久行 import 同一个插件包——聚合 bundle 再插入一个 profile 已独立安装的包——每个 fiber 都会执行该包的全局副作用；第二次 webserver 前缀路由注册抛错（`duplicate prefix route`），整代失败；同一组合在冷启动同样致命，故冷启动也失败。双挂载守卫只对「临时热行 vs 存活持久行」对齐，不对两个同包持久行对齐。解法在组合层：包保留唯一所有者（移除独立 bundle，或在用户补丁层禁用重复行）。
+- **同进程内重新添加曾 dispose 的 bundle 需重启。** 卸载是纯行移除，活生效；重装重建的行其模块已在 ESM import 缓存中，二次挂载不幂等，整代回滚，树继续以无该 bundle 服务，直到新进程启动。启动后首装与卸载是活路径；卸载→重装循环与版本升级同属需重启一侧。
+- **web 面重组失败默认静默。** web 组合不挂 logger exporter，反复重试失败的 generation 在进程控制台无任何输出；只有 `hmr/config-update-failed` 广播到达已连接客户端。排查用异端口冷启动对照（`dsh --profile web --port <其他端口> --no-open`），它会在肇事挂载处高声失败；或通过 `--patch` overlay 以 `insert:` 注入 console logger（裸 id 行是 id 定向覆盖，匹配不到会被警告后丢弃；launcher 旗标须位于第一个 app 参数之前）。浏览器 `window.__DSH_BOOT__` 是加载时快照，不是活状态。

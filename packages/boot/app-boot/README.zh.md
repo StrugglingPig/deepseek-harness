@@ -62,3 +62,5 @@ profile 是位于 `$DSH_HOME/profiles/<name>` 下的目录（harness home 由 [`
 - **快照回放替换仅识别特定 basename**：只有以 `cordis.yml` 或 `cordis.yaml` 结尾的配置会映射到同级 `cordis.snapshot.yml`；自定义配置名称需要调用方自行选择。
 - **环境发现以启动为界**：`loadLayeredEnv` 只读取一次调用目录与 harness home 中的 `.env`；它不搜索父目录，也不跟随之后选择的 workspace。`loadEnv` 仍是非产品 bin 使用的单目录 helper。
 - **用户 patch 会替换匹配到的整个配置**：按 id 定位的 patch 不做深度合并，因此 profile 覆盖必须重述需要保留的组合包字段。
+- **跨 bundle 的同包行在全局注册上冲突**——两个持久行 import 同一个插件包（聚合 bundle 再插入 profile 已独立安装的包）会各自执行该包的全局副作用；第二次 webserver 前缀路由注册抛错，活重组与冷启动都失败。双挂载守卫只对「临时热行 vs 持久行」对齐；profile 里每个包保留唯一所有者（[rationale](../../../.agents/notes/implemented/architecture/2026-08-19-live-profile-bundle-recomposition.md)）。
+- **重新添加曾 dispose 的 bundle 需重启**——卸载活生效；同进程重装会重新 import 已在缓存中的模块，二次挂载不幂等使该代回滚；新进程启动才会应用。
