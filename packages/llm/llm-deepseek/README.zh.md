@@ -78,7 +78,7 @@ DeepSeek 请求身份独立于应用归因。凭据解析成功后，每个提�
 - 只支持流式输出（`stream_options.include_usage` 始终开启）。`usage` 可能附着在 finish 分片上，也可能作为尾随的纯 usage 分片到达；转换器会将两者都延迟到 `[DONE]`，因此 `usage` 始终位于 `finish` 之前，`finish` 之后不会出现任何内容。
 - 适配器持有的 `off` 推理强度映射为 `thinking: {type: 'disabled'}`，绝不会以 `reasoning_effort: 'off'` 通过协议发送。
 - 第一个思考模式分片携带 `reasoning_content: ""`，系统会处理它（不会产生多余 reasoning 块）。
-- **推理回传规则**：每个携带推理内容的 assistant 轮次都会将 `reasoning_content` 序列化回历史。思考模式在工具调用轮次上必需它；DeepSeek 在其他轮次上会忽略它，而将该对话重新编码转发给其他厂商的网关，要靠对回传原文取哈希来恢复该轮次上游的思考签名。
+- **推理回传规则**：由 `Config.reasoningPassback` 决定（默认 `last-assistant`）。默认下，只有最新的 assistant 会在历史中发出 `reasoning_content`——若该轮次没有推理，则发空串（`api.deepseek.com` 会拒绝任何在所有轮次上都省略该字段的思考请求）；更早的 assistant 一律省略。设 `every-turn` 表示在每个含推理的 assistant 轮次上都回传——适用于靠对回放思维链取哈希来恢复上游 thinking signature 的网关；在 `api.deepseek.com` V4（0813）上，`every-turn` 产生的协议形态（更早的 assistant 携带该字段）会以 400 被拒绝。详见 `dsh-llm-deepseek/serialize` 模块文档、`RequestDefaults.reasoningPassback` 以及协议字段 `WireAssistantMessage.reasoning_content`。
 - 支持图片的 user 消息会保留文本／图片顺序。Tool role 内容仍为字符串；连续工具结果中的图片会用 `Attached image(s) from tool result:` 汇总到随后一条 user 消息。
 - Cache 计量：`cacheReadTokens` ← `prompt_cache_hit_tokens` / `prompt_tokens_details.cached_tokens`；DeepSeek 不报告 cache-write 指标。
 
@@ -100,15 +100,15 @@ DeepSeek 请求身份独立于应用归因。凭据解析成功后，每个提�
 
 #### 模型看到的内容
 
-所选 DeepSeek 模型会收到 harness 系统提示词、消息历史、工具 schema、stop sequence 和调用配置，不含适配器撰写的提示词文本。视觉模型还会通过 base64 data URL 收到保留的 user 与工具结果图片；超出上限的较旧图片由已记录的占位文本表示。之前 assistant 轮次的推理内容会原文回传，无论该轮次是否调用了工具。
+所选 DeepSeek 模型会收到 harness 系统提示词、消息历史、工具 schema、stop sequence 和调用配置，不含适配器撰写的提示词文本。视觉模型还会通过 base64 data URL 收到保留的 user 与工具结果图片；超出上限的较旧图片由已记录的占位文本表示。默认 `reasoningPassback: 'last-assistant'` 下，只有最新一条 assistant 的 `reasoning_content` 会在续传请求时回到 API；`every-turn` 部署则在每一条含推理的 assistant 轮次上回放该字段。
 
 #### Token 影响
 
-精确文本与图片 token 输入取决于提供方 tokenization。推理回传会把每个含推理轮次的思维链带入后续请求，丢弃超出上限的图片则避免再次支付这些 token；可用时会报告 cache-read 用量。
+精确文本与图片 token 输入取决于提供方 tokenization。推理回传遵循 `Config.reasoningPassback`：默认下只有最新一条 assistant 的思维链被带入后续请求，`every-turn` 则带入每一条含推理的轮次；丢弃超出上限的图片则避免再次支付这些 token；可用时会报告 cache-read 用量。
 
 #### KV Cache 影响
 
-未更改的已组装前缀，包括确定性编码的保留图片与占位文本，可使用 DeepSeek cache 复用，适配器会在 usage 中报告它。模型路由变更，或任何上游提示词、schema、前缀、历史或图片上限变更，都可能使从首个发生变化的 token 起的复用失效；推理回传会在每个含推理的轮次上追加。
+未更改的已组装前缀，包括确定性编码的保留图片与占位文本，可使用 DeepSeek cache 复用，适配器会在 usage 中报告它。模型路由变更，或任何上游提示词、schema、前缀、历史或图片上限变更，都可能使从首个发生变化的 token 起的复用失效；默认 `reasoningPassback` 下，只有最新一条 assistant 的思维链对前缀有贡献。
 
 ### DeepSeek 响应
 

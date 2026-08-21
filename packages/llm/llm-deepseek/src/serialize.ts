@@ -10,7 +10,7 @@
  * @module dsh-llm-deepseek/serialize
  */
 
-import { contentHasImage, LlmError, offloadRequestImages } from '@deepseek-ai/dsh-llm'
+import { assertNever, contentHasImage, LlmError, offloadRequestImages } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
@@ -29,13 +29,14 @@ import type {
  * rejects a request whose *earlier* assistant message carries the field — even
  * verbatim — with 400 "The `reasoning_content` in the thinking mode must be
  * passed back", and rejects one where no assistant carries it at all, so the
- * most recent assistant always sends the field and every earlier one omits it.
+ * most recent assistant always sends the field — including the empty string
+ * when that turn had no reasoning — and every earlier one omits it.
  *
  * `every-turn` serves a gateway that re-encodes the conversation for another
  * vendor and recovers each turn's upstream thinking signature by hashing the
  * replayed chain of thought, which a tool-call-free turn carries nowhere else.
- * Selecting it against `api.deepseek.com` produces the 400 above rather than
- * degrading silently.
+ * The field is omitted on a reasoning-free turn. Selecting it against
+ * `api.deepseek.com` produces the 400 above rather than degrading silently.
  */
 export type ReasoningPassback = 'last-assistant' | 'every-turn'
 
@@ -108,6 +109,35 @@ function flattenText(blocks: ContentBlock[]): string {
 function assertTextOnly(blocks: readonly ContentBlock[]): void {
   if (contentHasImage(blocks)) {
     throw new LlmError('The DeepSeek chat-completions adapter does not support image content.', 'UNSUPPORTED_CONTENT')
+  }
+}
+
+/**
+ * Index of the most recent assistant message, or -1 when none. Holes are
+ * absent from the Message type yet reach the callback at runtime, so the
+ * optional chain is load-bearing against sparse arrays.
+ */
+function lastAssistantIndex(messages: readonly Message[]): number {
+  // oxlint-disable-next-line typescript/no-unnecessary-condition
+  return messages.findLastIndex(m => m?.role === 'assistant')
+}
+
+/** Decide whether the given assistant turn replays `reasoning_content` under the deployment's passback policy. */
+function replayReasoningUnder(
+  passback: ReasoningPassback,
+  isLastAssistant: boolean,
+  hasReasoning: boolean,
+): boolean {
+  switch (passback) {
+    case 'last-assistant':
+      // `hasReasoning` is irrelevant: the field is sent on every newest turn
+      // (including `""` when reasoning-free), per V4.
+      return isLastAssistant
+    case 'every-turn':
+      // Under `every-turn`, the field is omitted on a reasoning-free turn.
+      return hasReasoning
+    default:
+      return assertNever(passback, 'ReasoningPassback')
   }
 }
 
@@ -235,7 +265,7 @@ function serializeAssistant(
   // the field: `last-assistant` sends `""` on a reasoning-free newest assistant
   // because the endpoint rejects a thinking request that replays the field
   // nowhere, while `every-turn` omits it so a non-thinking turn stays untouched.
-  const replayReasoning = passback === 'every-turn' ? reasoning.length > 0 : isLastAssistant
+  const replayReasoning = replayReasoningUnder(passback, isLastAssistant, reasoning.length > 0)
 
   return {
     role: 'assistant',
@@ -266,10 +296,7 @@ export function serializeMessages(
   messages: Message[],
   passback: ReasoningPassback = DEFAULT_REASONING_PASSBACK,
 ): WireMessage[] {
-  // Holes are absent from the Message type yet reach the callback at runtime,
-  // so the optional chain is load-bearing against sparse arrays.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition
-  const lastAssistant = messages.findLastIndex(m => m?.role === 'assistant')
+  const lastAssistant = lastAssistantIndex(messages)
   const wire: WireMessage[] = []
   for (let idx = 0; idx < messages.length; idx++) {
     const message = messages[idx]
@@ -319,8 +346,7 @@ export async function serializeMessagesWithImages(
   passback: ReasoningPassback = DEFAULT_REASONING_PASSBACK,
 ): Promise<WireMessage[]> {
   assertSupportedImageRoles(messages)
-  // oxlint-disable-next-line typescript/no-unnecessary-condition
-  const lastAssistant = messages.findLastIndex(m => m?.role === 'assistant')
+  const lastAssistant = lastAssistantIndex(messages)
   const wire: WireMessage[] = []
   let pendingToolImages: WireImageContentPart[] = []
   const flushToolImages = (): void => {

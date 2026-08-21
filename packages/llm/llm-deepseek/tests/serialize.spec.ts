@@ -33,6 +33,18 @@ function attachmentStore(
   return { readImage } as unknown as AttachmentStore
 }
 
+/** A reasoned text-only assistant message used by every-turn tests. */
+function reasonedTextAssistant(reasoning: string, text: string): Message {
+  return createMessage({
+    role: 'assistant',
+    content: [
+      { type: 'reasoning', text: reasoning },
+      { type: 'text', text },
+    ],
+    source: { kind: 'plugin', plugin: 'test' },
+  })
+}
+
 describe('serializeMessages', () => {
   it('skips holes a sparse messages array may carry', () => {
     const block: ContentBlock = { type: 'text', text: 'present' }
@@ -289,17 +301,12 @@ describe('serializeMessages', () => {
   })
 
   it('replays reasoning_content on every reasoned assistant turn under every-turn', () => {
-    // The gateway contract: an intermediate assistant that called no tool needs
-    // its chain of thought on the wire so the signature recovery hash matches
-    // the original delivery. Selecting this against api.deepseek.com V4 400s.
-    const assistant = (reasoning: string, text: string) => createMessage({
-      role: 'assistant',
-      content: [
-        { type: 'reasoning', text: reasoning },
-        { type: 'text', text },
-      ],
-      source: { kind: 'plugin', plugin: 'test' },
-    })
+    // Every reasoned assistant turn carries `reasoning_content` so a gateway
+    // re-encoding the conversation for another vendor can hash the replayed
+    // chain of thought to recover that turn's upstream thinking signature.
+    // Selecting this against `api.deepseek.com` V4 (0813) makes the request
+    // fail with 400 — the field is not what the public endpoint accepts.
+    const assistant = reasonedTextAssistant
     const wire = serializeMessages([
       assistant('first plan', 'answer-1'),
       { role: 'user', content: [{ type: 'text', text: 'continue' }], source: { kind: 'plugin', plugin: 'test' } } as Message,
@@ -781,6 +788,23 @@ describe('image serialization', () => {
       content: [{ type: 'image', attachment: imageRef() }],
       source: { kind: 'plugin', plugin: 'test' },
     })], attachmentStore(readImage), new AbortController().signal)).rejects.toBe(failure)
+  })
+
+  it('threads reasoningPassback through the image path (every-turn on two reasoned assistants)', async () => {
+    // Mirror the text-path "every-turn" assertion through the image-capable
+    // serializer to prove the policy is not hardcoded to the default at any
+    // image-path code site.
+    const assistant = reasonedTextAssistant
+    const wire = await serializeMessagesWithImages([
+      assistant('first plan', 'answer-1'),
+      createUserMessage({
+        content: [{ type: 'text', text: 'continue' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      assistant('second plan', 'answer-2'),
+    ], attachmentStore(), new AbortController().signal, 'every-turn')
+    const assistants = wire.filter(m => m.role === 'assistant') as { reasoning_content?: string }[]
+    expect(assistants.map(a => a.reasoning_content)).toEqual(['first plan', 'second plan'])
   })
 })
 

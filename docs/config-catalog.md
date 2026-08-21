@@ -957,13 +957,14 @@ export interface Config {
  * rejects a request whose *earlier* assistant message carries the field — even
  * verbatim — with 400 "The `reasoning_content` in the thinking mode must be
  * passed back", and rejects one where no assistant carries it at all, so the
- * most recent assistant always sends the field and every earlier one omits it.
+ * most recent assistant always sends the field — including the empty string
+ * when that turn had no reasoning — and every earlier one omits it.
  *
  * `every-turn` serves a gateway that re-encodes the conversation for another
  * vendor and recovers each turn's upstream thinking signature by hashing the
  * replayed chain of thought, which a tool-call-free turn carries nowhere else.
- * Selecting it against `api.deepseek.com` produces the 400 above rather than
- * degrading silently.
+ * The field is omitted on a reasoning-free turn. Selecting it against
+ * `api.deepseek.com` produces the 400 above rather than degrading silently.
  */
 export type ReasoningPassback = 'last-assistant' | 'every-turn'
 

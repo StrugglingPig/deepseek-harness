@@ -78,7 +78,7 @@ DeepSeek request identity is separate from app attribution. After credential res
 - Streaming only (`stream_options.include_usage` always on). `usage` may arrive attached to the finish chunk or as a trailing usage-only chunk — the translator defers both to `[DONE]`, so `usage` always precedes `finish` and nothing follows `finish`.
 - The adapter-owned `off` effort maps to `thinking: {type: 'disabled'}` and never crosses the wire as `reasoning_effort: 'off'`.
 - The first thinking-mode chunk carries `reasoning_content: ""` — handled (no spurious reasoning block).
-- **Reasoning passback rule**: every assistant turn that carried reasoning serializes `reasoning_content` back in history. Thinking mode requires it on tool-call turns; DeepSeek ignores it elsewhere, while a gateway re-encoding the conversation for another vendor recovers that turn's upstream thinking signature by hashing the replayed text.
+- **Reasoning passback rule**: governed by `Config.reasoningPassback` (default `last-assistant`). Under the default only the most recent assistant emits `reasoning_content` in history (including an empty string when that turn had no reasoning — `api.deepseek.com` rejects a thinking request that omits the field entirely); every earlier assistant omits it. Set `every-turn` to opt into replaying reasoning on every reasoned assistant turn for a gateway that recovers the upstream thinking signature by hashing the replayed text; against `api.deepseek.com` V4 (0813) the wire shape `every-turn` produces — an earlier assistant carrying the field — is rejected with 400. See `dsh-llm-deepseek/serialize` module doc and `RequestDefaults.reasoningPassback` for the policy, and `WireAssistantMessage.reasoning_content` for the wire field.
 - Image-capable user messages preserve text/image order. Tool-role content remains a string; consecutive tool-result images are grouped into the following user message with `Attached image(s) from tool result:`.
 - Cache accounting: `cacheReadTokens` ← `prompt_cache_hit_tokens` / `prompt_tokens_details.cached_tokens`; DeepSeek reports no cache-write metric.
 
@@ -100,15 +100,15 @@ A typed key wins; without one the interrogation resolves the section's `apiKeyEn
 
 #### What the model sees
 
-The selected DeepSeek model receives the harness system prompt, message history, tool schemas, stop sequences, and call config without adapter-authored prompt prose. The vision model also receives retained user and tool-result images as base64 data URLs; an over-budget older image is represented by the documented placeholder. Reasoning content from a prior assistant turn is passed back verbatim, whether or not that turn called a tool.
+The selected DeepSeek model receives the harness system prompt, message history, tool schemas, stop sequences, and call config without adapter-authored prompt prose. The vision model also receives retained user and tool-result images as base64 data URLs; an over-budget older image is represented by the documented placeholder. Under the default `reasoningPassback: 'last-assistant'`, only the newest assistant's `reasoning_content` reaches the API on a continuation; an `every-turn` deployment replays it on every reasoned assistant turn.
 
 #### Token effect
 
-Provider tokenization governs exact text and image-token input. Reasoning passback carries every reasoned turn's chain of thought into later requests, while dropping over-budget images avoids paying those tokens again; cache-read usage is reported when available.
+Provider tokenization governs exact text and image-token input. Reasoning passback follows `Config.reasoningPassback`: under the default the newest assistant's chain of thought is the only one carried into later requests, while `every-turn` carries every reasoned turn; dropping over-budget images avoids paying those tokens again; cache-read usage is reported when available.
 
 #### KV Cache effect
 
-An unchanged assembled prefix, including deterministically encoded retained images and placeholders, is eligible for DeepSeek cache reuse, which this adapter reports in usage. A model-route change or any upstream prompt, schema, prefix, history, or image-budget change may prevent reuse from the first changed token; reasoning passback appends on every reasoned turn.
+An unchanged assembled prefix, including deterministically encoded retained images and placeholders, is eligible for DeepSeek cache reuse, which this adapter reports in usage. A model-route change or any upstream prompt, schema, prefix, history, or image-budget change may prevent reuse from the first changed token; under the default `reasoningPassback`, the newest assistant's chain of thought is the only prefix contribution from reasoning.
 
 ### DeepSeek response
 
