@@ -50,6 +50,9 @@ pre-merge-commit:
       run: node_modules/.bin/tsx scripts/verify-archived-agent-notes.ts
 
 pre-push:
-  jobs:
-    - name: typecheck
-      run: pnpm run typecheck
+  # Type/lint/doc-sync are intentionally not re-run before push: CI owns the
+  # full gate matrix, and a local re-run blocked pushes on n-managed node
+  # installs where the project's packageManager pnpm binary isn't on the
+  # active PATH. Run `pnpm run typecheck && pnpm run lint && pnpm run
+  # doc-sync` locally before pushing if you want the pre-CI signal.
+  jobs: []
