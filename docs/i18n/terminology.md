@@ -166,6 +166,10 @@
 | persistence | 持久化 | | | |
 | pipeline | 流水线 | | | |
 | plugin | 插件 | | | |
+| plugin kind | 插件类别 | | | 指 `shipped plugin` / `external plugin` 三分中的前两类 |
+| shipped plugin | 内置插件 | | 随附插件、出厂插件 | 由 bundle 的 `cordis.patch.yml` 装配、拥有 `- id:` 行的插件 |
+| external plugin | 可插拔插件 | | 外部插件、第三方插件 | 运行时装入 profile 的同类插件 |
+| host code | 编码实现 | | 宿主代码 | 组合不选择的代码：slot 声明、事件词汇、具体循环 |
 | postmortem | 事故复盘 | 事故复盘（postmortem） | 事后分析、事故记录 | 事故记录与分析文档；目录或路径中的 `postmortem` 保持代码形式 |
 | prompt | 提示词 | | | |
 | provider | 提供方 | | | |

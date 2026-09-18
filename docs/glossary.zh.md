@@ -8,6 +8,16 @@ DeepSeek Harness 的领域词汇为每个概念规定一个规范术语。各术
 
 - **seam**：一种包含三种角色的*可替换能力*：**Service Definition**（拥有自身 `ctx.<key>` 和词汇类型的 Cordis `Service`——可以是 `ShellExecutor` 这样的抽象类，也可以是 `WebRuntime` 这样的具体注册表，绝不是 TypeScript `interface`）、一个或多个 **Service Provider**，以及一个或多个注入该服务的 **Consumer**。`packages/shell` 是规范范例：`dsh-shell`（Service Definition）、`dsh-bash-local` / `dsh-bash-sandbox`（提供方），以及 `dsh-tool-bash`（Consumer）。角色需要独立演进时通常位于不同包，但属于同一关注点时，一个包也可以承担多个角色（`dsh-user-approval` 在同一个包中承担 approval seam 的 Service Definition 与其具体实现）。seam 是完整能力，绝不是其中一个角色；该术语仅保留此义，能力成员应按其角色、类、服务、约定或扩展点命名。
 
+## plugin-kinds
+
+三项代码共同塑造一个功能，读者在改动之前必须能说出自己面对的是哪一种。前两种是同一套机制——带 `name` / `inject` / 可选 `Config` / `apply` 的 Cordis 插件——差别只在组合如何选中它；只有第三种在插件树之外。
+
+- **内置插件（shipped plugin）**：由某个 bundle 的 `cordis.patch.yml` 装配、拥有自己 `- id:` 行的 Cordis 插件。官方 bundle 是装配来源，不是特权等级：`agent-loop` 同样是内置插件，`dsh-bundle-*` 补丁像选中其它任何插件一样选中它。一行可以出厂即带 `disabled: true`——已打包、可被打补丁，但默认不启用——所以在树里与已启用是两个问题。改法：编辑它的包与其 bundle 行。
+- **可插拔插件（external plugin）**：同一种 Cordis 插件，但在运行时装入 profile，而不是由 bundle 指名：它是 `<dshHome>/profiles/<name>/package.json` 的一个依赖，由 `dsh-plugin-manager` 写入。`cordis.yml` 中的裸插件必须出现在其 resolver manifest 的 `dependencies` 中（`verify-cordis-config` 强制校验），Client 插件则需以 `dsh.client` 声明其 `inject` 列表与 `platform`。除此之外，它与内置插件没有任何区别。
+- **编码实现（host code）**：组合不会去选择的代码，因为它本身就是位置而非占用者。一个 slot 的声明归属于拥有并渲染该位置的组件（见 [slots](subsystems/slots.zh.md)）；对该 slot 而言，声明方就是宿主代码，其它每个包都只能通过 `ctx.slots.register()` 贡献。契约包中的事件词汇、以及具体循环本身也是同一形态：插件可被替换，但它所占的位置不是一项贡献。
+
+**判据（Judgment）**：在 bundle 补丁或 profile manifest 中拥有独立 `- id:` 行的，就是插件，内置或可插拔。某个功能只能靠编辑没有任何行去选中的包源码才能触达，那它就是编码实现。这条区分决定改法：插件的行为可以从它自己的包内改变而不触碰宿主，而 slot 的位置只能在拥有它的组件中改变。
+
 ## agent-scope
 
 - **scope**：按 agent（智能体）划分的注册单位。一项贡献（工具、提示词段、变量、限制、监听器）要么是*全局的*（对所有 agent 可见），要么是*带作用域的*（归属于恰好一个 [scope key](#scope-key)）。只有两层，采用扁平结构：带作用域的注册不会向下继承给 subagent；子树行为通过 [lineage](#lineage) 数据表达，从不通过 scope 结构。
