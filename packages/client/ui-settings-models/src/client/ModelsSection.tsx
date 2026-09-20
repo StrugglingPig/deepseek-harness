@@ -16,6 +16,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
@@ -110,12 +111,14 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
  * comes first so a second-step failure leaves the provider row visible and the
  * whole operation safely retryable; both unsets are idempotent.
  * A nested profile is removed by naming its own path, so only that provider
- * goes and its adapter's catalogue takes over. A built-in whole-section
- * provider has no such profile: the section IS the route's configuration and
- * the adapter mounts it unconditionally, so the page withdraws the route the
- * only way the owning adapter reads — by setting the flag that adapter treats
- * as "serve nothing". Nothing else in the section is touched, which is what
- * lets the add flow put the provider back with its settings intact.
+ * goes and its adapter's catalogue takes over. A built-in provider is a route
+ * its composition mounts, not a row anyone stored, so the page clears the
+ * whole section AND withdraws the route: the section is what a re-add would
+ * restore, and a removal that left it behind would silently hand back the
+ * previous endpoint and catalogue. The section carries no secret — a key
+ * lives in the credential store, named by reference — so clearing it cannot
+ * lose one. Ops apply in order, so the section clears first and the withdrawal
+ * lands on an empty section.
  * @param operations - the page's Host operations.
  * @param controller - the page store to refresh.
  * @param target - the provider's settings address and optional managed credential.
@@ -131,7 +134,10 @@ export async function removeProviderProfile(
     if (credential !== undefined) return credential
   }
   const ops = target.settingsPath.length === 0
-    ? [{ op: 'set' as const, path: ['disabled'], value: true }]
+    ? [
+      { op: 'unset' as const, path: [] },
+      { op: 'set' as const, path: ['disabled'], value: true },
+    ]
     : [{ op: 'unset' as const, path: [...target.settingsPath] }]
   const written = await operations.writeSettings(target.settingsNs, ops, undefined)
   if (written.kind !== 'written') return written.message
@@ -167,12 +173,55 @@ function keyConfiguredOf(row: ProviderRow): boolean {
     : row.derivedCredential?.configured === true
 }
 
-function targetOf(row: ProviderRow): EditorTarget {
-  const managedRef = deriveKeyRef(row.entry.provider)
-  const credentialRef = row.apiKeyEnv === managedRef
+/**
+ * The credential reference the editor's key field actually writes, derived the
+ * same way there: a profile that names one keeps it, and a whole-section
+ * provider that names none resolves through the schema's own default — the
+ * same value the adapter later reads. The page's conventional reference is the
+ * fallback for a profile that resolves to nothing.
+ */
+function editorKeyRef(
+  row: ProviderRow,
+  namespace: SettingsNamespaceView,
+  schema: SettingsSchemaOperations,
+): string {
+  const profile = schema.getPath(namespace.value, row.entry.settingsPath)
+  const named = typeof profile === 'object' && profile !== null
+    ? (profile as { apiKeyEnv?: unknown }).apiKeyEnv
+    : undefined
+  if (typeof named === 'string' && named.length > 0) return named
+  if (row.entry.settingsPath.length === 0) {
+    const declared = schema.nodeAtPath(schema.rehydrate(namespace.schema), ['apiKeyEnv'])
+    const fallback = (declared?.meta as { default?: unknown } | undefined)?.default
+    if (typeof fallback === 'string' && fallback.length > 0) return fallback
+  }
+  return deriveKeyRef(row.entry.provider)
+}
+
+/**
+ * Whether this page owns the credential a row resolves keys through. A key
+ * the editor stores always lands on the reference it derives — the profile's
+ * `apiKeyEnv`, or the schema default it falls back to while the profile names
+ * none — so a reference from any other source is configuration this page did
+ * not write, and a removal leaves it.
+ * @param row - the joined provider row.
+ * @param namespace - the row's owning namespace view, when it resolved.
+ * @param schema - settings-owned schema and immutable path operations.
+ * @returns whether a removal may clear this row's credential.
+ */
+export function ownsCredential(
+  row: ProviderRow,
+  namespace: SettingsNamespaceView,
+  schema: SettingsSchemaOperations,
+): boolean {
+  return row.apiKeyEnv === editorKeyRef(row, namespace, schema)
+}
+
+function targetOf(row: ProviderRow, namespace: SettingsNamespaceView, schema: SettingsSchemaOperations): EditorTarget {
+  const credentialRef = ownsCredential(row, namespace, schema)
     && row.credential?.configured === true
     && row.credential.writable
-    ? managedRef
+    ? row.apiKeyEnv
     : undefined
   return {
     provider: row.entry.provider,
@@ -332,10 +381,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
         )}
       <ul className={styles['rows']}>
         {configured.map((row) => {
-          const target = targetOf(row)
-          const namespace = state.namespaces.get(target.settingsNs)
+          const namespace = state.namespaces.get(row.entry.settingsNs)
           /* v8 ignore next -- the join marks a row configured only when its namespace resolved */
           if (namespace === undefined) return null
+          const target = targetOf(row, namespace, schema)
           const error = row.entry.error === undefined
             ? null
             : <p role="alert" className={styles['error']}>{row.entry.error}</p>
@@ -469,7 +518,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                     const row = addable.find(candidate => candidate.entry.provider === event.target.value)
                     /* v8 ignore next -- the select only lists addable rows */
                     if (row === undefined) return
-                    setEditing(targetOf(row))
+                    const namespace = state.namespaces.get(row.entry.settingsNs)
+                    /* v8 ignore next -- addTarget already resolved this row's namespace */
+                    if (namespace === undefined) return
+                    setEditing(targetOf(row, namespace, schema))
                   }}
                 >
                   {addable.map(row => (
@@ -533,10 +585,13 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       const first = addable[0]
                       /* v8 ignore next -- the button is disabled while nothing is addable */
                       if (first === undefined) return
+                      const namespace = state.namespaces.get(first.entry.settingsNs)
+                      /* v8 ignore next -- addable is built from rows whose namespace resolved */
+                      if (namespace === undefined) return
                       setSavedTarget(undefined)
                       setDeclaring(false)
                       setAdding(true)
-                      setEditing(targetOf(first))
+                      setEditing(targetOf(first, namespace, schema))
                     }}
                   >
                     <IconPlusOutline16 size={14} />

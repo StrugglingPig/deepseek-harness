@@ -1499,10 +1499,27 @@ describe('ModelsSection', () => {
     ])
   })
 
-  it('withdraws a built-in provider without touching the rest of its section', async () => {
-    // The adapter mounts this route unconditionally, so the page cannot remove
-    // it the way it removes a nested profile: it sets the flag the adapter
-    // reads as "serve nothing", which is what leaves the settings to restore.
+  it('claims the schema default reference a whole-section provider resolves through', async () => {
+    // DEEPSEEK_API_KEY is the section schema's own default, and the editor
+    // falls back to it when the profile names none — so a key stored under it
+    // is one this page wrote, and Delete clears it with the section.
+    const scripted = scriptedFace()
+    scripted.face.credentials.describe.mockImplementation((refs: string[]) => Promise.resolve(remoteOk(
+      Object.fromEntries(refs.map(ref => [ref, { configured: ref === 'DEEPSEEK_API_KEY', writable: true }])),
+    )))
+    const { unset, mutate } = await mountFace(scripted)
+    fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.removeProvider) }))
+    const dialog = screen.getByRole('dialog', { name: deepSeekCopy(en.deleteTitle) })
+    expect(dialog.textContent).toContain(deepSeekCopy(en.deleteDescriptionBuiltIn))
+    fireEvent.click(within(dialog).getByRole('button', { name: deepSeekCopy(en.deleteConfirm) }))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
+    expect(unset).toHaveBeenCalledWith('DEEPSEEK_API_KEY')
+  })
+
+  it('clears a built-in provider section and withdraws its route in one ordered write', async () => {
+    // The section is what a re-add would restore, so a removal that left it
+    // behind would hand the previous endpoint back. The unset comes first: the
+    // withdrawal has to land on the cleared section, not be cleared away by it.
     const { face, mutate, controller } = await mountSection()
     await removeProviderProfile(
       operationsWith(face),
@@ -1511,7 +1528,7 @@ describe('ModelsSection', () => {
     )
     expect(mutate.mock.calls[0]).toEqual([
       'llm-deepseek',
-      [{ op: 'set', path: ['disabled'], value: true }],
+      [{ op: 'unset', path: [] }, { op: 'set', path: ['disabled'], value: true }],
       undefined,
     ])
   })
@@ -1552,7 +1569,11 @@ describe('ModelsSection', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: deepSeekCopy(en.deleteConfirm) }))
     await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
     expect(unset).not.toHaveBeenCalled()
-    expect(mutate.mock.calls[0]).toEqual(['llm-deepseek', [{ op: 'set', path: ['disabled'], value: true }], undefined])
+    expect(mutate.mock.calls[0]).toEqual([
+      'llm-deepseek',
+      [{ op: 'unset', path: [] }, { op: 'set', path: ['disabled'], value: true }],
+      undefined,
+    ])
   })
 
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {
