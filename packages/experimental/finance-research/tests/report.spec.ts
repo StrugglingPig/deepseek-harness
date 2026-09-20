@@ -82,6 +82,22 @@ describe('finance research report', () => {
     expect(report.markdown).toContain('Implied probability:')
     expect(report.markdown).toContain('Open interest:')
   })
+  it('renders the report in the requested Chinese copy', async () => {
+    const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'zh')
+    expect(report.title).toBe('Apple Inc. (AAPL) 研究报告')
+    expect(report.sections.map(section => section.title)).toEqual([
+      '摘要', '研究问题', '行情快照', '技术指标', '多指标综合', '方法论覆盖', '投资大师视角', '策略缺口', '风险与限制',
+    ])
+    expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')
+    expect(report.markdown).toContain('综合评分：')
+    expect(report.markdown).toContain('风险：')
+    expect(report.markdown).toContain('；需要 ')
+    expect(report.html).toContain('<html lang="zh">')
+    expect(report.html).toContain('交互式价格图')
+    expect(report.html).toContain('全部')
+    expect(report.html).not.toContain('<html lang="en">')
+  })
+
   it('avoids a duplicate symbol label when the provider has no instrument name', async () => {
     const report = await buildResearchReport({
       id: 'external',

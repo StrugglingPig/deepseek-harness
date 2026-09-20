@@ -2,7 +2,30 @@ import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { describe, expect, it } from 'vitest'
+import { fixtureProvider } from '../src/data.ts'
 import { registerFinanceTools } from '../src/index.ts'
+
+describe('finance research report language default', () => {
+  it('writes English when no report-language resolver is supplied', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    registerFinanceTools(ctx, fixtureProvider)
+
+    const result = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'default-language-report' as never,
+      name: 'finance_research_report',
+      arguments: { symbol: 'AAPL' },
+    })
+
+    expect(result.isError).toBe(false)
+    const text = result.content.filter(block => block.type === 'text').map(block => block.text).join('')
+    expect(text).toContain('Apple Inc. (AAPL) research report')
+    expect(text).toContain('## Investor Lenses')
+    await ctx.fiber.dispose()
+  })
+})
 
 describe('finance_monitor_plan tool', () => {
   it('returns schedule_create arguments for the requested monitor', async () => {

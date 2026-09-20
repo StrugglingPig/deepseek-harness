@@ -36,7 +36,7 @@ The exact workspace example also ships [`dashboard.patch.yml`](../../../apps/cli
 
 ### Configure data sources
 
-The dashboard follows the served `finance-research` settings namespace: a namespace change reloads the current selection, and the A-share tab succeeds only while the Host has the selected provider enabled. Provider endpoints, credentials, and enable flags stay in Finance settings and never reach the browser; the panel itself owns no settings namespace.
+The dashboard follows the served `finance-research` settings namespace: a namespace change reloads the current selection, and the A-share tab succeeds only while the Host has the selected provider enabled. The panel also publishes the browser's active locale into that namespace, so Host-side finance reports follow the language the user sees. Provider endpoints, credentials, and enable flags stay in Finance settings and never reach the browser; the panel itself owns no settings namespace.
 
 ### Read the panel
 

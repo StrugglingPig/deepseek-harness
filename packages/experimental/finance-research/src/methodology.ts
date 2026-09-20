@@ -1,6 +1,8 @@
 /** Deterministic methodology coverage and investor-lens scaffolding. */
 
 import { buildIndicatorAnalysis } from './indicators.ts'
+import { REPORT_COPY, formatCopy, type LensCopy, type ReportCopy } from './report-copy.ts'
+import type { ReportLanguage } from './report-language.ts'
 import type { IndicatorAnalysis, MarketBar, MarketSnapshot } from './types.ts'
 
 /** Strategy families exposed to research and reporting. */
@@ -237,9 +239,18 @@ function byId(id: string): MethodologyCatalogEntry {
 /**
  * Build deterministic methodology readings and the strategy catalog.
  * @param snapshot - Normalized market snapshot.
+ * @param language - Report language for reading notes and investor-lens copy.
  * @returns Data-backed readings, investor lenses, and the strategy catalog.
  */
-export function buildMethodologyAnalysis(snapshot: MarketSnapshot): MethodologyAnalysis {
+export function buildMethodologyAnalysis(snapshot: MarketSnapshot, language: ReportLanguage = 'en'): MethodologyAnalysis {
+  const copy: ReportCopy = REPORT_COPY[language]
+  const localize = (entry: MethodologyCatalogEntry): MethodologyCatalogEntry => {
+    const name = copy.catalogNames[entry.id] ?? entry.name
+    return name === entry.name ? entry : { ...entry, name }
+  }
+  const localizeRequirement = (requirement: string): string => copy.requirements[requirement] ?? requirement
+  const note = (key: string, params: Readonly<Record<string, string | number>> = {}): string =>
+    formatCopy(copy.notes[key] as string, params)
   const analysis: IndicatorAnalysis = buildIndicatorAnalysis(snapshot)
   const bars = snapshot.bars
   const latest = bars.at(-1) as MarketBar
@@ -279,54 +290,61 @@ export function buildMethodologyAnalysis(snapshot: MarketSnapshot): MethodologyA
   })()
 
   const readings: MethodologyReading[] = [
-    reading(byId('ma-trend'), 'available', maDirection, 75, `EMA12 ${analysis.indicators.ema12} vs EMA26 ${analysis.indicators.ema26}`, analysis.indicators.ema12 - analysis.indicators.ema26),
-    reading(byId('donchian'), 'available', close > donchianHigh ? 'bullish' : close < donchianLow ? 'bearish' : 'neutral', 70, `20-day range ${donchianLow}–${donchianHigh}`),
-    reading(byId('adx'), 'available', adxValue.adx >= 25 ? (adxValue.plus > adxValue.minus ? 'bullish' : 'bearish') : 'neutral', Math.min(90, adxValue.adx), `ADX ${adxValue.adx.toFixed(2)}`, adxValue.adx),
-    reading(byId('supertrend'), 'partial', superTrend(bars), 65, 'ATR-band trend direction'),
-    reading(byId('roc'), 'available', barDirection(reference, close), 70, '20-bar rate of change', roc),
-    reading(byId('macd'), 'available', analysis.indicators.macdHistogram >= 0 ? 'bullish' : 'bearish', 70, 'MACD histogram direction', analysis.indicators.macdHistogram),
-    reading(byId('rsi'), 'available', analysis.indicators.rsi14 >= 50 ? 'bullish' : 'bearish', 60, `RSI14 ${analysis.indicators.rsi14}`, analysis.indicators.rsi14),
-    reading(byId('rsi-reversion'), 'available', analysis.indicators.rsi14 <= 30 ? 'bullish' : analysis.indicators.rsi14 >= 70 ? 'bearish' : 'neutral', 55, 'RSI extreme state', analysis.indicators.rsi14),
-    reading(byId('bollinger'), 'available', zScore <= -2 ? 'bullish' : zScore >= 2 ? 'bearish' : 'neutral', 55, 'Bollinger z-score', zScore),
-    reading(byId('kdj'), 'available', kdjValue.k > kdjValue.d ? 'bullish' : 'bearish', 55, 'K/D cross and level', kdjValue.j),
-    reading(byId('volume-price'), 'available', barDirection(latest.open, latest.close), 55, `Volume ${latest.volume} vs 20-period mean ${averageVolume}`, averageVolume),
-    reading(byId('obv'), 'available', analysis.indicators.obv >= analysis.indicators.obvSma20 ? 'bullish' : 'bearish', 60, 'OBV vs 20-bar average', analysis.indicators.obv - analysis.indicators.obvSma20),
-    reading(byId('vwap'), 'partial', barDirection(vwapValue, close), 45, 'Rolling 20-bar VWAP proxy', vwapValue),
-    reading(byId('volume-profile'), 'partial', barDirection(profile.poc, close), 45, 'OHLCV bucket profile, not intraday footprint', profile.poc),
-    reading(byId('chan'), 'partial', close > analysis.indicators.bollingerMiddle ? 'bullish' : close < analysis.indicators.bollingerMiddle ? 'bearish' : 'neutral', 35, 'Simplified structure proxy; full Chan segmentation requires dedicated analysis'),
-    reading(byId('dow'), 'partial', dowDirection, 55, 'Confirmed swing structure'),
-    reading(byId('price-action'), 'partial', close > analysis.indicators.sma20 ? 'bullish' : close < analysis.indicators.sma20 ? 'bearish' : 'neutral', 45, 'SMA/price structure proxy'),
-    reading(byId('volatility-breakout'), 'available', (latest.high - latest.low) > atr ? barDirection(latest.open, latest.close) : 'neutral', 55, 'Latest range versus ATR', latest.high - latest.low),
-    reading(byId('cycle'), 'partial', cycle > 0.2 ? 'bullish' : cycle < -0.2 ? 'bearish' : 'neutral', 30, 'Autocorrelation cycle proxy', cycle),
-    reading(byId('elliott'), 'not-data-backed', 'insufficient-data', 10, 'Wave counts require validated labeling; no automatic count is claimed'),
-    reading(byId('wyckoff'), 'not-data-backed', 'insufficient-data', 10, 'Accumulation/distribution requires footprint and event context'),
+    reading(localize(byId('ma-trend')), 'available', maDirection, 75, note('ma-trend', { ema12: analysis.indicators.ema12, ema26: analysis.indicators.ema26 }), analysis.indicators.ema12 - analysis.indicators.ema26),
+    reading(localize(byId('donchian')), 'available', close > donchianHigh ? 'bullish' : close < donchianLow ? 'bearish' : 'neutral', 70, note('donchian', { window: 20, low: donchianLow, high: donchianHigh })),
+    reading(localize(byId('adx')), 'available', adxValue.adx >= 25 ? (adxValue.plus > adxValue.minus ? 'bullish' : 'bearish') : 'neutral', Math.min(90, adxValue.adx), note('adx', { adx: adxValue.adx.toFixed(2) }), adxValue.adx),
+    reading(localize(byId('supertrend')), 'partial', superTrend(bars), 65, note('supertrend')),
+    reading(localize(byId('roc')), 'available', barDirection(reference, close), 70, note('roc'), roc),
+    reading(localize(byId('macd')), 'available', analysis.indicators.macdHistogram >= 0 ? 'bullish' : 'bearish', 70, note('macd'), analysis.indicators.macdHistogram),
+    reading(localize(byId('rsi')), 'available', analysis.indicators.rsi14 >= 50 ? 'bullish' : 'bearish', 60, note('rsi', { rsi: analysis.indicators.rsi14 }), analysis.indicators.rsi14),
+    reading(localize(byId('rsi-reversion')), 'available', analysis.indicators.rsi14 <= 30 ? 'bullish' : analysis.indicators.rsi14 >= 70 ? 'bearish' : 'neutral', 55, note('rsi-reversion'), analysis.indicators.rsi14),
+    reading(localize(byId('bollinger')), 'available', zScore <= -2 ? 'bullish' : zScore >= 2 ? 'bearish' : 'neutral', 55, note('bollinger'), zScore),
+    reading(localize(byId('kdj')), 'available', kdjValue.k > kdjValue.d ? 'bullish' : 'bearish', 55, note('kdj'), kdjValue.j),
+    reading(localize(byId('volume-price')), 'available', barDirection(latest.open, latest.close), 55, note('volume-price', { volume: latest.volume, mean: averageVolume }), averageVolume),
+    reading(localize(byId('obv')), 'available', analysis.indicators.obv >= analysis.indicators.obvSma20 ? 'bullish' : 'bearish', 60, note('obv'), analysis.indicators.obv - analysis.indicators.obvSma20),
+    reading(localize(byId('vwap')), 'partial', barDirection(vwapValue, close), 45, note('vwap'), vwapValue),
+    reading(localize(byId('volume-profile')), 'partial', barDirection(profile.poc, close), 45, note('volume-profile'), profile.poc),
+    reading(localize(byId('chan')), 'partial', close > analysis.indicators.bollingerMiddle ? 'bullish' : close < analysis.indicators.bollingerMiddle ? 'bearish' : 'neutral', 35, note('chan')),
+    reading(localize(byId('dow')), 'partial', dowDirection, 55, note('dow')),
+    reading(localize(byId('price-action')), 'partial', close > analysis.indicators.sma20 ? 'bullish' : close < analysis.indicators.sma20 ? 'bearish' : 'neutral', 45, note('price-action')),
+    reading(localize(byId('volatility-breakout')), 'available', (latest.high - latest.low) > atr ? barDirection(latest.open, latest.close) : 'neutral', 55, note('volatility-breakout'), latest.high - latest.low),
+    reading(localize(byId('cycle')), 'partial', cycle > 0.2 ? 'bullish' : cycle < -0.2 ? 'bearish' : 'neutral', 30, note('cycle'), cycle),
+    reading(localize(byId('elliott')), 'not-data-backed', 'insufficient-data', 10, note('elliott')),
+    reading(localize(byId('wyckoff')), 'not-data-backed', 'insufficient-data', 10, note('wyckoff')),
     ...CATALOG.filter(entry => ['relative-strength', 'grid', 'pairs', 'opening-range', 'market-neutral', 'pca-arb', 'value', 'factor-momentum', 'quality', 'low-vol', 'size', 'multi-factor', 'dcf', 'financial-quality', 'industry-rotation', 'earnings', 'dividend-buyback', 'merger-arb', 'index-rebalance', 'forest', 'boosted-trees', 'sequence-model', 'reinforcement', 'market-making', 'order-flow', 'execution', 'order-book'].includes(entry.id))
-      .map(entry => reading(entry, entry.status, 'insufficient-data', 0, `Requires: ${entry.dataRequirements.join(', ')}`)),
+      .map(entry => reading(
+        localize(entry),
+        entry.status,
+        'insufficient-data',
+        0,
+        note('gap', { requirements: entry.dataRequirements.map(localizeRequirement).join(', ') }),
+      )),
   ]
   const investorDefinitions = [
-    { id: 'buffett', name: 'Warren Buffett', school: 'Value and quality', ids: ['quality', 'value', 'financial-quality'], questions: ['Does the business have a durable moat?', 'Is free cash flow durable?', 'Is the price sensible versus intrinsic value?'], risk: 'Quality and valuation inputs are absent from the current snapshot.' },
-    { id: 'graham', name: 'Benjamin Graham', school: 'Deep value', ids: ['value', 'financial-quality'], questions: ['Is there a margin of safety?', 'Are earnings and assets stable?'], risk: 'Fundamental and balance-sheet inputs are absent.' },
-    { id: 'munger', name: 'Charlie Munger', school: 'Quality compounding', ids: ['quality'], questions: ['Can the business compound for a decade?', 'What can permanently impair it?'], risk: 'Business quality is not represented by price and volume alone.' },
-    { id: 'lynch', name: 'Peter Lynch', school: 'Growth at a reasonable price', ids: ['quality', 'factor-momentum'], questions: ['Is growth visible and understandable?', 'Is the valuation reasonable?'], risk: 'Growth and earnings estimates are absent.' },
-    { id: 'soros', name: 'George Soros', school: 'Reflexivity and macro', ids: ['ma-trend', 'momentum', 'macd'], questions: ['What belief is changing?', 'Where is the trend self-reinforcing?'], risk: 'Macro positioning and reflexivity inputs are absent.' },
-    { id: 'dalio', name: 'Ray Dalio', school: 'Macro and risk balance', ids: ['adx', 'volatility-breakout'], questions: ['What regime are we in?', 'Is risk balanced across drivers?'], risk: 'Macro regime and portfolio data are absent.' },
-    { id: 'simons', name: 'Jim Simons', school: 'Quantitative signals', ids: ['momentum', 'rsi', 'bollinger'], questions: ['Is the signal statistically robust?', 'What is the turnover and cost?'], risk: 'No backtest, cost model, or out-of-sample validation is present.' },
-    { id: 'livermore', name: 'Jesse Livermore', school: 'Trend following', ids: ['donchian', 'supertrend', 'adx'], questions: ['Is the trend confirmed?', 'Where is the stop?'], risk: 'Position sizing and execution assumptions are absent.' },
-    { id: 'marks', name: 'Howard Marks', school: 'Cycle and risk', ids: ['cycle', 'volatility-breakout'], questions: ['Where are we in the cycle?', 'What is priced in?'], risk: 'Cycle position cannot be established from one asset alone.' },
-    { id: 'taleb', name: 'Nassim Taleb', school: 'Tail risk and convexity', ids: ['volatility-breakout', 'cycle'], questions: ['What is the worst plausible path?', 'Is the payoff convex?'], risk: 'Tail distribution and option data are absent.' },
+    { id: 'buffett', name: 'Warren Buffett', ids: ['quality', 'value', 'financial-quality'] },
+    { id: 'graham', name: 'Benjamin Graham', ids: ['value', 'financial-quality'] },
+    { id: 'munger', name: 'Charlie Munger', ids: ['quality'] },
+    { id: 'lynch', name: 'Peter Lynch', ids: ['quality', 'factor-momentum'] },
+    { id: 'soros', name: 'George Soros', ids: ['ma-trend', 'momentum', 'macd'] },
+    { id: 'dalio', name: 'Ray Dalio', ids: ['adx', 'volatility-breakout'] },
+    { id: 'simons', name: 'Jim Simons', ids: ['momentum', 'rsi', 'bollinger'] },
+    { id: 'livermore', name: 'Jesse Livermore', ids: ['donchian', 'supertrend', 'adx'] },
+    { id: 'marks', name: 'Howard Marks', ids: ['cycle', 'volatility-breakout'] },
+    { id: 'taleb', name: 'Nassim Taleb', ids: ['volatility-breakout', 'cycle'] },
   ] as const
   const investors: InvestorLens[] = investorDefinitions.map((definition) => {
+    const lens = copy.lenses[definition.id] as LensCopy
     const relevant = readings.filter(item => (definition.ids as readonly string[]).includes(item.id) && item.direction !== 'insufficient-data')
     const score = relevant.reduce((sum, item) => sum + (item.direction === 'bullish' ? 1 : item.direction === 'bearish' ? -1 : 0), 0)
     const stance = relevant.length === 0 ? 'insufficient-data' : score > 0 ? 'constructive' : score < 0 ? 'cautious' : 'neutral'
     return {
       id: definition.id,
       name: definition.name,
-      school: definition.school,
+      school: lens.school,
       stance,
       evidence: relevant.map(item => `${item.name}: ${item.direction} (${String(Math.round(item.confidence))}%)`),
-      questions: definition.questions,
-      risk: definition.risk,
+      questions: [...lens.questions],
+      risk: lens.risk,
     }
   })
   const synthesisPrompt = [

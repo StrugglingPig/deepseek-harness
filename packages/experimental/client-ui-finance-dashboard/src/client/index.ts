@@ -45,7 +45,25 @@ export function apply(ctx: ClientContext): void {
   const scope = ctx.settingsScope.bind<{
     readonly enableAkshare?: boolean
     readonly enableIfind?: boolean
+    readonly uiLocale?: string
   }>({ namespace: FINANCE_NS })
+  // The report writer runs on the Host, which cannot read the browser's
+  // provisional locale, so publish the active locale into this namespace.
+  ctx.effect(() => {
+    const publish = (): void => {
+      const section = scope.getSnapshot()
+      const active = ctx.locale.getSnapshot().active
+      if (!section.writable || section.value?.uiLocale === active) return
+      void scope.set('uiLocale', active)
+    }
+    const offScope = scope.subscribe(publish)
+    const offLocale = ctx.locale.subscribe(publish)
+    publish()
+    return () => {
+      offScope()
+      offLocale()
+    }
+  }, 'finance-dashboard: published UI locale')
   const controller = new FinanceDashboardController(scope)
   ctx.effect(() => () => { controller.dispose() }, 'finance-dashboard: controller')
   const describe = ctx.settingsScope.describe()

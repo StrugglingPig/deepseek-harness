@@ -36,7 +36,7 @@ dsh plugin --profile web add @deepseek-ai/dsh-experimental-client-ui-finance-das
 
 ### 配置数据源
 
-仪表盘跟随已提供的 `finance-research` 设置命名空间：命名空间变化会重新加载当前选择，A 股标签页只有在 Host 已启用所选 Provider 时才能成功。Provider 端点、凭据和开关都留在金融设置中，不会到达浏览器；面板自身不拥有设置命名空间。
+仪表盘跟随已提供的 `finance-research` 设置命名空间：命名空间变化会重新加载当前选择，A 股标签页只有在 Host 已启用所选 Provider 时才能成功。面板还会把浏览器当前语言写入该命名空间，使 Host 侧生成的金融报告跟随用户看到的语言。Provider 端点、凭据和开关都留在金融设置中，不会到达浏览器；面板自身不拥有设置命名空间。
 
 ### 阅读面板
 

@@ -15,6 +15,7 @@
     { "path": "../../subprocess/subprocess" },
     { "path": "../../core/system-prompt" },
     { "path": "../../client/connection/tsconfig.host.json" },
+    { "path": "../../client/locale" },
     { "path": "../../fs/fs" }
   ]
 }

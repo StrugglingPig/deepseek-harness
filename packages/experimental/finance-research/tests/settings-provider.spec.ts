@@ -7,6 +7,7 @@ import { COINMARKETCAP_API_KEY_REF } from '../src/auth.ts'
 
 const SETTINGS: FinanceRuntimeSettings = {
   provider: 'http',
+  reportLanguage: 'auto',
   timeoutMs: 1_000,
   barLimit: 60,
   yahooBaseUrl: 'https://yahoo.test',

@@ -164,6 +164,7 @@ describe('Binance private account data', () => {
   it('rejects private account reads through the fixture settings provider', async () => {
     const settings: FinanceRuntimeSettings = {
       provider: 'fixture',
+      reportLanguage: 'auto',
       timeoutMs: 1_000,
       barLimit: 60,
       yahooBaseUrl: 'https://yahoo.test',

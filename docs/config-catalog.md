@@ -702,6 +702,10 @@ Requires: `tools`
 export interface Config {
   /** `fixture` keeps the deterministic local provider; `http` enables public live endpoints. */
   readonly provider?: 'fixture' | 'http'
+  /** Report language: `auto` follows the browser-published locale, the stored preference, then the system locale. */
+  readonly reportLanguage?: 'auto' | 'en' | 'zh'
+  /** Locale published by the browser plugin; read only while `reportLanguage` is `auto`. */
+  readonly uiLocale?: string
   /** HTTP request timeout in milliseconds. */
   readonly timeoutMs?: number
   /** Maximum live history bars requested. */
@@ -765,7 +769,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:92`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:94`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 

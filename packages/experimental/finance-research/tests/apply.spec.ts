@@ -9,8 +9,14 @@ import { DASHBOARD_MARKET_PATH } from '../src/shared.ts'
 import type { Config } from '../src/index.ts'
 import type { FinanceRuntimeSettings } from '../src/settings-provider.ts'
 
+function textOfReport(result: { content: { type: string; text?: string }[] }): string {
+  return result.content.filter(block => block.type === 'text').map(block => block.text).join('')
+}
+
 const CONFIG: Required<Config> = {
   provider: 'http',
+  reportLanguage: 'auto',
+  uiLocale: 'en',
   timeoutMs: 1_000,
   barLimit: 60,
   yahooBaseUrl: 'https://yahoo.test',
@@ -55,7 +61,7 @@ describe('finance apply', () => {
       watch,
     }
     const register = vi.fn(() => scope)
-    ctx.provide('settings', { register } as never)
+    ctx.provide('settings', { register, get: vi.fn(() => undefined) } as never)
     const resolve = vi.fn(async (ref: string) => ({
       value: ref === BINANCE_API_KEY_REF ? 'api-key'
         : ref === COINMARKETCAP_API_KEY_REF ? 'cmc-key'
@@ -142,7 +148,7 @@ describe('finance apply', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     const scope = { get: () => CONFIG, watch: vi.fn() }
-    ctx.provide('settings', { register: vi.fn(() => scope) } as never)
+    ctx.provide('settings', { register: vi.fn(() => scope), get: vi.fn(() => undefined) } as never)
     const history = {
       symbol: '600519',
       name: '贵州茅台',
@@ -204,7 +210,7 @@ describe('finance apply', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     const scope = { get: () => CONFIG, watch: vi.fn() }
-    ctx.provide('settings', { register: vi.fn(() => scope) } as never)
+    ctx.provide('settings', { register: vi.fn(() => scope), get: vi.fn(() => undefined) } as never)
 
     apply(ctx, CONFIG)
     await Promise.resolve()
@@ -217,5 +223,75 @@ describe('finance apply', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0]?.type === 'text' ? result.content[0].text : '').toContain('credentials are not configured')
     await ctx.fiber.dispose()
+  })
+
+  it('renders reports in the published locale, stored preference, or explicit language', async () => {
+    const fixtureConfig = { ...CONFIG, provider: 'fixture' as const }
+    const { uiLocale: _published, ...unpublished } = fixtureConfig
+    const publishedScope = { get: () => ({ ...fixtureConfig, uiLocale: 'zh-CN' }), watch: vi.fn() }
+    const published = new Context()
+    await published.plugin(SystemPrompt)
+    await published.plugin(ToolRuntime)
+    published.provide('settings', {
+      register: vi.fn(() => publishedScope),
+      get: vi.fn(() => undefined),
+    } as never)
+    apply(published, fixtureConfig)
+    await vi.waitFor(async () => {
+      const result = await published.tools.execute({
+        signal: new AbortController().signal,
+        callId: 'browser-locale-report' as never,
+        name: 'finance_research_report',
+        arguments: { symbol: 'AAPL' },
+      })
+      const report = textOfReport(result)
+      expect(report).toContain('研究报告')
+      return report
+    })
+    await published.fiber.dispose()
+
+    const preferenceScope = { get: () => unpublished, watch: vi.fn() }
+    const localized = new Context()
+    await localized.plugin(SystemPrompt)
+    await localized.plugin(ToolRuntime)
+    localized.provide('settings', {
+      register: vi.fn(() => preferenceScope),
+      get: vi.fn((ns: string) => ns === 'locale' ? { preference: 'zh' } : undefined),
+    } as never)
+    apply(localized, unpublished)
+    await vi.waitFor(async () => {
+      const result = await localized.tools.execute({
+        signal: new AbortController().signal,
+        callId: 'locale-report' as never,
+        name: 'finance_research_report',
+        arguments: { symbol: 'AAPL' },
+      })
+      const report = textOfReport(result)
+      expect(report).toContain('研究报告')
+      return report
+    })
+    await localized.fiber.dispose()
+
+    const explicitScope = { get: () => ({ ...unpublished, reportLanguage: 'zh' as const }), watch: vi.fn() }
+    const explicit = new Context()
+    await explicit.plugin(SystemPrompt)
+    await explicit.plugin(ToolRuntime)
+    explicit.provide('settings', {
+      register: vi.fn(() => explicitScope),
+      get: vi.fn(() => undefined),
+    } as never)
+    apply(explicit, { ...unpublished, reportLanguage: 'zh' })
+    await vi.waitFor(async () => {
+      const result = await explicit.tools.execute({
+        signal: new AbortController().signal,
+        callId: 'pinned-report' as never,
+        name: 'finance_research_report',
+        arguments: { symbol: 'AAPL' },
+      })
+      const report = textOfReport(result)
+      expect(report).toContain('研究报告')
+      return report
+    })
+    await explicit.fiber.dispose()
   })
 })

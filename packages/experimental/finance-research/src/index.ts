@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-settings'
+import { LOCALE_ID_PATTERN, LOCALE_SETTINGS_NAMESPACE, type LocaleSettings } from '@deepseek-ai/dsh-client-locale'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
@@ -29,6 +30,7 @@ import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECO
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
+import { resolveReportLanguage, systemReportLanguageTag, type ReportLanguage } from './report-language.ts'
 import { exportResearchReport } from './export.ts'
 import type {
   FinanceMarketDataProvider,
@@ -92,6 +94,10 @@ export const inject = ['tools']
 export interface Config {
   /** `fixture` keeps the deterministic local provider; `http` enables public live endpoints. */
   readonly provider?: 'fixture' | 'http'
+  /** Report language: `auto` follows the browser-published locale, the stored preference, then the system locale. */
+  readonly reportLanguage?: 'auto' | 'en' | 'zh'
+  /** Locale published by the browser plugin; read only while `reportLanguage` is `auto`. */
+  readonly uiLocale?: string
   /** HTTP request timeout in milliseconds. */
   readonly timeoutMs?: number
   /** Maximum live history bars requested. */
@@ -160,6 +166,8 @@ export const FINANCE_SETTINGS_NS = 'finance-research'
 /** Schemastery configuration for the finance research plugin. */
 export const Config: z<Config> = z.object({
   provider: z.union(['fixture', 'http'] as const).default('fixture'),
+  reportLanguage: z.union(['auto', 'en', 'zh'] as const).default('auto'),
+  uiLocale: z.string().pattern(LOCALE_ID_PATTERN).required(false),
   timeoutMs: z.number().min(1).default(15_000),
   barLimit: z.number().step(1).min(50).default(80),
   yahooBaseUrl: z.string().default('https://query1.finance.yahoo.com'),
@@ -264,11 +272,13 @@ function analysisValue(snapshot: MarketSnapshot) {
  * @param ctx - Registrant context carrying the tool registry.
  * @param provider - Market-data provider used by the normalized tools.
  * @param streamProvider - Optional real-time market-stream provider.
+ * @param reportLanguage - Resolves the report language for generated reports.
  */
 export function registerFinanceTools(
   ctx: Context,
   provider: FinanceMarketDataProvider = fixtureProvider,
   streamProvider?: FinanceMarketStreamProvider,
+  reportLanguage: () => ReportLanguage = () => 'en',
 ): void {
   ctx.tools.register(defineTool({
     name: 'finance_market_snapshot',
@@ -390,7 +400,7 @@ export function registerFinanceTools(
 
   ctx.tools.register(defineTool({
     name: 'finance_research_report',
-    description: 'Generate a structured Markdown and interactive HTML research report from deterministic market analysis.',
+    description: 'Generate a structured Markdown and interactive HTML research report from deterministic market analysis, in the configured report language.',
     parameters: {
       symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
       question: { type: 'string', description: 'Research question to include in the report.' },
@@ -440,7 +450,7 @@ export function registerFinanceTools(
         symbol: args.symbol,
         ...args.question === undefined ? {} : { question: args.question },
         ...args.horizon === undefined ? {} : { horizon: args.horizon },
-      }, exec.signal)
+      }, exec.signal, reportLanguage())
       return {
         symbol: report.symbol,
         as_of: report.asOf,
@@ -460,7 +470,7 @@ export function registerFinanceTools(
   ctx.inject(['fs'], (fsCtx) => {
     ctx.tools.register(defineTool({
       name: 'finance_report_export',
-      description: 'Generate a finance research report and persist both Markdown and self-contained interactive HTML files in the workspace.',
+      description: 'Generate a finance research report in the configured report language and persist both Markdown and self-contained interactive HTML files in the workspace.',
       parameters: {
         symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
         question: { type: 'string', description: 'Research question to include in the report.' },
@@ -487,7 +497,7 @@ export function registerFinanceTools(
           symbol: args.symbol,
           ...args.question === undefined ? {} : { question: args.question },
           ...args.horizon === undefined ? {} : { horizon: args.horizon },
-        }, exec.signal)
+        }, exec.signal, reportLanguage())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,
@@ -1220,6 +1230,8 @@ export function apply(ctx: Context, config: Config): void {
   const resolved = config as Required<Config>
   let currentSettings: FinanceRuntimeSettings = {
     provider: resolved.provider,
+    reportLanguage: resolved.reportLanguage,
+    ...config.uiLocale === undefined ? {} : { uiLocale: config.uiLocale },
     timeoutMs: resolved.timeoutMs,
     barLimit: resolved.barLimit,
     yahooBaseUrl: resolved.yahooBaseUrl,
@@ -1252,6 +1264,10 @@ export function apply(ctx: Context, config: Config): void {
     marketStreamMaxEvents: resolved.marketStreamMaxEvents,
   }
   let stockProvider: SubprocessFinanceStockDataProvider | undefined
+  let readLocalePreference: () => string | undefined = () => undefined
+  const reportLanguage = (): ReportLanguage => currentSettings.reportLanguage === 'auto'
+    ? resolveReportLanguage(currentSettings.uiLocale ?? readLocalePreference(), systemReportLanguageTag())
+    : currentSettings.reportLanguage
   let resolveCredential: FinanceCredentialResolver = () => Promise.resolve(undefined)
   const authorize = composeRequestAuthorizers(
     createBinanceRequestAuthorizer({
@@ -1268,7 +1284,7 @@ export function apply(ctx: Context, config: Config): void {
     () => currentSettings,
     ref => resolveCredential(ref),
   )
-  registerFinanceTools(ctx, provider, streamProvider)
+  registerFinanceTools(ctx, provider, streamProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({
       subprocess: subprocessCtx.subprocess,
@@ -1290,7 +1306,7 @@ export function apply(ctx: Context, config: Config): void {
         : currentSettings.enableIfind,
       ifindTransport: () => currentSettings.ifindTransport,
     })
-    registerStockTools(ctx, stockProvider)
+    registerStockTools(ctx, stockProvider, reportLanguage)
   })
 
   ctx.inject(['settings'], (settingsCtx) => {
@@ -1299,6 +1315,8 @@ export function apply(ctx: Context, config: Config): void {
     scope.watch((next) => {
       currentSettings = next as FinanceRuntimeSettings
     })
+    readLocalePreference = () =>
+      (settingsCtx.settings.get(LOCALE_SETTINGS_NAMESPACE) as LocaleSettings | undefined)?.preference
   })
   ctx.inject(['credentials'], (credentialCtx) => {
     resolveCredential = async (ref) => {

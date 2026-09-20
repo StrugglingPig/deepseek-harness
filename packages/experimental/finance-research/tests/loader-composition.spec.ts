@@ -59,7 +59,7 @@ function textOf(result: { content: { type: string; text?: string }[] }): string 
 
 describe('finance research real Loader composition', () => {
   it('registers and executes the finance tools', async () => {
-    const ctx = await boot()
+    const ctx = await boot(['    reportLanguage: en'])
     expect(ctx.tools.schemas().map(schema => schema.name)).toEqual([
       'finance_market_snapshot', 'finance_technical_analysis', 'finance_research_report',
       'finance_methodology_analysis', 'finance_strategy_catalog',

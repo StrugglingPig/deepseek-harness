@@ -42,6 +42,8 @@ English | [中文](README.md)
 | Field | Default | Meaning |
 |---|---|---|
 | `provider` | `fixture` | `fixture` 使用确定性本地数据；`http` 使用 Yahoo、Binance 和 Polymarket |
+| `reportLanguage` | `auto` | `auto` 先跟随浏览器上报的语言，其次用户语言设置与系统语言；`en` 或 `zh` 固定报告语言 |
+| `uiLocale` | 未设置 | 浏览器插件为 `auto` 上报的当前语言，由面板写入，不需要手工设置 |
 | `timeoutMs` | `15000` | 单次请求超时 |
 | `barLimit` | `80` | 请求的最大实时历史 K 线数 |
 | `yahooBaseUrl` | `https://query1.finance.yahoo.com` | Yahoo Finance origin |
@@ -53,6 +55,10 @@ English | [中文](README.md)
 | `polymarketClobBaseUrl` | `https://clob.polymarket.com` | Polymarket CLOB origin |
 
 生成的 [configuration catalog](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-finance-research) 是完整字段参考。
+
+### 报告语言
+
+`reportLanguage` 默认为 `auto`：报告先跟随金融面板上报的当前界面语言，其次跟随用户在“设置 → 通用”中选择的语言，再跟随 Host 系统语言（依次取 `LC_ALL`、`LC_MESSAGES`、`LANG`，再取 ICU 默认值），最后回退英文。无界面运行可用 `reportLanguage: en` 或 `zh` 固定语言。只有报告产物及其 HTML 界面文案会本地化；工具结果保持规范英文，避免模型可见契约、Prompt 缓存和录制快照随界面语言变化。
 
 ### Provider-native requests
 
@@ -128,6 +134,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **监控采用规划器模式** — `finance_monitor_plan` 返回可持久化的 `schedule_create` 参数；盘前和盘后是一次性检查，报告后请求下一时段。
 - **CoinMarketCap 受套餐和 Credits 限制** — API Key 必须在金融设置中启用，WebSocket 能力取决于账户套餐和 Credits。
 - **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
+- **报告语言目前只有 `en` 和 `zh`** — `auto` 会把其他语言标签解析为英文；新增语言需要先提供对应报告词典。
 - **Web 仪表盘是独立插件** — 仪表盘从 Connection 的认证精确路由注册表读取 `/api/finance-dashboard/market`，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表；只有组合提供 Connection 时该路由才注册，私有账户数据仍只保留在 Host。
 - **方法论覆盖状态是显式的** — 只有所需数据存在时确定性方法才会运行；波浪计数、Wyckoff、横截面因子、统计套利、机器学习和微观结构方法仍作为需要额外输入或模型的目录项。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。

@@ -1,7 +1,9 @@
-/** Structured Markdown reports built from deterministic market analysis. */
+/** Structured Markdown and interactive HTML reports built from deterministic market analysis. */
 
 import { buildIndicatorAnalysis } from './indicators.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
+import { REPORT_COPY, formatCopy, type ReportCopy } from './report-copy.ts'
+import type { ReportLanguage } from './report-language.ts'
 import type {
   FinanceMarketDataProvider,
   IndicatorAnalysis,
@@ -11,19 +13,24 @@ import type {
   ResearchReportSection,
 } from './types.ts'
 
-function predictionSection(snapshot: MarketSnapshot): ResearchReportSection[] {
+/** Direction, status, category, and signal words resolved through report copy. */
+function word(record: Readonly<Record<string, string | undefined>>, value: string): string {
+  return record[value] ?? value
+}
+
+function predictionSection(snapshot: MarketSnapshot, copy: ReportCopy): ResearchReportSection[] {
   if (snapshot.prediction === undefined) return []
   const prediction = snapshot.prediction
   const spread = prediction.ask - prediction.bid
   return [{
-    title: 'Prediction Market',
+    title: copy.sections.predictionMarket,
     content: [
-      `- Implied probability: ${(prediction.impliedProbability * 100).toFixed(2)}%`,
-      `- Bid/ask: ${prediction.bid} / ${prediction.ask} (spread ${spread.toFixed(4)})`,
-      `- Volume: ${prediction.volume}`,
-      `- Open interest: ${prediction.openInterest}`,
-      `- Resolution: ${prediction.resolution}`,
-      `- Rules: ${prediction.rules}`,
+      `- ${copy.labels.impliedProbability}${(prediction.impliedProbability * 100).toFixed(2)}%`,
+      `- ${copy.labels.bidAsk}${prediction.bid} / ${prediction.ask} (${copy.labels.spread}${spread.toFixed(4)})`,
+      `- ${copy.labels.volume}${prediction.volume}`,
+      `- ${copy.labels.openInterest}${prediction.openInterest}`,
+      `- ${copy.labels.resolution}${prediction.resolution}`,
+      `- ${copy.labels.rules}${prediction.rules}`,
     ].join('\n'),
   }]
 }
@@ -32,43 +39,59 @@ function sectionsFor(
   snapshot: MarketSnapshot,
   analysis: IndicatorAnalysis,
   request: ResearchReportRequest,
+  language: ReportLanguage,
 ): ResearchReportSection[] {
-  const question = request.question ?? 'Assess the current research setup.'
-  const horizon = request.horizon ?? 'swing'
+  const copy = REPORT_COPY[language]
+  const direction = (value: string): string => word(copy.directions, value)
+  const status = (value: string): string => word(copy.statuses, value)
+  const category = (value: string): string => word(copy.categories, value)
+  const requirement = (value: string): string => copy.requirements[value] ?? value
+  const question = request.question ?? copy.labels.defaultQuestion
+  const horizon = request.horizon ?? copy.labels.defaultHorizon
   const instrumentLabel = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
   const signals = analysis.signals
-    .map(signal => `- ${signal.name}: ${signal.direction} (weight ${signal.weight}, value ${signal.value})`)
+    .map(signal => formatCopy(copy.templates.signal, {
+      name: word(copy.signals, signal.name),
+      direction: direction(signal.direction),
+      weight: signal.weight,
+      value: signal.value,
+    }))
     .join('\n')
   const conflicts = analysis.conflicts.length === 0
-    ? 'No directional conflicts across the weighted signals.'
-    : `Conflicting signals: ${analysis.conflicts.join(', ')}.`
+    ? copy.labels.noConflicts
+    : `${copy.labels.conflicts}${analysis.conflicts.map(item => word(copy.signals, item)).join(', ')}.`
   const sourceLimitation = snapshot.source.synthetic
-    ? '- The initial provider is deterministic fixture data and is not live market data.'
-    : `- Snapshot source: ${snapshot.source.provider}; upstream availability, latency, and data quality remain external.`
-  const methodology = buildMethodologyAnalysis(snapshot)
+    ? `- ${copy.labels.fixtureLimitation}`
+    : `- ${formatCopy(copy.labels.snapshotLimitation, { provider: snapshot.source.provider })}`
+  const methodology = buildMethodologyAnalysis(snapshot, language)
+  const aligned = analysis.signals.length - analysis.conflicts.length
   return [
     {
-      title: 'Summary',
-      content: `${analysis.composite.direction} bias for ${instrumentLabel}. ${analysis.composite.summary}.`,
+      title: copy.sections.summary,
+      content: formatCopy(copy.templates.summary, {
+        direction: direction(analysis.composite.direction),
+        label: instrumentLabel,
+        aligned,
+      }),
     },
     {
-      title: 'Research Question',
-      content: `${question}\n\nHorizon: ${horizon}`,
+      title: copy.sections.researchQuestion,
+      content: `${question}\n\n${copy.labels.horizon}${horizon}`,
     },
     {
-      title: 'Market Snapshot',
+      title: copy.sections.marketSnapshot,
       content: [
-        `- As-of: ${snapshot.asOf}`,
-        `- Price: ${snapshot.quote.price} ${snapshot.instrument.currency}`,
-        `- Change: ${snapshot.quote.changePercent.toFixed(2)}%`,
-        `- Bars: ${snapshot.bars.length}`,
-        `- Source: ${snapshot.source.provider}${snapshot.source.synthetic ? ' (synthetic fixture)' : ''}`,
+        `- ${copy.labels.asOf}${snapshot.asOf}`,
+        `- ${copy.labels.price}${snapshot.quote.price} ${snapshot.instrument.currency}`,
+        `- ${copy.labels.change}${snapshot.quote.changePercent.toFixed(2)}%`,
+        `- ${copy.labels.bars}${snapshot.bars.length}`,
+        `- ${copy.labels.source}${snapshot.source.provider}${snapshot.source.synthetic ? copy.labels.syntheticSuffix : ''}`,
       ].join('\n'),
     },
     {
-      title: 'Technical Indicators',
+      title: copy.sections.technicalIndicators,
       content: [
         `- SMA 20 / 50: ${analysis.indicators.sma20} / ${analysis.indicators.sma50}`,
         `- EMA 12 / 26: ${analysis.indicators.ema12} / ${analysis.indicators.ema26}`,
@@ -80,49 +103,63 @@ function sectionsFor(
       ].join('\n'),
     },
     {
-      title: 'Multi-Indicator Synthesis',
+      title: copy.sections.synthesis,
       content: [
         signals,
         '',
-        `Composite score: ${analysis.composite.score}`,
-        `Confidence: ${analysis.composite.confidence}%`,
+        `${copy.labels.compositeScore}${analysis.composite.score}`,
+        `${copy.labels.confidence}${analysis.composite.confidence}%`,
         conflicts,
       ].join('\n'),
     },
-    ...predictionSection(snapshot),
+    ...predictionSection(snapshot, copy),
     {
-      title: 'Methodology Coverage',
+      title: copy.sections.methodologyCoverage,
       content: methodology.readings
         .filter(reading => reading.status !== 'requires-input')
-        .map(reading => `- ${reading.name}: ${reading.direction}, ${String(reading.confidence)}% confidence, status ${reading.status}. ${reading.note}`)
+        .map(reading => formatCopy(copy.templates.reading, {
+          name: reading.name,
+          direction: direction(reading.direction),
+          confidence: reading.confidence,
+          status: status(reading.status),
+          note: reading.note,
+        }))
         .join('\n'),
     },
     {
-      title: 'Investor Lenses',
+      title: copy.sections.investorLenses,
       content: methodology.investors.map(investor => [
-        `- ${investor.name} (${investor.school}): ${investor.stance}.`,
+        formatCopy(copy.templates.investor, {
+          name: investor.name,
+          school: investor.school,
+          stance: direction(investor.stance),
+        }),
         ...investor.evidence.map(item => `  - ${item}`),
-        `  - Risk: ${investor.risk}`,
+        formatCopy(copy.templates.investorRisk, { risk: investor.risk }),
       ].join('\n')).join('\n'),
     },
     {
-      title: 'Strategy Gaps',
+      title: copy.sections.strategyGaps,
       content: methodology.catalog
         .filter(entry => entry.status === 'requires-input' || entry.status === 'not-data-backed')
-        .map(entry => `- ${entry.name} (${entry.category}): ${entry.status}; requires ${entry.dataRequirements.join(', ')}`)
+        .map(entry => formatCopy(copy.templates.gap, {
+          name: entry.name,
+          category: category(entry.category),
+          status: status(entry.status),
+          requirements: entry.dataRequirements.map(requirement).join(', '),
+        }))
         .join('\n'),
     },
     {
-      title: 'Risk And Limitations',
+      title: copy.sections.riskAndLimitations,
       content: [
-        `- ATR as percent of price: ${analysis.risk.atrPercent.toFixed(4)}%`,
+        `- ${copy.labels.atrPercent}${analysis.risk.atrPercent.toFixed(4)}%`,
         sourceLimitation,
-        '- The report is research automation output, not investment advice.',
+        `- ${copy.labels.notAdvice}`,
       ].join('\n'),
     },
   ]
 }
-
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/gu, character => ({
@@ -144,6 +181,7 @@ function reportHtml(
   snapshot: MarketSnapshot,
   analysis: IndicatorAnalysis,
   sections: readonly ResearchReportSection[],
+  copy: ReportCopy,
 ): string {
   const data = safeJson({
     symbol: snapshot.instrument.symbol,
@@ -162,8 +200,20 @@ function reportHtml(
     </article>`).join('')
   const navigation = sections.map((section, index) =>
     `<button type="button" data-target="${String(index)}">${escapeHtml(section.title)}</button>`).join('')
+  const meta = formatCopy(copy.templates.htmlMeta, {
+    symbol: snapshot.instrument.symbol,
+    currency: snapshot.instrument.currency,
+    asOf: snapshot.asOf,
+    provider: snapshot.source.provider,
+  })
+  const pill = formatCopy(copy.templates.htmlPill, {
+    direction: word(copy.directions, analysis.composite.direction),
+    confidence: analysis.composite.confidence,
+  })
+  const ranges = [60, 120].map(count =>
+    `<button type="button" data-range="${String(count)}">${escapeHtml(formatCopy(copy.templates.htmlRange, { count }))}</button>`).join('')
   return `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(copy.htmlLang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -187,19 +237,19 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
 </head>
 <body>
 <main>
-  <div class="hero"><div><div class="eyebrow">DeepSeek Harness · Finance Research</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(snapshot.instrument.symbol)} · ${escapeHtml(snapshot.instrument.currency)} · As of ${escapeHtml(snapshot.asOf)} · Source ${escapeHtml(snapshot.source.provider)}</div></div><div class="pill">${escapeHtml(analysis.composite.direction)} · ${String(analysis.composite.confidence)}% confidence</div></div>
+  <div class="hero"><div><div class="eyebrow">${escapeHtml(copy.html.eyebrow)}</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(meta)}</div></div><div class="pill">${escapeHtml(pill)}</div></div>
   <div class="cards">
-    <div class="card"><span>Price</span><strong>${String(snapshot.quote.price)}</strong></div>
-    <div class="card"><span>Change</span><strong class="${snapshot.quote.changePercent >= 0 ? 'positive' : 'negative'}">${snapshot.quote.changePercent.toFixed(2)}%</strong></div>
-    <div class="card"><span>Composite</span><strong>${String(analysis.composite.score)}</strong></div>
-    <div class="card"><span>ATR</span><strong>${analysis.risk.atrPercent.toFixed(2)}%</strong></div>
+    <div class="card"><span>${escapeHtml(copy.html.cardPrice)}</span><strong>${String(snapshot.quote.price)}</strong></div>
+    <div class="card"><span>${escapeHtml(copy.html.cardChange)}</span><strong class="${snapshot.quote.changePercent >= 0 ? 'positive' : 'negative'}">${snapshot.quote.changePercent.toFixed(2)}%</strong></div>
+    <div class="card"><span>${escapeHtml(copy.html.cardComposite)}</span><strong>${String(analysis.composite.score)}</strong></div>
+    <div class="card"><span>${escapeHtml(copy.html.cardAtr)}</span><strong>${analysis.risk.atrPercent.toFixed(2)}%</strong></div>
   </div>
   <div class="chart-card">
-    <div class="chart-toolbar"><strong>Interactive price chart</strong><button type="button" data-range="60">60 bars</button><button type="button" data-range="120">120 bars</button><button type="button" data-range="all">All</button></div>
-    <canvas id="price-chart" aria-label="Interactive price chart"></canvas>
+    <div class="chart-toolbar"><strong>${escapeHtml(copy.html.chartTitle)}</strong>${ranges}<button type="button" data-range="all">${escapeHtml(copy.html.rangeAll)}</button></div>
+    <canvas id="price-chart" aria-label="${escapeHtml(copy.html.chartAria)}"></canvas>
   </div>
-  <div class="layout"><nav class="nav" aria-label="Report sections">${navigation}</nav><div>${sectionHtml}</div></div>
-  <p class="source">Generated by DeepSeek Harness finance research. This is research automation output, not investment advice.</p>
+  <div class="layout"><nav class="nav" aria-label="${escapeHtml(copy.html.navAria)}">${navigation}</nav><div>${sectionHtml}</div></div>
+  <p class="source">${escapeHtml(copy.html.footer)}</p>
 </main>
 <div class="tooltip" id="chart-tooltip"></div>
 <script id="report-data" type="application/json">${data}</script>
@@ -208,12 +258,14 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
   const payload = JSON.parse(document.getElementById('report-data').textContent);
   const canvas = document.getElementById('price-chart');
   const tooltip = document.getElementById('chart-tooltip');
+  const tooltipTemplate = ${safeJson(copy.templates.htmlTooltip)};
   const buttons = [...document.querySelectorAll('[data-range]')];
   const sections = [...document.querySelectorAll('.section')];
   const navButtons = [...document.querySelectorAll('[data-target]')];
   const context = canvas.getContext('2d');
   let bars = payload.bars;
   let points = [];
+  const fill = (template, values) => Object.entries(values).reduce((text, entry) => text.split('{'+entry[0]+'}').join(entry[1]), template);
   const resize = () => { const ratio = window.devicePixelRatio || 1; canvas.width = canvas.clientWidth * ratio; canvas.height = canvas.clientHeight * ratio; context.setTransform(ratio,0,0,ratio,0,0); draw(); };
   const draw = () => {
     if (!context || bars.length === 0) return;
@@ -230,7 +282,7 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
     context.beginPath(); bars.forEach((bar,i)=>{ const px=x(i), py=y(bar.close); if(i===0) context.moveTo(px,py); else context.lineTo(px,py); }); context.strokeStyle='#2563eb'; context.lineWidth=2; context.stroke();
     points = bars.map((bar,i)=>({ x:x(i), y:y(bar.close), bar }));
   };
-  const show = index => { const point=points[index]; if(!point) return; tooltip.style.display='block'; tooltip.style.left=Math.min(window.innerWidth-190,point.x+12)+'px'; tooltip.style.top=Math.max(8,point.y-12)+'px'; tooltip.innerHTML='<strong>'+point.bar.time+'</strong><br>Close '+point.bar.close+'<br>Volume '+point.bar.volume; };
+  const show = index => { const point=points[index]; if(!point) return; tooltip.style.display='block'; tooltip.style.left=Math.min(window.innerWidth-190,point.x+12)+'px'; tooltip.style.top=Math.max(8,point.y-12)+'px'; tooltip.innerHTML=fill(tooltipTemplate,{time:point.bar.time,close:point.bar.close,volume:point.bar.volume}); };
   canvas.addEventListener('mousemove', event => { const rect=canvas.getBoundingClientRect(), px=event.clientX-rect.left; let best=0; for(let i=1;i<points.length;i++) if(Math.abs(points[i].x-px)<Math.abs(points[best].x-px)) best=i; show(best); });
   canvas.addEventListener('mouseleave', () => { tooltip.style.display='none'; });
   buttons.forEach(button => button.addEventListener('click', () => { const range=button.dataset.range; bars=range==='all'?payload.bars:payload.bars.slice(-Number(range)); draw(); }));
@@ -247,20 +299,23 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
  * @param provider - Market-data provider used to load the report snapshot.
  * @param request - Symbol, optional question, and optional horizon.
  * @param signal - Optional cancellation forwarded to the provider.
- * @returns The structured report and its Markdown rendering.
+ * @param language - Report language; defaults to English.
+ * @returns The structured report with Markdown and interactive HTML renderings.
  */
 export async function buildResearchReport(
   provider: FinanceMarketDataProvider,
   request: ResearchReportRequest,
   signal?: AbortSignal,
+  language: ReportLanguage = 'en',
 ): Promise<ResearchReport> {
+  const copy = REPORT_COPY[language]
   const snapshot = await provider.load(request.symbol, signal)
   const analysis = buildIndicatorAnalysis(snapshot)
-  const sections = sectionsFor(snapshot, analysis, request)
+  const sections = sectionsFor(snapshot, analysis, request, language)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
-  const title = `${label} research report`
+  const title = `${label} ${copy.titleSuffix}`
   const markdown = `# ${title}\n\n${sections
     .map(section => `## ${section.title}\n\n${section.content}`)
     .join('\n\n')}\n`
@@ -269,7 +324,7 @@ export async function buildResearchReport(
     asOf: snapshot.asOf,
     title,
     markdown,
-    html: reportHtml(title, snapshot, analysis, sections),
+    html: reportHtml(title, snapshot, analysis, sections, copy),
     sections,
     evidence: [{
       source: snapshot.source.provider,

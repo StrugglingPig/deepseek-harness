@@ -17,6 +17,8 @@ This skill governs a finance research session. The finance research tools own de
 6. Call `finance_research_report` to build Markdown and interactive HTML. Use `finance_report_export` to write both files when `ctx.fs` is available.
 7. Re-check every claim against tool results and source metadata before synthesis.
 
+The report writer owns the report language: it follows the user's selected locale, then the host system locale, and falls back to English. Write your own commentary, answers, and summaries in that same language, and never translate or duplicate the generated section headings.
+
 Never calculate RSI, MACD, ATR, Bollinger Bands, or composite weights by reasoning. If a number is not present in a tool result, source document, or deterministic calculation, do not invent it.
 
 ## Analysis modes

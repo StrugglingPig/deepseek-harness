@@ -25,6 +25,8 @@ import type {
 /** Non-secret provider settings owned by the finance settings namespace. */
 export interface FinanceRuntimeSettings {
   readonly provider: 'fixture' | 'http'
+  readonly reportLanguage: 'auto' | 'en' | 'zh'
+  readonly uiLocale?: string
   readonly timeoutMs: number
   readonly barLimit: number
   readonly yahooBaseUrl: string

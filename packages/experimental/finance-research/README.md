@@ -42,6 +42,8 @@ The default application uses `FixtureFinanceMarketDataProvider`. Set `provider: 
 | Field | Default | Meaning |
 |---|---|---|
 | `provider` | `fixture` | `fixture` keeps deterministic local data; `http` uses Yahoo, Binance, and Polymarket |
+| `reportLanguage` | `auto` | `auto` follows the language the browser publishes, then the stored preference and system locale; `en` or `zh` pins the report language |
+| `uiLocale` | unset | Locale the browser plugin publishes for `auto`; set from the panel, not by hand |
 | `timeoutMs` | `15000` | Per-request timeout |
 | `barLimit` | `80` | Maximum live history bars requested |
 | `yahooBaseUrl` | `https://query1.finance.yahoo.com` | Yahoo Finance origin |
@@ -53,6 +55,10 @@ The default application uses `FixtureFinanceMarketDataProvider`. Set `provider: 
 | `polymarketClobBaseUrl` | `https://clob.polymarket.com` | Polymarket CLOB origin |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-finance-research) is the exhaustive field reference.
+
+### Report language
+
+`reportLanguage` defaults to `auto`: the report follows the locale the finance panel publishes (the language the user currently sees), then the locale selected in Settings → General, then the host system locale (`LC_ALL`, `LC_MESSAGES`, `LANG`, then the ICU default), and finally English. Set `reportLanguage: en` or `zh` to pin one language for headless runs. Only the report artifact and its HTML chrome are localized; tool results stay canonical English so model-facing contracts, prompt caching, and recorded snapshots do not shift with the interface language.
 
 ### Provider-native requests
 
@@ -128,6 +134,7 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
 - **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
 - **Stock data depends on provider access** — AKShare requires the Python package `akshare`. iFinD HTTP uses an authorized account refresh token; iFinD local uses the vendor `iFinDPy` SDK and account credentials. Missing dependencies, credentials, permissions, or data quotas fail explicitly.
+- **Report languages are `en` and `zh`** — `auto` resolves any other locale tag to English; a new language needs its own report dictionary before it can be selected.
 - **The Web dashboard is a separate plugin** — the dashboard reads `/api/finance-dashboard/market` from Connection's authenticated exact-route registry and renders crypto, A-share, and US-equity charts through `lightweight-charts`; the route registers only when the composition provides Connection, and private account data remains Host-only.
 - **Methodology coverage is explicit** — deterministic methods run only when their required data is present; wave counts, Wyckoff, cross-sectional factors, statistical arbitrage, machine learning, and microstructure methods remain catalog entries requiring additional inputs or models.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.

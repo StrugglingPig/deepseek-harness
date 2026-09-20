@@ -12,6 +12,7 @@ import { buildIndicatorAnalysis } from './indicators.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { exportResearchReport } from './export.ts'
 import { buildResearchReport } from './report.ts'
+import type { ReportLanguage } from './report-language.ts'
 import type {
   FinanceStockDataProvider,
   FinanceStockHistoryRequest,
@@ -348,8 +349,13 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
  * Register mainland stock tools over one Python-backed provider.
  * @param ctx - Registrant context carrying the tool registry.
  * @param provider - Stock data provider.
+ * @param reportLanguage - Resolves the report language for generated reports.
  */
-export function registerStockTools(ctx: Context, provider: FinanceStockDataProvider): void {
+export function registerStockTools(
+  ctx: Context,
+  provider: FinanceStockDataProvider,
+  reportLanguage: () => ReportLanguage = () => 'en',
+): void {
   ctx.tools.register(defineTool({
     name: 'finance_stock_snapshot',
     description: 'Load normalized mainland A-share daily history through AKShare or Tonghuashun iFinD. Symbols are six-digit codes such as 600519 or 000001.',
@@ -579,7 +585,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
 
   ctx.tools.register(defineTool({
     name: 'finance_stock_research_report',
-    description: 'Generate a complete Markdown and interactive HTML research report for a mainland A-share symbol through AKShare or Tonghuashun iFinD.',
+    description: 'Generate a complete Markdown and interactive HTML research report for a mainland A-share symbol through AKShare or Tonghuashun iFinD, in the configured report language.',
     parameters: {
       symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
       provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
@@ -644,7 +650,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
         symbol: args.symbol,
         ...args.question === undefined ? {} : { question: args.question },
         ...args.horizon === undefined ? {} : { horizon: args.horizon },
-      }, exec.signal)
+      }, exec.signal, reportLanguage())
       return {
         symbol: report.symbol,
         as_of: report.asOf,
@@ -740,7 +746,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
   ctx.inject(['fs'], (fsCtx) => {
     ctx.tools.register(defineTool({
       name: 'finance_stock_report_export',
-      description: 'Generate a mainland A-share research report and persist Markdown and self-contained interactive HTML files in the workspace.',
+      description: 'Generate a mainland A-share research report in the configured report language and persist Markdown and self-contained interactive HTML files in the workspace.',
       parameters: {
         symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
         provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
@@ -781,7 +787,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
           symbol: args.symbol,
           ...args.question === undefined ? {} : { question: args.question },
           ...args.horizon === undefined ? {} : { horizon: args.horizon },
-        }, exec.signal)
+        }, exec.signal, reportLanguage())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,
