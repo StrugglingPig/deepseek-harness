@@ -20,6 +20,8 @@ export {
   priceBandDirection, rsiDirection, trendDirection, volumeDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
+export { QUERY_OPERATIONS } from './operations.ts'
+export type { FinanceQueryBase, FinanceQueryOperation } from './operations.ts'
 export {
   createHttpFinanceMarketDataProvider,
   FinanceDataError,
@@ -40,8 +42,14 @@ export interface Config {
   readonly barLimit?: number
   /** Yahoo Finance origin. */
   readonly yahooBaseUrl?: string
-  /** Binance REST origin. */
+  /** Binance Spot REST origin. */
   readonly binanceBaseUrl?: string
+  /** Binance USD-M Futures REST origin. */
+  readonly binanceUsdmBaseUrl?: string
+  /** Binance COIN-M Futures REST origin. */
+  readonly binanceCoinmBaseUrl?: string
+  /** Binance Options REST origin. */
+  readonly binanceOptionsBaseUrl?: string
   /** Polymarket Gamma API origin. */
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
@@ -55,6 +63,9 @@ export const Config: z<Config> = z.object({
   barLimit: z.number().step(1).min(50).default(80),
   yahooBaseUrl: z.string().default('https://query1.finance.yahoo.com'),
   binanceBaseUrl: z.string().default('https://api.binance.com'),
+  binanceUsdmBaseUrl: z.string().default('https://fapi.binance.com'),
+  binanceCoinmBaseUrl: z.string().default('https://dapi.binance.com'),
+  binanceOptionsBaseUrl: z.string().default('https://eapi.binance.com'),
   polymarketGammaBaseUrl: z.string().default('https://gamma-api.polymarket.com'),
   polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
 })
@@ -315,6 +326,47 @@ export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataPr
       }
     },
   }))
+
+  const queryProvider = provider.query?.bind(provider)
+  if (queryProvider !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'finance_provider_query',
+      description: 'Query a provider-native finance endpoint. Call operation "capabilities" first to discover the exact operation names and path parameters.',
+      parameters: {
+        operation: {
+          type: 'string',
+          required: true,
+          description: 'Operation name from the provider capabilities result.',
+        },
+        parameters: {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Provider-native query and path parameters.',
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            provider: { type: 'string', required: true },
+            operation: { type: 'string', required: true },
+            data: { type: 'json', required: true },
+          },
+        },
+        render: (_args, value) => [{
+          type: 'text',
+          text: JSON.stringify(value.data, null, 2),
+        }],
+      },
+      async execute(args, exec) {
+        return queryProvider({
+          operation: args.operation,
+          ...args.parameters === undefined ? {} : { parameters: args.parameters },
+        }, exec.signal)
+      },
+    }))
+  }
 }
 
 /**
@@ -330,6 +382,9 @@ export function apply(ctx: Context, config: Config): void {
       barLimit: resolved.barLimit,
       yahooBaseUrl: resolved.yahooBaseUrl,
       binanceBaseUrl: resolved.binanceBaseUrl,
+      binanceUsdmBaseUrl: resolved.binanceUsdmBaseUrl,
+      binanceCoinmBaseUrl: resolved.binanceCoinmBaseUrl,
+      binanceOptionsBaseUrl: resolved.binanceOptionsBaseUrl,
       polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
       polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
     })

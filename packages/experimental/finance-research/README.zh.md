@@ -9,7 +9,7 @@ English | [中文](README.md)
 
 ## 概述
 
-`dsh-experimental-finance-research` 为金融研究会话提供一条确定性的“数据到报告”路径。它从确定性 fixture Provider 或公共 HTTP Provider 加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，并构建结构化 Markdown 报告。三个工具面向模型；计算和报告代码是插件内部的普通 TypeScript。
+`dsh-experimental-finance-research` 为金融研究会话提供一条确定性的“数据到报告”路径。它从确定性 fixture Provider 或公共 HTTP Provider 加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，并构建结构化 Markdown 报告。HTTP Provider 启用时，`finance_provider_query` 还会暴露各平台的原生公共端点目录。始终注册三个工具；只有实现 `query()` 的 Provider 才注册原生查询工具。
 
 ## 目录
 
@@ -45,11 +45,29 @@ English | [中文](README.md)
 | `timeoutMs` | `15000` | 单次请求超时 |
 | `barLimit` | `80` | 请求的最大实时历史 K 线数 |
 | `yahooBaseUrl` | `https://query1.finance.yahoo.com` | Yahoo Finance origin |
-| `binanceBaseUrl` | `https://api.binance.com` | Binance REST origin |
+| `binanceBaseUrl` | `https://api.binance.com` | Binance Spot REST origin |
+| `binanceUsdmBaseUrl` | `https://fapi.binance.com` | Binance USD-M Futures REST origin |
+| `binanceCoinmBaseUrl` | `https://dapi.binance.com` | Binance COIN-M Futures REST origin |
+| `binanceOptionsBaseUrl` | `https://eapi.binance.com` | Binance Options REST origin |
 | `polymarketGammaBaseUrl` | `https://gamma-api.polymarket.com` | Polymarket Gamma origin |
 | `polymarketClobBaseUrl` | `https://clob.polymarket.com` | Polymarket CLOB origin |
 
 生成的 [configuration catalog](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-finance-research) 是完整字段参考。
+
+### Provider-native queries
+
+使用 `provider: http` 时，`finance_provider_query` 先通过 `operation: "capabilities"` 发现完整操作目录。目录覆盖 Binance Spot、USD-M Futures、COIN-M Futures、Binance Options、Yahoo Finance、Polymarket Gamma 和 Polymarket CLOB 的公共端点。参数按 Provider 原生查询参数透传；路径参数在目录中使用 `{name}` 占位。
+
+示例：
+
+```json
+{ "operation": "binance.spot.exchange_info" }
+{ "operation": "binance.usdm.funding_rate", "parameters": { "symbol": "BTCUSDT" } }
+{ "operation": "yahoo.chart", "parameters": { "symbol": "AAPL", "range": "1mo", "interval": "1d" } }
+{ "operation": "polymarket.clob.book", "parameters": { "token_id": "<token-id>" } }
+```
+
+工具原样返回上游 JSON，不归一化每个平台字段，因此不会丢失 Provider 特有信息。
 
 ### Supported instruments
 
@@ -57,7 +75,7 @@ fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币
 
 ### What each tool returns
 
-`finance_market_snapshot` 返回统一标的、报价、K 线数量、Provider、synthetic 标记，以及存在时的预测市场字段。`finance_technical_analysis` 返回 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、五个加权信号、冲突和综合评分。`finance_research_report` 返回结构化章节以及 Markdown 报告，报告第一行是标题。
+`finance_market_snapshot` 返回统一标的、报价、K 线数量、Provider、synthetic 标记，以及存在时的预测市场字段。`finance_technical_analysis` 返回 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、五个加权信号、冲突和综合评分。`finance_research_report` 返回结构化章节以及 Markdown 报告，报告第一行是标题。`finance_provider_query` 返回所选 Provider 的上游 JSON，包括统一快照未携带的字段。
 
 -----
 
@@ -106,7 +124,8 @@ fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币
 
 - **Default data is synthetic** — 默认 Provider 是确定性合成数据；实时数据需要 `provider: http`。
 - **Live provider depends on public endpoints** — Yahoo Finance、Binance 和 Polymarket 的可用性、限流、条款和字段变化不受本包控制。
-- **Supported live crypto symbols are explicit** — HTTP Provider 映射 `BTC` 和 `ETH`；增加其他币种需要扩展 Provider 元数据。
+- **Normalized crypto snapshots are explicit** — 归一化 `load()` 路径映射 `BTC` 和 `ETH`；其他 Binance 符号通过 `finance_provider_query` 的原生操作查询。
+- **Provider-native data is upstream JSON** — 原生查询结果遵循 Provider 字段名、响应结构、限流和端点可用性，而不是本包的统一快照 Schema。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。
 
 <a id="dev-note"></a>

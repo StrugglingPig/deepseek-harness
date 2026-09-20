@@ -2,8 +2,13 @@
 
 import { z as zod } from 'zod'
 import { classifyAsset } from './data.ts'
+import { QUERY_OPERATIONS } from './operations.ts'
+import type { FinanceQueryBase, FinanceQueryOperation } from './operations.ts'
 import type {
+  FinanceJsonValue,
   FinanceMarketDataProvider,
+  FinanceQueryRequest,
+  FinanceQueryResult,
   MarketBar,
   MarketSnapshot,
 } from './types.ts'
@@ -90,8 +95,14 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly barLimit?: number
   /** Yahoo Finance origin. */
   readonly yahooBaseUrl?: string
-  /** Binance REST origin. */
+  /** Binance Spot REST origin. */
   readonly binanceBaseUrl?: string
+  /** Binance USD-M Futures REST origin. */
+  readonly binanceUsdmBaseUrl?: string
+  /** Binance COIN-M Futures REST origin. */
+  readonly binanceCoinmBaseUrl?: string
+  /** Binance Options REST origin. */
+  readonly binanceOptionsBaseUrl?: string
   /** Polymarket Gamma API origin. */
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
@@ -106,6 +117,9 @@ interface ResolvedOptions {
   readonly barLimit: number
   readonly yahooBaseUrl: string
   readonly binanceBaseUrl: string
+  readonly binanceUsdmBaseUrl: string
+  readonly binanceCoinmBaseUrl: string
+  readonly binanceOptionsBaseUrl: string
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
   readonly now: () => Date
@@ -114,6 +128,22 @@ interface ResolvedOptions {
 const CRYPTO_METADATA: Readonly<Record<string, { readonly pair: string; readonly name: string }>> = {
   BTC: { pair: 'BTCUSDT', name: 'Bitcoin' },
   ETH: { pair: 'ETHUSDT', name: 'Ether' },
+}
+
+const QUERY_BASE_ORIGINS: Readonly<Record<FinanceQueryBase, keyof ResolvedOptions>> = {
+  'binance-spot': 'binanceBaseUrl',
+  'binance-usdm': 'binanceUsdmBaseUrl',
+  'binance-coinm': 'binanceCoinmBaseUrl',
+  'binance-options': 'binanceOptionsBaseUrl',
+  yahoo: 'yahooBaseUrl',
+  'polymarket-gamma': 'polymarketGammaBaseUrl',
+  'polymarket-clob': 'polymarketClobBaseUrl',
+}
+
+function queryValue(value: FinanceJsonValue): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return value.toString()
+  return JSON.stringify(value)
 }
 
 function iso(secondsOrMilliseconds: number, unit: 'seconds' | 'milliseconds'): string {
@@ -155,6 +185,9 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       barLimit: options.barLimit ?? DEFAULT_BAR_LIMIT,
       yahooBaseUrl: options.yahooBaseUrl ?? DEFAULT_YAHOO_BASE_URL,
       binanceBaseUrl: options.binanceBaseUrl ?? DEFAULT_BINANCE_BASE_URL,
+      binanceUsdmBaseUrl: options.binanceUsdmBaseUrl ?? 'https://fapi.binance.com',
+      binanceCoinmBaseUrl: options.binanceCoinmBaseUrl ?? 'https://dapi.binance.com',
+      binanceOptionsBaseUrl: options.binanceOptionsBaseUrl ?? 'https://eapi.binance.com',
       polymarketGammaBaseUrl: options.polymarketGammaBaseUrl ?? DEFAULT_POLYMARKET_GAMMA_BASE_URL,
       polymarketClobBaseUrl: options.polymarketClobBaseUrl ?? DEFAULT_POLYMARKET_CLOB_BASE_URL,
       now: options.now ?? (() => new Date()),
@@ -175,7 +208,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
     return this.loadEquity(normalized, signal)
   }
 
-  private async fetchJson(url: string, signal?: AbortSignal): Promise<unknown> {
+  private async fetchJson(url: string, signal?: AbortSignal): Promise<FinanceJsonValue> {
     const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs)
     const requestSignal = signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal])
     let response: Response
@@ -191,10 +224,56 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       throw new FinanceDataError(`request failed for ${url}: HTTP ${response.status}`, 'HTTP_ERROR')
     }
     try {
-      return await response.json()
+      return await response.json() as FinanceJsonValue
     } catch (error: unknown) {
       throw new FinanceDataError(`invalid JSON from ${url}: ${String(error)}`, 'INVALID_JSON')
     }
+  }
+
+  /**
+   * Query one provider-native public endpoint.
+   * @param request - Operation name from `capabilities` and provider-native parameters.
+   * @param signal - Optional caller cancellation.
+   * @returns The provider label, operation, and upstream JSON value.
+   */
+  async query(request: FinanceQueryRequest, signal?: AbortSignal): Promise<FinanceQueryResult> {
+    if (request.operation === 'capabilities') {
+      return {
+        provider: 'http',
+        operation: request.operation,
+        data: Object.entries(QUERY_OPERATIONS).map(([operation, definition]) => ({
+          operation,
+          provider: definition.provider,
+          base: definition.base,
+          path: definition.path,
+          description: definition.description,
+        })),
+      }
+    }
+    const operation = QUERY_OPERATIONS[request.operation]
+    if (operation === undefined) throw new FinanceDataError(`unknown finance operation ${request.operation}`, 'UNKNOWN_OPERATION')
+    const url = this.queryUrl(operation, request.parameters ?? {})
+    return { provider: operation.provider, operation: request.operation, data: await this.fetchJson(url, signal) }
+  }
+
+  private queryUrl(operation: FinanceQueryOperation, parameters: Readonly<Record<string, FinanceJsonValue>>): string {
+    const origin = this.options[QUERY_BASE_ORIGINS[operation.base]] as string
+    const pathKeys = new Set([...operation.path.matchAll(/\{([^}]+)\}/g)].map(match => match[1] as string))
+    const path = operation.path.replace(/\{([^}]+)\}/g, (_match, key: string) => {
+      const value = parameters[key]
+      if (value === undefined) throw new FinanceDataError(`missing path parameter ${key}`, 'MISSING_PARAMETER')
+      return encodeURIComponent(queryValue(value))
+    })
+    const url = new URL(origin + path)
+    for (const [key, value] of Object.entries(parameters)) {
+      if (pathKeys.has(key)) continue
+      if (Array.isArray(value)) {
+        for (const item of value) url.searchParams.append(key, queryValue(item))
+      } else {
+        url.searchParams.set(key, queryValue(value))
+      }
+    }
+    return url.href
   }
 
   private async loadEquity(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot> {

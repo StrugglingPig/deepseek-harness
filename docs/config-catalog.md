@@ -708,8 +708,14 @@ export interface Config {
   readonly barLimit?: number
   /** Yahoo Finance origin. */
   readonly yahooBaseUrl?: string
-  /** Binance REST origin. */
+  /** Binance Spot REST origin. */
   readonly binanceBaseUrl?: string
+  /** Binance USD-M Futures REST origin. */
+  readonly binanceUsdmBaseUrl?: string
+  /** Binance COIN-M Futures REST origin. */
+  readonly binanceCoinmBaseUrl?: string
+  /** Binance Options REST origin. */
+  readonly binanceOptionsBaseUrl?: string
   /** Polymarket Gamma API origin. */
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
@@ -717,7 +723,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:34`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:36`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 

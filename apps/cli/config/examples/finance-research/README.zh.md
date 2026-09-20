@@ -33,4 +33,4 @@ Preset 不挂载 `tool-subagent`、`tool-subagent-fork` 或全局 continuable-ch
 dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
 ```
 
-Patch 会把插入的 `finance-research` 行设置为 `provider: http`。它需要能够访问这些公共 Provider 端点。
+Patch 会把插入的 `finance-research` 行设置为 `provider: http`。它需要能够访问这些公共 Provider 端点。HTTP Provider 还会注册 `finance_provider_query`；先调用 `operation: "capabilities"` 发现 Binance Spot/USD-M/COIN-M/Options、Yahoo、Polymarket Gamma 和 Polymarket CLOB 操作。

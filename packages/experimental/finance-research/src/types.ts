@@ -50,7 +50,34 @@ export interface MarketSnapshot {
 /** Replacing this provider changes the data source without changing the tools. */
 export interface FinanceMarketDataProvider {
   readonly id: string
+  /** Load the normalized research snapshot used by indicators and reports. */
   load(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot>
+  /** Query provider-native operations when the provider exposes a raw-data surface. */
+  query?(request: FinanceQueryRequest, signal?: AbortSignal): Promise<FinanceQueryResult>
+}
+
+/** Lossless JSON value accepted from or returned by provider-native queries. */
+export type FinanceJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | FinanceJsonValue[]
+  | { [key: string]: FinanceJsonValue }
+
+/** One provider-native query request. */
+export interface FinanceQueryRequest {
+  /** Operation name returned by the provider's `capabilities` result. */
+  readonly operation: string
+  /** Provider-native query parameters. */
+  readonly parameters?: Readonly<Record<string, FinanceJsonValue>>
+}
+
+/** One provider-native query result carrying the upstream JSON unchanged. */
+export interface FinanceQueryResult {
+  readonly provider: string
+  readonly operation: string
+  readonly data: FinanceJsonValue
 }
 
 /** Direction used by every indicator signal and by the composite result. */

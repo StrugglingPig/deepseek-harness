@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from either a deterministic fixture provider or public HTTP providers, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. The three tools are model-facing; the calculation and report code is ordinary TypeScript inside the plugin.
+`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from either a deterministic fixture provider or public HTTP providers, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. When the HTTP provider is active, `finance_provider_query` also exposes each platform's provider-native public endpoint catalog. Three tools are always registered; the provider-native query tool is registered only for providers that implement `query()`.
 
 ## Table of Contents
 
@@ -45,11 +45,29 @@ The default application uses `FixtureFinanceMarketDataProvider`. Set `provider: 
 | `timeoutMs` | `15000` | Per-request timeout |
 | `barLimit` | `80` | Maximum live history bars requested |
 | `yahooBaseUrl` | `https://query1.finance.yahoo.com` | Yahoo Finance origin |
-| `binanceBaseUrl` | `https://api.binance.com` | Binance REST origin |
+| `binanceBaseUrl` | `https://api.binance.com` | Binance Spot REST origin |
+| `binanceUsdmBaseUrl` | `https://fapi.binance.com` | Binance USD-M Futures REST origin |
+| `binanceCoinmBaseUrl` | `https://dapi.binance.com` | Binance COIN-M Futures REST origin |
+| `binanceOptionsBaseUrl` | `https://eapi.binance.com` | Binance Options REST origin |
 | `polymarketGammaBaseUrl` | `https://gamma-api.polymarket.com` | Polymarket Gamma origin |
 | `polymarketClobBaseUrl` | `https://clob.polymarket.com` | Polymarket CLOB origin |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-finance-research) is the exhaustive field reference.
+
+### Provider-native queries
+
+With `provider: http`, `finance_provider_query` first discovers the full operation catalog through `operation: "capabilities"`. The catalog covers Binance Spot, USD-M Futures, COIN-M Futures, Binance Options, Yahoo Finance, Polymarket Gamma, and Polymarket CLOB public endpoints. Parameters are passed through as provider-native query parameters; path parameters use `{name}` placeholders in the catalog.
+
+Examples:
+
+```json
+{ "operation": "binance.spot.exchange_info" }
+{ "operation": "binance.usdm.funding_rate", "parameters": { "symbol": "BTCUSDT" } }
+{ "operation": "yahoo.chart", "parameters": { "symbol": "AAPL", "range": "1mo", "interval": "1d" } }
+{ "operation": "polymarket.clob.book", "parameters": { "token_id": "<token-id>" } }
+```
+
+The tool returns upstream JSON unchanged. It does not normalize every platform field, which keeps provider-specific information available.
 
 ### Supported instruments
 
@@ -57,7 +75,7 @@ The fixture provider understands equity symbols such as `AAPL`, crypto symbols `
 
 ### What each tool returns
 
-`finance_market_snapshot` returns the normalized instrument, quote, bar count, provider, synthetic flag, and prediction-market fields when present. `finance_technical_analysis` returns SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, five weighted signals, conflicts, and a composite score. `finance_research_report` returns structured sections plus a Markdown report whose first line is the report title.
+`finance_market_snapshot` returns the normalized instrument, quote, bar count, provider, synthetic flag, and prediction-market fields when present. `finance_technical_analysis` returns SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, five weighted signals, conflicts, and a composite score. `finance_research_report` returns structured sections plus a Markdown report whose first line is the report title. `finance_provider_query` returns the selected provider's upstream JSON, including fields the normalized snapshot does not carry.
 
 -----
 
@@ -106,7 +124,8 @@ Prefix-stable while the three tool definitions and their visibility are unchange
 
 - **Default data is synthetic** — the default provider is deterministic synthetic data; live data requires `provider: http`.
 - **Live provider depends on public endpoints** — Yahoo Finance, Binance, and Polymarket availability, rate limits, terms, and field changes are outside this package's control.
-- **Supported live crypto symbols are explicit** — the HTTP provider maps `BTC` and `ETH`; adding another coin requires extending the provider metadata.
+- **Normalized crypto snapshots are explicit** — the normalized `load()` path maps `BTC` and `ETH`; other Binance symbols are available through `finance_provider_query` provider-native operations.
+- **Provider-native data is upstream JSON** — raw query results follow provider field names, response shapes, rate limits, and endpoint availability rather than this package's normalized snapshot schema.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 
 <a id="dev-note"></a>

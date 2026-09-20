@@ -16,7 +16,7 @@ Harness 已经具备持久 Agent Team、Workflow 编排、网页访问、后台�
 - `finance_technical_analysis` 计算 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、方向信号、冲突和综合评分。
 - `finance_research_report` 基于同一快照和指标结果生成报告，并返回结构化章节与 Markdown。
 
-默认 Provider 是确定性 fixture。包同时提供 `HttpFinanceMarketDataProvider`，通过 Yahoo Finance、Binance 和 Polymarket 实现同一接口，并通过 `provider: http` 启用。组合包 `@deepseek-ai/dsh-experimental-finance-research-profile` 在 `dsh-base` 之上插入金融插件。它设计为在 `dsh-experimental-agent-team-profile` 之后安装：Team profile 保留 `workflow`，并用 `spawn_teammate` 取代直接 `subagent` 工具；金融插件只新增工具名和无状态计算，不会重新启用或覆盖任何 Team 行。
+默认 Provider 是确定性 fixture。包同时提供 `HttpFinanceMarketDataProvider`，通过 Yahoo Finance、Binance 和 Polymarket 实现同一接口，并通过 `provider: http` 启用。HTTP Provider 还实现 `query()`：`finance_provider_query` 工具暴露覆盖 Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma 和 Polymarket CLOB 的原生端点目录。组合包 `@deepseek-ai/dsh-experimental-finance-research-profile` 在 `dsh-base` 之上插入金融插件。它设计为在 `dsh-experimental-agent-team-profile` 之后安装：Team profile 保留 `workflow`，并用 `spawn_teammate` 取代直接 `subagent` 工具；金融插件只新增工具名和无状态计算，不会重新启用或覆盖任何 Team 行。
 
 金融插件在当前 Bundle 中刻意放在 host 层。Agent Team teammate 和 Workflow 子 Agent 都能看到同样的三个工具；金融工具不依赖 `ctx.agentTeams`，也不依赖 Team Session。最终报告仍由 Lead 持有，因为只有 Lead Session 能通过 `present` 交付。Team-aware 示例 preset 和研究 Skill 位于 `apps/cli/config/examples/finance-research`；它们不挂载 legacy subagent 行，需要金融 persona 和研究方法时复制到用户 preset root。
 

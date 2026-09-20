@@ -33,4 +33,4 @@ Apply the live-provider patch when the profile should use Yahoo Finance, Binance
 dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
 ```
 
-The patch sets `provider: http` on the inserted `finance-research` row. It requires outbound network access to the public provider endpoints.
+The patch sets `provider: http` on the inserted `finance-research` row. It requires outbound network access to the public provider endpoints. The HTTP provider also registers `finance_provider_query`; call `operation: "capabilities"` first to discover Binance Spot/USD-M/COIN-M/Options, Yahoo, Polymarket Gamma, and Polymarket CLOB operations.

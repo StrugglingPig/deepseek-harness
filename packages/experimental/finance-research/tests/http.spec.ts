@@ -40,7 +40,8 @@ function fakeFetch(routes: FetchRoutes): typeof globalThis.fetch {
       if (routes.yahooBody !== undefined) return new Response(routes.yahooBody, { status: routes.yahooStatus ?? 200 })
       return new Response(JSON.stringify(routes.yahoo), { status: routes.yahooStatus ?? 200 })
     }
-    if (url.startsWith('https://binance.test')) {
+    if (url.startsWith('https://binance.test') || url.startsWith('https://fapi.test')
+      || url.startsWith('https://dapi.test') || url.startsWith('https://eapi.test')) {
       return new Response(JSON.stringify(routes.binance), { status: routes.binanceStatus ?? 200 })
     }
     if (url.startsWith('https://gamma.test')) {
@@ -225,6 +226,70 @@ describe('HTTP finance market data provider', () => {
       rules: 'Fixture rules',
     })
     expect(snapshot.bars).toHaveLength(60)
+  })
+
+  it('lists capabilities and routes provider-native operations', async () => {
+    const urls: string[] = []
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      binanceUsdmBaseUrl: 'https://fapi.test',
+      binanceCoinmBaseUrl: 'https://dapi.test',
+      binanceOptionsBaseUrl: 'https://eapi.test',
+      fetch: fakeFetch({
+        binance: { ok: true },
+        yahoo: { ok: true },
+        clob: { ok: true },
+        onRequest: url => urls.push(url),
+      }),
+    })
+    const capabilities = await provider.query({ operation: 'capabilities' })
+    const listed = capabilities.data as { operation: string }[]
+    expect(listed.some(entry => entry.operation === 'binance.spot.exchange_info')).toBe(true)
+    expect(listed.some(entry => entry.operation === 'binance.usdm.funding_rate')).toBe(true)
+    expect(listed.some(entry => entry.operation === 'yahoo.chart')).toBe(true)
+    expect(listed.some(entry => entry.operation === 'polymarket.clob.book')).toBe(true)
+
+    await provider.query({ operation: 'binance.spot.exchange_info' })
+    await provider.query({ operation: 'binance.usdm.funding_rate', parameters: { symbol: 'BTCUSDT' } })
+    await provider.query({ operation: 'yahoo.chart', parameters: { symbol: 'AAPL', range: '1mo', interval: '1d' } })
+    await provider.query({ operation: 'polymarket.clob.book', parameters: { token_id: 'token-1' } })
+    await provider.query({ operation: 'polymarket.clob.midpoints', parameters: { token_ids: ['a', 'b'] } })
+    await provider.query({
+      operation: 'binance.spot.ticker_24hr',
+      parameters: {
+        symbol: 'BTCUSDT',
+        limit: 5,
+        test: true,
+        filter: { minVolume: 1 },
+        nullable: null,
+        tags: [1, 'x'],
+      },
+    })
+
+    expect(urls.some(url => url.includes('/api/v3/exchangeInfo'))).toBe(true)
+    expect(urls.some(url => url.includes('/fapi/v1/fundingRate?symbol=BTCUSDT'))).toBe(true)
+    expect(urls.some(url => url.includes('/v8/finance/chart/AAPL?'))).toBe(true)
+    expect(urls.some(url => url.includes('range=1mo'))).toBe(true)
+    expect(urls.some(url => url.includes('/book?token_id=token-1'))).toBe(true)
+    expect(urls.some(url => url.includes('/midpoints?token_ids=a&token_ids=b'))).toBe(true)
+    expect(urls.some(url => url.includes('limit=5'))).toBe(true)
+    expect(urls.some(url => url.includes('test=true'))).toBe(true)
+    expect(urls.some(url => url.includes('filter=%7B%22minVolume%22%3A1%7D'))).toBe(true)
+    expect(urls.some(url => url.includes('nullable=null'))).toBe(true)
+    expect(urls.some(url => url.includes('tags=1&tags=x'))).toBe(true)
+  })
+
+  it('rejects unknown operations and missing path parameters', async () => {
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      fetch: fakeFetch({ yahoo: {} }),
+    })
+    await expect(provider.query({ operation: 'missing.operation' })).rejects.toMatchObject({
+      code: 'UNKNOWN_OPERATION',
+    })
+    await expect(provider.query({ operation: 'yahoo.chart' })).rejects.toMatchObject({
+      code: 'MISSING_PARAMETER',
+    })
   })
 
   it('uses ambient defaults when no options are supplied', async () => {

@@ -109,9 +109,25 @@ describe('finance research real Loader composition', () => {
     expect(textOf(report)).toContain('#')
   }, 30_000)
 
-  it('selects the HTTP provider from configuration without making a request', async () => {
+  it('selects the HTTP provider and exposes its raw query tool without making a request', async () => {
     const ctx = await boot(['    provider: http'])
-    expect(ctx.tools.schemas()).toHaveLength(3)
+    expect(ctx.tools.schemas()).toHaveLength(4)
+    const result = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-capabilities' as never,
+      name: 'finance_provider_query',
+      arguments: { operation: 'capabilities' },
+    })
+    expect(result.isError).toBe(false)
+    expect(textOf(result)).toContain('binance.spot.exchange_info')
+
+    const withParameters = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-capabilities-parameters' as never,
+      name: 'finance_provider_query',
+      arguments: { operation: 'capabilities', parameters: {} },
+    })
+    expect(withParameters.isError).toBe(false)
   })
 
   it('turns an aborted execution into an error result', async () => {
