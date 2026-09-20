@@ -85,34 +85,45 @@ export interface FinanceStockBridge {
   run(request: FinanceStockBridgeRequest, signal?: AbortSignal): Promise<unknown>
 }
 
+/** Runtime options read fresh before each stock bridge invocation. */
+export interface FinanceStockSubprocessBridgeRuntimeOptions {
+  /** Python executable used to run the bridge. */
+  readonly pythonExecutable: string
+  /** Bridge timeout in milliseconds. */
+  readonly timeoutMs: number
+  /** Maximum captured stdout size in bytes. */
+  readonly maxOutputBytes: number
+  /** iFinD HTTP API origin. */
+  readonly ifindBaseUrl: string
+}
+
 /** Options for the bundled Python stock bridge. */
 export interface FinanceStockSubprocessBridgeOptions {
   /** Subprocess service used for confinement and output limits. */
   readonly subprocess: SubprocessRuntime
-  /** Python executable used to run the bridge. */
+  /** Initial Python executable used to run the bridge. */
   readonly pythonExecutable: string
-  /** Bridge timeout in milliseconds. */
+  /** Initial bridge timeout in milliseconds. */
   readonly timeoutMs?: number
-  /** Maximum captured stdout/stderr size in bytes. */
+  /** Initial maximum captured stdout size in bytes. */
   readonly maxOutputBytes?: number
   /** Optional bridge script path override. */
   readonly scriptPath?: string
   /** Optional working directory for the Python process. */
   readonly cwd?: string
-  /** iFinD HTTP API origin. */
+  /** Initial iFinD HTTP API origin. */
   readonly ifindBaseUrl?: string
+  /** Read the latest runtime options before each invocation. */
+  readonly readRuntimeOptions?: () => FinanceStockSubprocessBridgeRuntimeOptions
   /** Resolve iFinD credentials without exposing them to model-visible data. */
   readonly resolveCredential: FinanceCredentialResolver
 }
 
 interface ResolvedBridgeOptions {
   readonly subprocess: SubprocessRuntime
-  readonly pythonExecutable: string
-  readonly timeoutMs: number
-  readonly maxOutputBytes: number
   readonly scriptPath: string
   readonly cwd: string
-  readonly ifindBaseUrl: string
+  readonly readRuntimeOptions: () => FinanceStockSubprocessBridgeRuntimeOptions
   readonly resolveCredential: FinanceCredentialResolver
 }
 
@@ -124,14 +135,17 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
    * @param options - subprocess service, Python executable, limits, and credentials.
    */
   constructor(options: FinanceStockSubprocessBridgeOptions) {
-    this.options = {
-      subprocess: options.subprocess,
+    const initialRuntimeOptions: FinanceStockSubprocessBridgeRuntimeOptions = {
       pythonExecutable: options.pythonExecutable,
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       maxOutputBytes: options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+      ifindBaseUrl: options.ifindBaseUrl ?? DEFAULT_IFIND_BASE_URL,
+    }
+    this.options = {
+      subprocess: options.subprocess,
       scriptPath: options.scriptPath ?? fileURLToPath(new URL('../python/finance_stock_bridge.py', import.meta.url)),
       cwd: options.cwd ?? process.cwd(),
-      ifindBaseUrl: options.ifindBaseUrl ?? DEFAULT_IFIND_BASE_URL,
+      readRuntimeOptions: options.readRuntimeOptions ?? (() => initialRuntimeOptions),
       resolveCredential: options.resolveCredential,
     }
   }
@@ -143,14 +157,15 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
    * @returns Parsed JSON data from the bridge.
    */
   async run(request: FinanceStockBridgeRequest, signal?: AbortSignal): Promise<unknown> {
-    const timeout = AbortSignal.timeout(this.options.timeoutMs)
+    const runtime = this.options.readRuntimeOptions()
+    const timeout = AbortSignal.timeout(runtime.timeoutMs)
     const requestSignal = signal === undefined ? timeout : AbortSignal.any([signal, timeout])
     const env: Record<string, string> = { PYTHONIOENCODING: 'utf-8' }
     if (request.provider === 'ifind') {
       if (request.transport === undefined) {
         throw new FinanceDataError('iFinD transport is required', 'INVALID_STOCK_TRANSPORT')
       }
-      env.IFIND_BASE_URL = this.options.ifindBaseUrl
+      env.IFIND_BASE_URL = runtime.ifindBaseUrl
       if (request.transport === 'http') {
         const refreshToken = await this.options.resolveCredential(IFIND_REFRESH_TOKEN_REF)
         if (refreshToken === undefined || refreshToken.length === 0) {
@@ -170,9 +185,9 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
 
     let executable: string
     try {
-      executable = await this.options.subprocess.resolveExecutable(this.options.pythonExecutable, undefined, requestSignal)
+      executable = await this.options.subprocess.resolveExecutable(runtime.pythonExecutable, undefined, requestSignal)
     } catch (error: unknown) {
-      throw new FinanceDataError(`Python executable was not found: ${this.options.pythonExecutable}: ${String(error)}`, 'STOCK_PYTHON_NOT_FOUND')
+      throw new FinanceDataError(`Python executable was not found: ${runtime.pythonExecutable}: ${String(error)}`, 'STOCK_PYTHON_NOT_FOUND')
     }
 
     const handle = this.options.subprocess.spawn({
@@ -180,7 +195,7 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
       cwd: this.options.cwd,
       stdio: {
         stdin: { data: JSON.stringify(request) },
-        stdout: { maxBytes: this.options.maxOutputBytes },
+        stdout: { maxBytes: runtime.maxOutputBytes },
         stderr: { maxBytes: 64 * 1024 },
       },
       graceMs: 1_000,

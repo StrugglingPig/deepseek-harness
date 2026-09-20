@@ -57,6 +57,48 @@ describe('FinanceStockSubprocessBridge', () => {
     })
   })
 
+  it('reads runtime options before each invocation', async () => {
+    const specs: SubprocessSpawnSpec[] = []
+    const resolveExecutable = vi.fn(async (command: string) => `/usr/bin/${command}`)
+    const handle = {
+      collected: {
+        stdout: reader('{"ok":true,"data":{"value":1}}'),
+        stderr: reader(''),
+      },
+      done: Promise.resolve({ exitCode: 0, signal: null }),
+    } as unknown as SubprocessHandle
+    let runtime = {
+      pythonExecutable: 'python3',
+      timeoutMs: 1_000,
+      maxOutputBytes: 10,
+      ifindBaseUrl: 'https://one.test',
+    }
+    const bridge = new FinanceStockSubprocessBridge({
+      subprocess: {
+        resolveExecutable,
+        spawn: (request: SubprocessSpawnSpec) => {
+          specs.push(request)
+          return handle
+        },
+      } as unknown as SubprocessRuntime,
+      pythonExecutable: 'initial-python',
+      readRuntimeOptions: () => runtime,
+      resolveCredential: async ref => ref === 'FINANCE_IFIND_REFRESH_TOKEN' ? 'token' : undefined,
+    })
+    await bridge.run({ action: 'stock_quote', provider: 'ifind', transport: 'http', symbols: ['600519'] })
+    runtime = {
+      pythonExecutable: 'python3.12',
+      timeoutMs: 2_000,
+      maxOutputBytes: 20,
+      ifindBaseUrl: 'https://two.test',
+    }
+    await bridge.run({ action: 'stock_quote', provider: 'ifind', transport: 'http', symbols: ['600519'] })
+    expect(resolveExecutable.mock.calls.map(call => call[0])).toEqual(['python3', 'python3.12'])
+    expect(specs[0]?.env?.IFIND_BASE_URL).toBe('https://one.test')
+    expect(specs[1]?.env?.IFIND_BASE_URL).toBe('https://two.test')
+    expect(specs[1]?.stdio.stdout).toEqual({ maxBytes: 20 })
+  })
+
   it('forwards iFinD credentials through explicit child environment only', async () => {
     const { bridge, spec } = bench()
     await bridge.run({ action: 'stock_quote', provider: 'ifind', transport: 'local', symbols: ['600519'] })

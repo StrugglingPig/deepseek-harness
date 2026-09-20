@@ -73,6 +73,7 @@ export type {
   FinanceStockBridge,
   FinanceStockBridgeRequest,
   FinanceStockSubprocessBridgeOptions,
+  FinanceStockSubprocessBridgeRuntimeOptions,
   SubprocessFinanceStockDataProviderOptions,
 } from './stock.ts'
 
@@ -1089,6 +1090,12 @@ export function apply(ctx: Context, config: Config): void {
       timeoutMs: currentSettings.stockBridgeTimeoutMs,
       maxOutputBytes: currentSettings.stockBridgeMaxOutputBytes,
       ifindBaseUrl: currentSettings.ifindBaseUrl,
+      readRuntimeOptions: () => ({
+        pythonExecutable: currentSettings.pythonExecutable,
+        timeoutMs: currentSettings.stockBridgeTimeoutMs,
+        maxOutputBytes: currentSettings.stockBridgeMaxOutputBytes,
+        ifindBaseUrl: currentSettings.ifindBaseUrl,
+      }),
       resolveCredential: ref => resolveCredential(ref),
     })
     registerStockTools(ctx, new SubprocessFinanceStockDataProvider(bridge, {
