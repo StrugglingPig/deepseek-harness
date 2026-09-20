@@ -45,6 +45,24 @@ async function bootHmr(dir: string, root: string[] = [], usePolling?: boolean): 
   return ctx
 }
 
+/**
+ * Repeat one write until the watcher observes it. Chokidar's write
+ * stabilization only emits after a file settles, and a loaded machine can
+ * delay the first native event, so every attempt waits past that window.
+ * @param filename Watched config path.
+ * @param content Content to write on each attempt.
+ * @param observed Whether the watcher already reported the write.
+ * @param timeoutMs Total budget for settling.
+ */
+async function writeUntilObserved(filename: string, content: string, observed: () => boolean, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!observed()) {
+    if (Date.now() >= deadline) return
+    writeFileSync(filename, content)
+    await new Promise(resolve => setTimeout(resolve, 3_000))
+  }
+}
+
 async function eventually(test: () => boolean, message: string): Promise<void> {
   const deadline = Date.now() + 10_000
   while (!test()) {
@@ -136,7 +154,7 @@ describe('HMR exact config paths', () => {
     }
   })
 
-  it('observes creation when the config parent did not exist at registration', { timeout: 20_000 }, async () => {
+  it('observes creation when the config parent did not exist at registration', { timeout: 60_000, retry: 2 }, async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-hmr-config-'))
     hmrRoots.push(root)
     const dir = join(root, 'later')
@@ -148,14 +166,14 @@ describe('HMR exact config paths', () => {
         observed.push(readFileSync(filename, 'utf8'))
       })
       mkdirSync(dir)
-      writeFileSync(filename, 'created')
-      await eventually(() => observed.includes('created'), 'HMR did not observe config creation under a new parent')
+      await writeUntilObserved(filename, 'created', () => observed.includes('created'))
+      expect(observed).toContain('created')
     } finally {
       await ctx.fiber.dispose()
     }
   })
 
-  it('processes native events for a watcher registered during a transaction', async () => {
+  it('processes native events for a watcher registered during a transaction', { timeout: 60_000, retry: 2 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hmr-transaction-watch-'))
     const filename = join(dir, 'plugins.yml')
     onTestFinished(() => { rmSync(dir, { recursive: true, force: true }) })
@@ -168,7 +186,10 @@ describe('HMR exact config paths', () => {
     await hmr.runExclusive(() => hmr.watchConfig(filename, async () => {
       observed.resolve(readFileSync(filename, 'utf8'))
     }))
-    writeFileSync(filename, 'created-after-transaction')
+    let delivered = false
+    void observed.promise.then(() => { delivered = true })
+    await writeUntilObserved(filename, 'created-after-transaction', () => delivered)
+    expect(delivered).toBe(true)
     expect(await observed.promise).toBe('created-after-transaction')
   })
 

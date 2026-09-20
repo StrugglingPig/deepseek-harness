@@ -115,7 +115,15 @@ export async function runProfilePnpm(
   let output = Buffer.alloc(0)
   let truncated = false
   const cancellation = new AbortController()
-  const child = execa(options.command ?? 'pnpm', [...options.args ?? [], ...args.map(arg => anchorPathSpec(arg, context.cwd))], {
+  // A profile may carry its own pnpm-workspace.yaml (for example to pin build
+  // policy). pnpm then treats the profile as a workspace root and refuses a
+  // plain add/remove, so state the intent the profile already encodes.
+  const installing = args[0] === 'add' || args[0] === 'remove'
+  const workspaceOwned = existsSync(join(dir, 'pnpm-workspace.yaml')) || existsSync(join(dir, 'pnpm-workspace.yml'))
+  const anchored = args.map(arg => anchorPathSpec(arg, context.cwd))
+  const workspaceArgs = installing && workspaceOwned ? ['--workspace-root'] : []
+  const commandArgs = [...anchored.slice(0, 1), ...workspaceArgs, ...anchored.slice(1)]
+  const child = execa(options.command ?? 'pnpm', [...options.args ?? [], ...commandArgs], {
     cwd: dir, env: { ...(options.execution === 'cli' ? process.env : scrubbedParentEnv()), ...options.env }, extendEnv: false, reject: false,
     stdout: options.execution === 'cli' ? 'inherit' : 'pipe',
     stderr: options.execution === 'cli' ? 'inherit' : 'pipe',

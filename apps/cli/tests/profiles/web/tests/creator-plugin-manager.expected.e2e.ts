@@ -83,7 +83,7 @@ it('configures MCP on a live profile, restores it on restart, and removes its to
   expect(initial.bundlesAfterDenied.map(bundle => bundle.name)).not.toContain('@test/creator-mcp')
   expect(initial.approvals).toEqual(['rejected', 'allowed-once'])
   expect(initial.permission).toBe('workspace-write')
-  expect(initial.result).toMatchObject({ application: 'applied', changed: true })
+  expect(initial.result, JSON.stringify(initial.result)).toMatchObject({ application: 'applied', changed: true })
   expect(initial.after).toContain('mcp__demo__ping')
   expect(initial.other).toContain('mcp__demo__ping')
   expect(JSON.stringify(initial.ping)).toContain('pong')

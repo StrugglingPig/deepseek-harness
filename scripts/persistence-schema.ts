@@ -1,7 +1,7 @@
 /** Extract complete persistent Session record types from one source-only compiler program. */
 
 import { readFileSync } from 'node:fs'
-import { dirname, extname, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, relative, resolve, sep } from 'node:path'
 import ts from 'typescript'
 import { collectLogEvents } from './persistence-catalog-source.ts'
 import {
@@ -76,10 +76,13 @@ export function extractPersistenceSchema(root: string): PersistenceSchemaInvento
     resolve(path) === filename
       ? ts.createSourceFile(filename, source, languageVersion, true)
       : originalGetSourceFile(path, languageVersion, onError, shouldCreateNewSourceFile)
+  // The oxlint contract spec writes probe modules into source directories for
+  // the duration of its run; a concurrent program must not adopt them.
+  const transient = (path: string): boolean => !basename(path).startsWith('oxlint-contract-')
   const files = [...new Set([
     ...hostSourceFiles(root, configPath),
     ...events.map(event => resolve(root, event.source.slice(0, event.source.lastIndexOf(':')))),
-  ])]
+  ])].filter(transient)
   const program = ts.createProgram({ rootNames: [filename, ...files], options, host })
   const rootSource = program.getSourceFile(filename)
   if (rootSource === undefined) throw new PersistenceSchemaError('persistence schema: compiler omitted the requested roots')

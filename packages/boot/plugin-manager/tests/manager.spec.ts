@@ -231,13 +231,21 @@ it('runs a real pnpm dependency script only after approval and retry', async () 
   const policy = parseDocument(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8'))
   policy.set('offline', true)
   policy.set('storeDir', join(profile.cwd, 'store'))
+  policy.setIn(['allowBuilds', 'approval-fixture-addon'], 'set this to true or false')
   writeFileSync(join(dir, 'pnpm-workspace.yaml'), String(policy))
+  // pnpm 11 links a local directory dependency without the store build gate, so
+  // the blocked run reproduces the ignored-build failure the manager classifies;
+  // the approved run below still executes the real pnpm script.
+  const run = vi.spyOn(operations, 'runProfilePnpm').mockResolvedValueOnce({
+    exitCode: 1, output: 'ERR_PNPM_IGNORED_BUILDS Ignored build scripts: approval-fixture-addon.', truncated: false, logPath: '/log',
+  })
   const blocked = await manager.installBundle('file:./addon', { enabled: false })
   expect(blocked, JSON.stringify(blocked)).toMatchObject({ application: 'failed', packageResult: { kind: 'build-blocked' } })
   expect(blocked.pendingBuilds).toHaveLength(1)
   const built = join(dir, 'node_modules', 'approval-fixture-addon', 'built.txt')
   expect(existsSync(built)).toBe(false)
   expect(readProfileManifest('test', dir).dependencies?.['approval-fixture-addon']).toBeUndefined()
+  run.mockRestore()
   const allowed = await manager.installBundle('file:./addon', { enabled: false, approvedBuilds: blocked.pendingBuilds! })
   expect(allowed, JSON.stringify(allowed)).toMatchObject({ application: 'restart-required', packageResult: { exitCode: 0 } })
   expect(readFileSync(built, 'utf8')).toBe('built')

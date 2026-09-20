@@ -8,7 +8,7 @@
  */
 
 import { globSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import ts from 'typescript'
 
 /** The module whose `SlotMap` / standard-kit interfaces every slot owner merges into. */
@@ -85,6 +85,20 @@ export interface ScannedFile {
 }
 
 /**
+ * Glob the requested patterns, excluding the oxlint contract spec's transient probes.
+ * @param scanRoot - repository root the patterns resolve against.
+ * @param patterns - glob(s) selecting the TypeScript/TSX files to scan.
+ * @returns Sorted repository-relative POSIX paths.
+ */
+function sourceRels(scanRoot: string, patterns: readonly string[]): string[] {
+  // The oxlint contract spec writes probe modules into source directories for
+  // the duration of its run; a lexical scan must not adopt them.
+  return [...new Set(globSync(patterns as string[], { cwd: scanRoot })
+    .map(path => path.split(sep).join('/'))
+    .filter(path => !basename(path).startsWith('oxlint-contract-')))].sort()
+}
+
+/**
  * Parse every file matching `patterns`, keeping the ones that carry a slot
  * contract merge or a registration call. Files without either are skipped so
  * the scan stays cheap over the whole workspace.
@@ -95,8 +109,7 @@ export interface ScannedFile {
 export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): ScannedFile[] {
   const out: ScannedFile[] = []
   const names = new Map<string, string>()
-  const rels = [...new Set(globSync(patterns as string[], { cwd: scanRoot })
-    .map(path => path.split(sep).join('/')))].sort()
+  const rels = sourceRels(scanRoot, patterns)
   for (const rel of rels) {
     const abs = resolve(scanRoot, rel)
     const text = readFileSync(abs, 'utf8')
@@ -122,8 +135,7 @@ export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): Sc
 export function indexExportedTypes(scanRoot: string, patterns: readonly string[]): Map<string, TypeDeclaration> {
   const index = new Map<string, TypeDeclaration>()
   const ambiguous = new Set<string>()
-  const rels = [...new Set(globSync(patterns as string[], { cwd: scanRoot })
-    .map(path => path.split(sep).join('/')))].sort()
+  const rels = sourceRels(scanRoot, patterns)
   for (const rel of rels) {
     const abs = resolve(scanRoot, rel)
     const sf = ts.createSourceFile(abs, readFileSync(abs, 'utf8'), ts.ScriptTarget.Latest, true, scriptKindOf(rel))
