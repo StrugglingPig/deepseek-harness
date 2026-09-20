@@ -228,7 +228,7 @@ describe('HTTP finance market data provider', () => {
     expect(snapshot.bars).toHaveLength(60)
   })
 
-  it('lists capabilities and routes provider-native operations', async () => {
+  it('describes bases and sends arbitrary provider-native requests', async () => {
     const urls: string[] = []
     const provider = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
@@ -242,26 +242,25 @@ describe('HTTP finance market data provider', () => {
         onRequest: url => urls.push(url),
       }),
     })
-    const capabilities = await provider.query({ operation: 'capabilities' })
-    const listed = capabilities.data as { operation: string }[]
-    expect(listed.some(entry => entry.operation === 'raw_get')).toBe(true)
-    expect(listed.some(entry => entry.operation === 'binance.spot.exchange_info')).toBe(true)
-    expect(listed.some(entry => entry.operation === 'binance.usdm.funding_rate')).toBe(true)
-    expect(listed.some(entry => entry.operation === 'yahoo.chart')).toBe(true)
-    expect(listed.some(entry => entry.operation === 'polymarket.clob.book')).toBe(true)
-
-    await provider.query({ operation: 'binance.spot.exchange_info' })
-    await provider.query({ operation: 'binance.usdm.funding_rate', parameters: { symbol: 'BTCUSDT' } })
-    await provider.query({ operation: 'yahoo.chart', parameters: { symbol: 'AAPL', range: '1mo', interval: '1d' } })
-    await provider.query({ operation: 'polymarket.clob.book', parameters: { token_id: 'token-1' } })
-    await provider.query({ operation: 'polymarket.clob.midpoints', parameters: { token_ids: ['a', 'b'] } })
-    await provider.query({
-      operation: 'raw_get',
-      parameters: { base: 'binance-spot', path: '/api/v3/exchangeInfo', permissions: 'SPOT' },
+    expect(provider.describe()).toMatchObject({
+      id: 'http',
+      displayName: 'Public HTTP finance providers',
     })
-    await provider.query({
-      operation: 'binance.spot.ticker_24hr',
-      parameters: {
+    expect(provider.describe().bases.map(base => base.name)).toEqual([
+      'binance-spot', 'binance-usdm', 'binance-coinm', 'binance-options',
+      'yahoo', 'polymarket-gamma', 'polymarket-clob',
+    ])
+
+    await provider.request({ base: 'binance-spot', path: '/api/v3/ping' })
+    await provider.request({ base: 'binance-spot', path: '/api/v3/exchangeInfo', query: { permissions: 'SPOT' } })
+    await provider.request({ base: 'binance-usdm', path: '/fapi/v1/fundingRate', query: { symbol: 'BTCUSDT' } })
+    await provider.request({ base: 'yahoo', path: '/v8/finance/chart/AAPL', query: { range: '1mo', interval: '1d' } })
+    await provider.request({ base: 'polymarket-clob', path: '/book', query: { token_id: 'token-1' } })
+    await provider.request({ base: 'polymarket-clob', path: '/midpoints', query: { token_ids: ['a', 'b'] } })
+    await provider.request({
+      base: 'binance-spot',
+      path: '/api/v3/ticker/24hr',
+      query: {
         symbol: 'BTCUSDT',
         limit: 5,
         test: true,
@@ -270,9 +269,17 @@ describe('HTTP finance market data provider', () => {
         tags: [1, 'x'],
       },
     })
+    const posted = await provider.request({
+      base: 'binance-spot',
+      path: '/api/v3/order/test',
+      method: 'POST',
+      headers: { 'x-test': 'yes' },
+      query: { symbol: 'BTCUSDT' },
+      body: { side: 'BUY' },
+    })
+    expect(posted).toMatchObject({ provider: 'http', base: 'binance-spot', method: 'POST', status: 200 })
 
-    expect(urls.some(url => url.includes('/api/v3/exchangeInfo'))).toBe(true)
-    expect(urls.some(url => url.includes('permissions=SPOT'))).toBe(true)
+    expect(urls.some(url => url.includes('/api/v3/exchangeInfo?permissions=SPOT'))).toBe(true)
     expect(urls.some(url => url.includes('/fapi/v1/fundingRate?symbol=BTCUSDT'))).toBe(true)
     expect(urls.some(url => url.includes('/v8/finance/chart/AAPL?'))).toBe(true)
     expect(urls.some(url => url.includes('range=1mo'))).toBe(true)
@@ -285,28 +292,22 @@ describe('HTTP finance market data provider', () => {
     expect(urls.some(url => url.includes('tags=1&tags=x'))).toBe(true)
   })
 
-  it('rejects unknown operations and missing path parameters', async () => {
+  it('rejects invalid provider requests', async () => {
     const provider = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
       fetch: fakeFetch({ yahoo: {} }),
     })
-    await expect(provider.query({ operation: 'missing.operation' })).rejects.toMatchObject({
-      code: 'UNKNOWN_OPERATION',
+    await expect(provider.request({ base: 'unknown', path: '/api/v3/ping' })).rejects.toMatchObject({
+      code: 'UNKNOWN_BASE',
     })
-    await expect(provider.query({ operation: 'yahoo.chart' })).rejects.toMatchObject({
-      code: 'MISSING_PARAMETER',
+    await expect(provider.request({ base: 'binance-spot', path: 'api/v3/ping' })).rejects.toMatchObject({
+      code: 'INVALID_PATH',
     })
-    await expect(provider.query({ operation: 'raw_get' })).rejects.toMatchObject({
-      code: 'MISSING_PARAMETER',
-    })
-    await expect(provider.query({
-      operation: 'raw_get',
-      parameters: { base: 'unknown', path: '/api/v3/ping' },
-    })).rejects.toMatchObject({ code: 'MISSING_PARAMETER' })
-    await expect(provider.query({
-      operation: 'raw_get',
-      parameters: { base: 'binance-spot', path: 'api/v3/ping' },
-    })).rejects.toMatchObject({ code: 'MISSING_PARAMETER' })
+    await expect(provider.request({
+      base: 'binance-spot',
+      path: '/api/v3/ping',
+      body: { invalid: true },
+    })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
   })
 
   it('uses ambient defaults when no options are supplied', async () => {

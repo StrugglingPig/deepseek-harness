@@ -109,25 +109,60 @@ describe('finance research real Loader composition', () => {
     expect(textOf(report)).toContain('#')
   }, 30_000)
 
-  it('selects the HTTP provider and exposes its raw query tool without making a request', async () => {
+  it('selects the HTTP provider and exposes generic provider tools', async () => {
     const ctx = await boot(['    provider: http'])
-    expect(ctx.tools.schemas()).toHaveLength(4)
+    expect(ctx.tools.schemas()).toHaveLength(5)
+    const described = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-provider-describe' as never,
+      name: 'finance_provider_describe',
+      arguments: {},
+    })
+    expect(described.isError).toBe(false)
+    expect(textOf(described)).toContain('binance-spot')
+
+    const invalidRequest = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-provider-request' as never,
+      name: 'finance_provider_request',
+      arguments: { base: 'missing', path: '/api/v3/ping' },
+    })
+    expect(invalidRequest.isError).toBe(true)
+    expect(textOf(invalidRequest)).toContain('unknown provider base')
+  })
+
+  it('renders a successful generic provider request', async () => {
+    const ctx = new Context()
+    context = ctx
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    FinanceResearch.registerFinanceTools(ctx, {
+      id: 'fake',
+      async load() { throw new Error('load is not used') },
+      describe: () => ({ id: 'fake', displayName: 'Fake', bases: [], notes: [] }),
+      request: async request => ({
+        provider: 'fake',
+        base: request.base,
+        method: request.method ?? 'GET',
+        path: request.path,
+        status: 200,
+        data: { ok: true },
+      }),
+    })
     const result = await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: 'finance-capabilities' as never,
-      name: 'finance_provider_query',
-      arguments: { operation: 'capabilities' },
+      callId: 'finance-provider-request-success' as never,
+      name: 'finance_provider_request',
+      arguments: {
+        base: 'fake-base',
+        path: '/fake/path',
+        method: 'POST',
+        query: { page: 1 },
+        body: { symbol: 'BTCUSDT' },
+      },
     })
     expect(result.isError).toBe(false)
-    expect(textOf(result)).toContain('binance.spot.exchange_info')
-
-    const withParameters = await ctx.tools.execute({
-      signal: new AbortController().signal,
-      callId: 'finance-capabilities-parameters' as never,
-      name: 'finance_provider_query',
-      arguments: { operation: 'capabilities', parameters: {} },
-    })
-    expect(withParameters.isError).toBe(false)
+    expect(textOf(result)).toContain('HTTP 200 POST fake-base/fake/path')
   })
 
   it('turns an aborted execution into an error result', async () => {

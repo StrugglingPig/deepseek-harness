@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from either a deterministic fixture provider or public HTTP providers, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. When the HTTP provider is active, `finance_provider_query` also exposes each platform's provider-native public endpoint catalog. Three tools are always registered; the provider-native query tool is registered only for providers that implement `query()`.
+`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from either a deterministic fixture provider or public HTTP providers, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. When the HTTP provider is active, `finance_provider_describe` and `finance_provider_request` expose a generic provider transport. Three tools are always registered; the provider tools are registered only for providers that implement `describe()` and `request()`.
 
 ## Table of Contents
 
@@ -54,28 +54,26 @@ The default application uses `FixtureFinanceMarketDataProvider`. Set `provider: 
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-finance-research) is the exhaustive field reference.
 
-### Provider-native queries
+### Provider-native requests
 
-With `provider: http`, `finance_provider_query` first discovers the full operation catalog through `operation: "capabilities"`. The catalog covers Binance Spot, USD-M Futures, COIN-M Futures, Binance Options, Yahoo Finance, Polymarket Gamma, and Polymarket CLOB public endpoints. Parameters are passed through as provider-native query parameters; path parameters use `{name}` placeholders in the catalog.
+With `provider: http`, call `finance_provider_describe` to discover configured bases, authentication mode, and upstream documentation. Then call `finance_provider_request` with a base, an upstream path, a method, and provider-native query or body parameters.
+
+The provider does not enforce an endpoint whitelist. What can be obtained is limited by the upstream API, credentials, rate limits, account permissions, network policy, and applicable terms. Binance Spot, USD-M Futures, COIN-M Futures, Options, Yahoo Finance, Polymarket Gamma, and Polymarket CLOB are configured as separate bases.
 
 Examples:
 
 ```json
-{ "operation": "binance.spot.exchange_info" }
-{ "operation": "binance.usdm.funding_rate", "parameters": { "symbol": "BTCUSDT" } }
-{ "operation": "yahoo.chart", "parameters": { "symbol": "AAPL", "range": "1mo", "interval": "1d" } }
-{ "operation": "polymarket.clob.book", "parameters": { "token_id": "<token-id>" } }
+{ "base": "binance-spot", "path": "/api/v3/exchangeInfo", "query": { "permissions": "SPOT" } }
+{ "base": "binance-usdm", "path": "/fapi/v1/fundingRate", "query": { "symbol": "BTCUSDT" } }
+{ "base": "yahoo", "path": "/v8/finance/chart/AAPL", "query": { "range": "1mo", "interval": "1d" } }
+{ "base": "polymarket-clob", "path": "/book", "query": { "token_id": "<token-id>" } }
 ```
 
-The tool returns upstream JSON unchanged. It does not normalize every platform field, which keeps provider-specific information available. `raw_get` is the escape hatch for a public GET path that the catalog does not yet name: pass `base`, an absolute `path`, and provider-native query parameters.
-
-### Supported instruments
-
-The fixture provider understands equity symbols such as `AAPL`, crypto symbols `BTC` and `ETH`, and prediction symbols such as `PREDICTION:FED-CUT`. The HTTP provider treats non-prediction, non-BTC/ETH symbols as Yahoo equity tickers, uses Binance for `BTC` and `ETH`, and resolves Polymarket slugs after the `PREDICTION:` prefix.
+The tool returns the upstream status and JSON value unchanged. Normalized `load()` remains a convenience adapter for indicators and reports; it does not cap the generic provider surface.
 
 ### What each tool returns
 
-`finance_market_snapshot` returns the normalized instrument, quote, bar count, provider, synthetic flag, and prediction-market fields when present. `finance_technical_analysis` returns SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, five weighted signals, conflicts, and a composite score. `finance_research_report` returns structured sections plus a Markdown report whose first line is the report title. `finance_provider_query` returns the selected provider's upstream JSON, including fields the normalized snapshot does not carry.
+`finance_market_snapshot` returns the normalized instrument, quote, bar count, provider, synthetic flag, and prediction-market fields when present. `finance_technical_analysis` returns SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, five weighted signals, conflicts, and a composite score. `finance_research_report` returns structured sections plus a Markdown report whose first line is the report title. `finance_provider_describe` returns configured origins and auth mode. `finance_provider_request` returns the upstream status and JSON value.
 
 -----
 
@@ -124,8 +122,9 @@ Prefix-stable while the three tool definitions and their visibility are unchange
 
 - **Default data is synthetic** — the default provider is deterministic synthetic data; live data requires `provider: http`.
 - **Live provider depends on public endpoints** — Yahoo Finance, Binance, and Polymarket availability, rate limits, terms, and field changes are outside this package's control.
-- **Normalized crypto snapshots are explicit** — the normalized `load()` path maps `BTC` and `ETH`; other Binance symbols are available through `finance_provider_query` provider-native operations.
-- **Provider-native data is upstream JSON** — raw query results follow provider field names, response shapes, rate limits, and endpoint availability rather than this package's normalized snapshot schema.
+- **Normalized crypto snapshots are explicit** — the normalized `load()` path maps `BTC` and `ETH`; other Binance symbols are available through `finance_provider_request`.
+- **Provider-native data is upstream JSON** — results follow provider field names, response shapes, rate limits, authentication, and endpoint availability rather than this package's normalized snapshot schema.
+- **Public transport only** — the current HTTP provider configures public bases; authenticated/private account endpoints require a credential and signing provider.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 
 <a id="dev-note"></a>

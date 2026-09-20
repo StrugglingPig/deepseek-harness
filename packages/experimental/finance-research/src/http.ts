@@ -2,13 +2,14 @@
 
 import { z as zod } from 'zod'
 import { classifyAsset } from './data.ts'
-import { QUERY_OPERATIONS } from './operations.ts'
-import type { FinanceQueryBase } from './operations.ts'
 import type {
+  FinanceHttpMethod,
   FinanceJsonValue,
   FinanceMarketDataProvider,
-  FinanceQueryRequest,
-  FinanceQueryResult,
+  FinanceProviderBase,
+  FinanceProviderDescriptor,
+  FinanceProviderRequest,
+  FinanceProviderResponse,
   MarketBar,
   MarketSnapshot,
 } from './types.ts'
@@ -130,7 +131,17 @@ const CRYPTO_METADATA: Readonly<Record<string, { readonly pair: string; readonly
   ETH: { pair: 'ETHUSDT', name: 'Ether' },
 }
 
-const QUERY_BASE_ORIGINS: Readonly<Record<FinanceQueryBase, keyof ResolvedOptions>> = {
+const PROVIDER_BASES: readonly FinanceProviderBase[] = [
+  { name: 'binance-spot', description: 'Binance Spot public REST', auth: 'none', docs: 'https://developers.binance.com/docs/binance-spot-api-docs/rest-api' },
+  { name: 'binance-usdm', description: 'Binance USD-M Futures public REST', auth: 'none', docs: 'https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info' },
+  { name: 'binance-coinm', description: 'Binance COIN-M Futures public REST', auth: 'none', docs: 'https://developers.binance.com/docs/derivatives/coin-margined-futures/general-info' },
+  { name: 'binance-options', description: 'Binance Options public REST', auth: 'none', docs: 'https://developers.binance.com/docs/derivatives/options-trading/general-info' },
+  { name: 'yahoo', description: 'Yahoo Finance public chart and quote endpoints', auth: 'none', docs: 'https://query1.finance.yahoo.com' },
+  { name: 'polymarket-gamma', description: 'Polymarket Gamma public catalog API', auth: 'none', docs: 'https://gamma-api.polymarket.com' },
+  { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
+]
+
+const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   'binance-spot': 'binanceBaseUrl',
   'binance-usdm': 'binanceUsdmBaseUrl',
   'binance-coinm': 'binanceCoinmBaseUrl',
@@ -208,13 +219,31 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
     return this.loadEquity(normalized, signal)
   }
 
-  private async fetchJson(url: string, signal?: AbortSignal): Promise<FinanceJsonValue> {
+  private async fetchJson(
+    url: string,
+    signal?: AbortSignal,
+    init: {
+      readonly method?: FinanceHttpMethod
+      readonly headers?: Readonly<Record<string, string>>
+      readonly body?: FinanceJsonValue
+    } = {},
+  ): Promise<{ readonly status: number; readonly data: FinanceJsonValue }> {
     const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs)
     const requestSignal = signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal])
+    const method = init.method ?? 'GET'
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      'user-agent': USER_AGENT,
+      ...init.headers,
+    }
+    const body = init.body === undefined ? undefined : JSON.stringify(init.body)
+    if (body !== undefined) headers['content-type'] = 'application/json'
     let response: Response
     try {
       response = await this.options.fetch(url, {
-        headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+        method,
+        headers,
+        ...body === undefined ? {} : { body },
         signal: requestSignal,
       })
     } catch (error: unknown) {
@@ -224,91 +253,68 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       throw new FinanceDataError(`request failed for ${url}: HTTP ${response.status}`, 'HTTP_ERROR')
     }
     try {
-      return await response.json() as FinanceJsonValue
+      return { status: response.status, data: await response.json() as FinanceJsonValue }
     } catch (error: unknown) {
       throw new FinanceDataError(`invalid JSON from ${url}: ${String(error)}`, 'INVALID_JSON')
     }
   }
 
   /**
-   * Query one provider-native public endpoint.
-   * @param request - Operation name from `capabilities` and provider-native parameters.
-   * @param signal - Optional caller cancellation.
-   * @returns The provider label, operation, and upstream JSON value.
+   * Describe provider origins, authentication, and upstream documentation.
+   * @returns The provider descriptor used by the discovery tool.
    */
-  async query(request: FinanceQueryRequest, signal?: AbortSignal): Promise<FinanceQueryResult> {
-    if (request.operation === 'capabilities') {
-      return {
-        provider: 'http',
-        operation: request.operation,
-        data: [
-          {
-            operation: 'raw_get',
-            provider: 'http',
-            base: 'configured provider origin',
-            path: '/...',
-            description: 'Query any public GET path under a configured provider origin; pass base, path, and query parameters.',
-          },
-          ...Object.entries(QUERY_OPERATIONS).map(([operation, definition]) => ({
-            operation,
-            provider: definition.provider,
-            base: definition.base,
-            path: definition.path,
-            description: definition.description,
-          })),
-        ],
-      }
+  describe(): FinanceProviderDescriptor {
+    return {
+      id: this.id,
+      displayName: 'Public HTTP finance providers',
+      bases: PROVIDER_BASES,
+      notes: [
+        'Data availability is defined by the upstream API, credentials, rate limits, and network policy.',
+        'No endpoint whitelist is enforced; pass a base, an absolute public path, and provider-native parameters.',
+      ],
     }
-    if (request.operation === 'raw_get') {
-      const parameters = request.parameters ?? {}
-      const base = parameters.base
-      const path = parameters.path
-      if (typeof base !== 'string' || !(base in QUERY_BASE_ORIGINS)) {
-        throw new FinanceDataError('raw_get requires a configured base', 'MISSING_PARAMETER')
-      }
-      if (typeof path !== 'string' || !path.startsWith('/')) {
-        throw new FinanceDataError('raw_get requires an absolute public path', 'MISSING_PARAMETER')
-      }
-      const rest: Record<string, FinanceJsonValue> = {}
-      for (const [key, value] of Object.entries(parameters)) {
-        if (key === 'base' || key === 'path') continue
-        rest[key] = value
-      }
-      return {
-        provider: 'http',
-        operation: request.operation,
-        data: await this.fetchJson(this.queryUrl(base as FinanceQueryBase, path, rest), signal),
-      }
-    }
-    const operation = QUERY_OPERATIONS[request.operation]
-    if (operation === undefined) throw new FinanceDataError(`unknown finance operation ${request.operation}`, 'UNKNOWN_OPERATION')
-    const url = this.queryUrl(operation.base, operation.path, request.parameters ?? {})
-    return { provider: operation.provider, operation: request.operation, data: await this.fetchJson(url, signal) }
   }
 
-  private queryUrl(base: FinanceQueryBase, pathTemplate: string, parameters: Readonly<Record<string, FinanceJsonValue>>): string {
-    const origin = this.options[QUERY_BASE_ORIGINS[base]] as string
-    const pathKeys = new Set([...pathTemplate.matchAll(/\{([^}]+)\}/g)].map(match => match[1] as string))
-    const path = pathTemplate.replace(/\{([^}]+)\}/g, (_match, key: string) => {
-      const value = parameters[key]
-      if (value === undefined) throw new FinanceDataError(`missing path parameter ${key}`, 'MISSING_PARAMETER')
-      return encodeURIComponent(queryValue(value))
-    })
-    const url = new URL(origin + path)
-    for (const [key, value] of Object.entries(parameters)) {
-      if (pathKeys.has(key)) continue
+  /**
+   * Send one generic provider-native request.
+   * @param request - Base, path, method, query, body, and optional headers.
+   * @param signal - Optional caller cancellation.
+   * @returns The upstream status and JSON value.
+   */
+  async request(request: FinanceProviderRequest, signal?: AbortSignal): Promise<FinanceProviderResponse> {
+    const method = request.method ?? 'GET'
+    if (!request.path.startsWith('/')) throw new FinanceDataError('request path must start with /', 'INVALID_PATH')
+    if (method === 'GET' && request.body !== undefined) {
+      throw new FinanceDataError('GET requests cannot carry a body', 'INVALID_REQUEST')
+    }
+    const originKey = BASE_ORIGINS[request.base]
+    if (originKey === undefined) throw new FinanceDataError(`unknown provider base ${request.base}`, 'UNKNOWN_BASE')
+    const url = new URL((this.options[originKey] as string) + request.path)
+    for (const [key, value] of Object.entries(request.query ?? {})) {
       if (Array.isArray(value)) {
         for (const item of value) url.searchParams.append(key, queryValue(item))
       } else {
         url.searchParams.set(key, queryValue(value))
       }
     }
-    return url.href
+    const response = await this.fetchJson(url.href, signal, {
+      method,
+      ...request.headers === undefined ? {} : { headers: request.headers },
+      ...request.body === undefined ? {} : { body: request.body },
+    })
+    return {
+      provider: this.id,
+      base: request.base,
+      method,
+      path: request.path,
+      status: response.status,
+      data: response.data,
+    }
   }
 
   private async loadEquity(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot> {
     const url = `${this.options.yahooBaseUrl}/v8/finance/chart/${encodeURIComponent(symbol)}?range=6mo&interval=1d`
-    const payload = yahooChartSchema.parse(await this.fetchJson(url, signal))
+    const payload = yahooChartSchema.parse((await this.fetchJson(url, signal)).data)
     const result = payload.chart.result[0] as zod.infer<typeof yahooChartSchema>['chart']['result'][number]
     const quote = result.indicators.quote[0] as zod.infer<typeof yahooChartSchema>['chart']['result'][number]['indicators']['quote'][number]
     const bars = result.timestamp.flatMap((timestamp, index) => {
@@ -352,7 +358,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
   private async loadCrypto(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot> {
     const metadata = CRYPTO_METADATA[symbol] as { readonly pair: string; readonly name: string }
     const url = `${this.options.binanceBaseUrl}/api/v3/klines?symbol=${encodeURIComponent(metadata.pair)}&interval=1d&limit=${String(this.options.barLimit)}`
-    const payload = binanceKlinesSchema.parse(await this.fetchJson(url, signal))
+    const payload = binanceKlinesSchema.parse((await this.fetchJson(url, signal)).data)
     const bars: MarketBar[] = payload.map(row => ({
       timestamp: iso(row[0], 'milliseconds'),
       open: Number(row[1]),
@@ -374,7 +380,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
   private async loadPrediction(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot> {
     const slug = symbol.slice('PREDICTION:'.length).toLowerCase()
     const gammaUrl = `${this.options.polymarketGammaBaseUrl}/markets?slug=${encodeURIComponent(slug)}&limit=1`
-    const markets = polymarketGammaSchema.parse(await this.fetchJson(gammaUrl, signal))
+    const markets = polymarketGammaSchema.parse((await this.fetchJson(gammaUrl, signal)).data)
     const market = markets[0]
     if (market === undefined) throw new FinanceDataError(`Polymarket market ${slug} was not found`, 'MARKET_NOT_FOUND')
     const tokens = parseStringArray(market.clobTokenIds)
@@ -385,7 +391,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
     const yesIndex = Math.max(outcomes.findIndex(outcome => outcome.toLowerCase() === 'yes'), 0)
     const impliedProbability = Number(outcomePrices[yesIndex] ?? 0)
     const historyUrl = `${this.options.polymarketClobBaseUrl}/prices-history?market=${encodeURIComponent(token)}&interval=1d&fidelity=60`
-    const history = polymarketHistorySchema.parse(await this.fetchJson(historyUrl, signal)).history.slice(-this.options.barLimit)
+    const history = polymarketHistorySchema.parse((await this.fetchJson(historyUrl, signal)).data).history.slice(-this.options.barLimit)
     const bars: MarketBar[] = history.map(point => ({
       timestamp: iso(point.t, 'seconds'),
       open: point.p,

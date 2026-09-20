@@ -52,11 +52,13 @@ export interface FinanceMarketDataProvider {
   readonly id: string
   /** Load the normalized research snapshot used by indicators and reports. */
   load(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot>
-  /** Query provider-native operations when the provider exposes a raw-data surface. */
-  query?(request: FinanceQueryRequest, signal?: AbortSignal): Promise<FinanceQueryResult>
+  /** Describe provider origins, authentication, and upstream documentation. */
+  describe?(): FinanceProviderDescriptor
+  /** Send a provider-native request when the provider exposes a generic transport. */
+  request?(request: FinanceProviderRequest, signal?: AbortSignal): Promise<FinanceProviderResponse>
 }
 
-/** Lossless JSON value accepted from or returned by provider-native queries. */
+/** Lossless JSON value accepted from or returned by provider-native requests. */
 export type FinanceJsonValue =
   | null
   | boolean
@@ -65,18 +67,48 @@ export type FinanceJsonValue =
   | FinanceJsonValue[]
   | { [key: string]: FinanceJsonValue }
 
-/** One provider-native query request. */
-export interface FinanceQueryRequest {
-  /** Operation name returned by the provider's `capabilities` result. */
-  readonly operation: string
-  /** Provider-native query parameters. */
-  readonly parameters?: Readonly<Record<string, FinanceJsonValue>>
+/** HTTP methods accepted by the generic provider transport. */
+export type FinanceHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+
+/** One provider origin the caller may address. */
+export interface FinanceProviderBase {
+  readonly name: string
+  readonly description: string
+  readonly auth: 'none' | 'api-key' | 'signed'
+  readonly docs: string
 }
 
-/** One provider-native query result carrying the upstream JSON unchanged. */
-export interface FinanceQueryResult {
+/** Provider metadata used to discover origins without an endpoint whitelist. */
+export interface FinanceProviderDescriptor {
+  readonly id: string
+  readonly displayName: string
+  readonly bases: readonly FinanceProviderBase[]
+  readonly notes: readonly string[]
+}
+
+/** One generic provider request. Data availability is owned by the upstream API. */
+export interface FinanceProviderRequest {
+  /** Configured base name from the provider descriptor. */
+  readonly base: string
+  /** Upstream path beginning with `/`. */
+  readonly path: string
+  /** HTTP method; the provider defaults to GET. */
+  readonly method?: FinanceHttpMethod
+  /** Provider-native query parameters. */
+  readonly query?: Readonly<Record<string, FinanceJsonValue>>
+  /** Provider-native JSON request body for non-GET methods. */
+  readonly body?: FinanceJsonValue
+  /** Optional request headers; model tools do not expose credential headers. */
+  readonly headers?: Readonly<Record<string, string>>
+}
+
+/** One generic provider response carrying the upstream JSON unchanged. */
+export interface FinanceProviderResponse {
   readonly provider: string
-  readonly operation: string
+  readonly base: string
+  readonly method: FinanceHttpMethod
+  readonly path: string
+  readonly status: number
   readonly data: FinanceJsonValue
 }
 

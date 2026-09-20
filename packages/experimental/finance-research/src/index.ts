@@ -20,8 +20,6 @@ export {
   priceBandDirection, rsiDirection, trendDirection, volumeDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
-export { QUERY_OPERATIONS } from './operations.ts'
-export type { FinanceQueryBase, FinanceQueryOperation } from './operations.ts'
 export {
   createHttpFinanceMarketDataProvider,
   FinanceDataError,
@@ -327,21 +325,83 @@ export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataPr
     },
   }))
 
-  const queryProvider = provider.query?.bind(provider)
-  if (queryProvider !== undefined) {
+  const describeProvider = provider.describe?.bind(provider)
+  if (describeProvider !== undefined) {
     ctx.tools.register(defineTool({
-      name: 'finance_provider_query',
-      description: 'Query a provider-native finance endpoint. Call operation "capabilities" first to discover the exact operation names and path parameters.',
-      parameters: {
-        operation: {
-          type: 'string',
-          required: true,
-          description: 'Operation name from the provider capabilities result.',
+      name: 'finance_provider_describe',
+      description: 'Describe the active finance provider origins, authentication mode, and upstream documentation. The descriptor does not define an endpoint whitelist.',
+      parameters: {},
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            provider: { type: 'string', required: true },
+            display_name: { type: 'string', required: true },
+            bases: {
+              type: 'array',
+              required: true,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  name: { type: 'string', required: true },
+                  description: { type: 'string', required: true },
+                  auth: { type: 'string', required: true, enum: ['none', 'api-key', 'signed'] },
+                  docs: { type: 'string', required: true },
+                },
+              },
+            },
+            notes: { type: 'array', required: true, items: { type: 'string' } },
+          },
         },
-        parameters: {
+        render: (_args, value) => [{
+          type: 'text',
+          text: [
+            `provider: ${value.provider}`,
+            ...value.bases.map(base => `${base.name} (${base.auth}) — ${base.description}`),
+            ...value.notes,
+          ].join('\n'),
+        }],
+      },
+      execute() {
+        const descriptor = describeProvider()
+        return Promise.resolve({
+          provider: descriptor.id,
+          display_name: descriptor.displayName,
+          bases: descriptor.bases.map(base => ({
+            name: base.name,
+            description: base.description,
+            auth: base.auth,
+            docs: base.docs,
+          })),
+          notes: [...descriptor.notes],
+        })
+      },
+    }))
+  }
+
+  const requestProvider = provider.request?.bind(provider)
+  if (requestProvider !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'finance_provider_request',
+      description: 'Send a generic request to the active finance provider. Pass a base from finance_provider_describe, an upstream path, and provider-native query parameters. Available data is limited by the upstream API, credentials, rate limits, and network policy, not by a local endpoint whitelist.',
+      parameters: {
+        base: { type: 'string', required: true, description: 'Provider base name from finance_provider_describe.' },
+        path: { type: 'string', required: true, description: 'Upstream path beginning with `/`.' },
+        method: {
+          type: 'string',
+          description: 'HTTP method; defaults to GET.',
+          enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        },
+        query: {
           type: 'object',
           additionalProperties: true,
-          description: 'Provider-native query and path parameters.',
+          description: 'Provider-native query parameters.',
+        },
+        body: {
+          type: 'json',
+          description: 'JSON request body for non-GET methods.',
         },
       },
       output: {
@@ -350,23 +410,30 @@ export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataPr
           additionalProperties: false,
           properties: {
             provider: { type: 'string', required: true },
-            operation: { type: 'string', required: true },
+            base: { type: 'string', required: true },
+            method: { type: 'string', required: true, enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+            path: { type: 'string', required: true },
+            status: { type: 'integer', required: true },
             data: { type: 'json', required: true },
           },
         },
         render: (_args, value) => [{
           type: 'text',
-          text: JSON.stringify(value.data, null, 2),
+          text: `HTTP ${value.status} ${value.method} ${value.base}${value.path}\n${JSON.stringify(value.data, null, 2)}`,
         }],
       },
       async execute(args, exec) {
-        return queryProvider({
-          operation: args.operation,
-          ...args.parameters === undefined ? {} : { parameters: args.parameters },
+        return requestProvider({
+          base: args.base,
+          path: args.path,
+          ...args.method === undefined ? {} : { method: args.method },
+          ...args.query === undefined ? {} : { query: args.query },
+          ...args.body === undefined ? {} : { body: args.body },
         }, exec.signal)
       },
     }))
   }
+
 }
 
 /**

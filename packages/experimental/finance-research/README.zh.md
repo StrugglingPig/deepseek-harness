@@ -9,7 +9,7 @@ English | [中文](README.md)
 
 ## 概述
 
-`dsh-experimental-finance-research` 为金融研究会话提供一条确定性的“数据到报告”路径。它从确定性 fixture Provider 或公共 HTTP Provider 加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，并构建结构化 Markdown 报告。HTTP Provider 启用时，`finance_provider_query` 还会暴露各平台的原生公共端点目录。始终注册三个工具；只有实现 `query()` 的 Provider 才注册原生查询工具。
+`dsh-experimental-finance-research` 为金融研究会话提供一条确定性的“数据到报告”路径。它从确定性 fixture Provider 或公共 HTTP Provider 加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，并构建结构化 Markdown 报告。HTTP Provider 启用时，`finance_provider_describe` 和 `finance_provider_request` 提供通用 Provider 传输层。始终注册三个工具；只有实现 `describe()` 和 `request()` 的 Provider 才注册 Provider 工具。
 
 ## 目录
 
@@ -54,28 +54,26 @@ English | [中文](README.md)
 
 生成的 [configuration catalog](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-finance-research) 是完整字段参考。
 
-### Provider-native queries
+### Provider-native requests
 
-使用 `provider: http` 时，`finance_provider_query` 先通过 `operation: "capabilities"` 发现完整操作目录。目录覆盖 Binance Spot、USD-M Futures、COIN-M Futures、Binance Options、Yahoo Finance、Polymarket Gamma 和 Polymarket CLOB 的公共端点。参数按 Provider 原生查询参数透传；路径参数在目录中使用 `{name}` 占位。
+使用 `provider: http` 时，先调用 `finance_provider_describe` 发现已配置 base、认证模式和上游文档；再调用 `finance_provider_request`，传入 base、上游 path、method 和 Provider 原生 query/body 参数。
+
+Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API、凭据、限流、账户权限、网络策略和适用条款。Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma 和 Polymarket CLOB 被配置为不同 base。
 
 示例：
 
 ```json
-{ "operation": "binance.spot.exchange_info" }
-{ "operation": "binance.usdm.funding_rate", "parameters": { "symbol": "BTCUSDT" } }
-{ "operation": "yahoo.chart", "parameters": { "symbol": "AAPL", "range": "1mo", "interval": "1d" } }
-{ "operation": "polymarket.clob.book", "parameters": { "token_id": "<token-id>" } }
+{ "base": "binance-spot", "path": "/api/v3/exchangeInfo", "query": { "permissions": "SPOT" } }
+{ "base": "binance-usdm", "path": "/fapi/v1/fundingRate", "query": { "symbol": "BTCUSDT" } }
+{ "base": "yahoo", "path": "/v8/finance/chart/AAPL", "query": { "range": "1mo", "interval": "1d" } }
+{ "base": "polymarket-clob", "path": "/book", "query": { "token_id": "<token-id>" } }
 ```
 
-工具原样返回上游 JSON，不归一化每个平台字段，因此不会丢失 Provider 特有信息。`raw_get` 是目录尚未覆盖的公共 GET 路径的逃生通道：传入 `base`、绝对 `path` 和 Provider 原生查询参数。
-
-### Supported instruments
-
-fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币符号，以及 `PREDICTION:FED-CUT` 等预测符号。HTTP Provider 将非预测、非 `BTC`/`ETH` 的符号视为 Yahoo 股票 ticker，使用 Binance 处理 `BTC` 和 `ETH`，并用 `PREDICTION:` 前缀后的 slug 解析 Polymarket 市场。
+工具原样返回上游 status 和 JSON。标准化 `load()` 只是技术指标和报告的便捷适配层，不限制通用 Provider 能力。
 
 ### What each tool returns
 
-`finance_market_snapshot` 返回统一标的、报价、K 线数量、Provider、synthetic 标记，以及存在时的预测市场字段。`finance_technical_analysis` 返回 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、五个加权信号、冲突和综合评分。`finance_research_report` 返回结构化章节以及 Markdown 报告，报告第一行是标题。`finance_provider_query` 返回所选 Provider 的上游 JSON，包括统一快照未携带的字段。
+`finance_market_snapshot` 返回统一标的、报价、K 线数量、Provider、synthetic 标记，以及存在时的预测市场字段。`finance_technical_analysis` 返回 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、五个加权信号、冲突和综合评分。`finance_research_report` 返回结构化章节以及 Markdown 报告，报告第一行是标题。`finance_provider_describe` 返回已配置 origin 和认证模式。`finance_provider_request` 返回上游 status 和 JSON 值。
 
 -----
 
@@ -124,8 +122,9 @@ fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币
 
 - **Default data is synthetic** — 默认 Provider 是确定性合成数据；实时数据需要 `provider: http`。
 - **Live provider depends on public endpoints** — Yahoo Finance、Binance 和 Polymarket 的可用性、限流、条款和字段变化不受本包控制。
-- **Normalized crypto snapshots are explicit** — 归一化 `load()` 路径映射 `BTC` 和 `ETH`；其他 Binance 符号通过 `finance_provider_query` 的原生操作查询。
-- **Provider-native data is upstream JSON** — 原生查询结果遵循 Provider 字段名、响应结构、限流和端点可用性，而不是本包的统一快照 Schema。
+- **Normalized crypto snapshots are explicit** — 归一化 `load()` 路径映射 `BTC` 和 `ETH`；其他 Binance 符号通过 `finance_provider_request` 查询。
+- **Provider-native data is upstream JSON** — 结果遵循 Provider 字段名、响应结构、限流、认证和端点可用性，而不是本包的统一快照 Schema。
+- **Public transport only** — 当前 HTTP Provider 配置公共 base；认证/私有账户端点需要凭据和签名 Provider。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。
 
 <a id="dev-note"></a>

@@ -723,7 +723,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:36`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:34`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 
