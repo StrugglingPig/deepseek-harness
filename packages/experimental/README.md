@@ -25,6 +25,8 @@ The experimental group contains prototype capabilities whose contracts can chang
 | Package | Role | ctx key |
 |---|---|---|
 | [`agent-team-profile`](agent-team-profile/README.md) | Published opt-in profile layer for Agent Teams | — |
+| [`finance-research`](finance-research/README.md) | Deterministic finance snapshots, indicators, and reports | registers tools on `ctx.tools` |
+| [`finance-research-profile`](finance-research-profile/README.md) | Profile layer for the finance research tools | — |
 | [`agent-team`](agent-team/README.md) | Named teammates with durable messages and a shared task board | `ctx.agentTeams` |
 | [`agent-team-web-profile`](agent-team-web-profile/README.md) | Published opt-in Web layer for Agent Teams | — |
 | [`client-ui-agent-team`](client-ui-agent-team/README.md) | Team roster, task board, and teammate navigation for Web | — |

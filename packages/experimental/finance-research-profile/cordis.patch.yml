@@ -1,0 +1,7 @@
+# Experimental finance research layer. Apply after dsh-base and, when Agent
+# Teams are enabled, after dsh-experimental-agent-team-profile. It adds only
+# finance-owned tool rows and never re-enables the Team-disabled subagent rows.
+
+- insert:
+    - id: finance-research
+      name: '@deepseek-ai/dsh-experimental-finance-research'
