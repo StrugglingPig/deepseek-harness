@@ -133,7 +133,9 @@ describe('ModelsSettingsStore', () => {
     const byProvider = new Map(state.rows.map(row => [row.entry.provider, row]))
     expect(byProvider.get('deepseek-official')).toMatchObject({
       configured: true,
-      clearable: false,
+      // The route is mounted by its composition, so withdrawing it is an
+      // action that stands whether or not the section carries anything.
+      clearable: true,
       apiKeyEnv: 'DEEPSEEK_API_KEY',
       credential: { configured: false, writable: true },
     })
@@ -147,6 +149,23 @@ describe('ModelsSettingsStore', () => {
     expect(byProvider.get('anthropic')?.apiKeyEnv).toBeUndefined()
     expect(byProvider.get('ghost')).toMatchObject({ configured: false, clearable: false })
     expect(state.namespaces.get('llm-pi-ai')?.ns).toBe('llm-pi-ai')
+  })
+
+  it('offers Delete for a built-in route whose section the user layer never touched', async () => {
+    // The withdrawn-then-restored round trip ends here: the adapter mounts the
+    // route on its own, so an empty section is a state this page still has to
+    // be able to act on.
+    const empty = { ...NAMESPACES[0], user: undefined } as never
+    const { ctx, mirror } = api({
+      describeSettings: () => Promise.resolve(remoteOk({
+        writable: true, hasDocument: false, namespaces: [empty, ...NAMESPACES.slice(1)],
+      })),
+    })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+
+    expect(store.store.getSnapshot().rows.find(row => row.entry.provider === 'deepseek-official'))
+      .toMatchObject({ clearable: true })
   })
 
   it('makes a main route clearable from the user section its whole-section profile occupies', async () => {

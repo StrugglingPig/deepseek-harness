@@ -156,16 +156,16 @@ export function protocolChoices(
 }
 
 /**
- * Whether the user layer is the layer carrying this row's settings — the one
- * layer a settings document can clear. A nested profile is answered by its own
- * path; a built-in provider has no such profile, so the question is whether
- * the section carries anything beyond the withdrawal flag: a section holding
- * nothing else is a provider this deployment still mounts with its composed
- * defaults, and deleting that would be an action with nothing to act on.
+ * Whether this row's Delete action has anything to act on. A nested profile is
+ * removable when the user layer carries it, since removing it is what restores
+ * the adapter's catalogue. A built-in provider is always removable: the route
+ * it names is mounted by its composition whether or not the section holds
+ * anything, and deleting it withdraws that route — an action that stands on
+ * its own, so a section holding nothing is no reason to withhold it.
  * @param namespace - the row's owning namespace view, when it resolved.
  * @param path - path from the section root to this provider's profile.
  * @param schema - settings-owned schema and immutable path operations.
- * @returns whether this row's Delete action has anything to act on.
+ * @returns whether this row offers Delete.
  */
 function userCarries(
   namespace: SettingsNamespaceView | undefined,
@@ -173,16 +173,8 @@ function userCarries(
   schema: SettingsSchemaOperations,
 ): boolean {
   if (namespace === undefined) return false
-  if (path.length > 0) return schema.hasPath(namespace.user, path)
-  return Object.keys(rawSection(namespace.user)).some(
-    key => key !== 'disabled' && schema.getPath(namespace.user, [key]) !== undefined,
-  )
-}
-
-/** A raw user section as an object, or an empty one when it is absent or not an object. */
-function rawSection(user: unknown): Record<string, unknown> {
-  if (typeof user !== 'object' || user === null || Array.isArray(user)) return {}
-  return user as Record<string, unknown>
+  if (path.length === 0) return true
+  return schema.hasPath(namespace.user, path)
 }
 
 /** The credential reference a resolved profile names (its `apiKeyEnv` field). */
