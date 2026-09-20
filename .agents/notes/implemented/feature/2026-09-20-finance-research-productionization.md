@@ -14,6 +14,8 @@ The finance Host plugin owns a settings namespace, resolves Binance credentials 
 
 `FinanceHttpTransport` owns per-origin token-bucket rate limiting, successful GET caching, bounded exponential retry, request timeouts, and stable transport errors. Cache, retry, rate-limit, and timeout values are plugin `Config` fields surfaced in Finance settings. The HTTP provider delegates public and signed requests through this transport.
 
+CoinMarketCap is a separate configured provider base with its own `X-CMC_PRO_API_KEY` credential reference. `finance_coinmarketcap_quotes` and `finance_coinmarketcap_ohlcv` normalize the REST responses, while `finance_realtime_stream` routes `provider: coinmarketcap` to `CoinMarketCapWebSocketStreamProvider`, which performs the documented handshake, sends the `market@crypto_latest_price` subscription, and returns bounded data frames. The key is resolved only on the Host and never enters settings, model-visible results, or the browser.
+
 `BinanceWebSocketStreamProvider` performs bounded collection from Binance's combined market-data stream and backs `finance_realtime_stream`. It returns a finite event batch rather than an unbounded model-facing stream; the Web dashboard owns its own browser-side live connection.
 
 `finance_monitor_plan` computes deterministic pre-market, after-hours, and BTC 24/7 `schedule_create` arguments. It does not introduce a finance scheduler or persistence format. The finance profile inserts the existing `@deepseek-ai/dsh-schedule` package so Schedule owns durable reminder creation, delivery, and restart behavior. Pre-market and after-hours plans are one-shot checks whose prompt requests the next session after reporting.

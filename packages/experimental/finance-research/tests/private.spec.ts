@@ -174,6 +174,8 @@ describe('Binance private account data', () => {
       polymarketGammaBaseUrl: 'https://gamma.test',
       polymarketClobBaseUrl: 'https://clob.test',
       enableSignedRequests: false,
+      enableCoinMarketCapRequests: false,
+      coinMarketCapBaseUrl: 'https://pro-api.test',
       requestCacheTtlMs: 0,
       requestCacheMaxEntries: 0,
       requestMaxRetries: 0,
@@ -182,6 +184,7 @@ describe('Binance private account data', () => {
       requestsPerMinute: 60,
       requestBurst: 1,
       binanceWebSocketBaseUrl: 'wss://stream.test',
+      coinMarketCapWebSocketBaseUrl: 'wss://pro-stream.test/v1',
       marketStreamTimeoutMs: 1_000,
       marketStreamMaxEvents: 2,
     }

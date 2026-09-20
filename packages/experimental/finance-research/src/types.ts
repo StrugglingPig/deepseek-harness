@@ -106,6 +106,62 @@ export interface FinancePrivateAccountSnapshot {
   readonly openOrders?: readonly FinancePrivateOpenOrder[]
 }
 
+/** One CoinMarketCap latest-quote request. */
+export interface FinanceCoinMarketCapQuoteRequest {
+  /** One CoinMarketCap numeric ID. */
+  readonly id?: number
+  /** One or more CoinMarketCap numeric IDs. */
+  readonly ids?: readonly number[]
+  /** One or more cryptocurrency symbols. */
+  readonly symbols?: readonly string[]
+  /** Conversion currency; defaults to USD. */
+  readonly convert?: string
+}
+
+/** One normalized CoinMarketCap quote. */
+export interface FinanceCoinMarketCapQuote {
+  readonly id: number
+  readonly name: string
+  readonly symbol: string
+  readonly slug?: string
+  readonly rank?: number
+  readonly currency: string
+  readonly price?: number
+  readonly percentChange24h?: number
+  readonly marketCap?: number
+  readonly volume24h?: number
+  readonly lastUpdated?: string
+}
+
+/** One CoinMarketCap OHLCV request. */
+export interface FinanceCoinMarketCapOhlcvRequest {
+  /** One CoinMarketCap numeric ID. */
+  readonly id?: number
+  /** CoinMarketCap numeric IDs. */
+  readonly ids?: readonly number[]
+  /** Cryptocurrency symbols. */
+  readonly symbols?: readonly string[]
+  /** Conversion currency; defaults to USD. */
+  readonly convert?: string
+  /** Exclusive ISO start time. */
+  readonly timeStart?: string
+  /** Inclusive ISO end time. */
+  readonly timeEnd?: string
+  /** Number of periods when no start time is supplied. */
+  readonly count?: number
+  /** CoinMarketCap interval such as `1d` or `1h`. */
+  readonly interval?: string
+}
+
+/** One normalized CoinMarketCap OHLCV series. */
+export interface FinanceCoinMarketCapOhlcvSeries {
+  readonly id: number
+  readonly name: string
+  readonly symbol: string
+  readonly currency: string
+  readonly bars: readonly MarketBar[]
+}
+
 /** Replacing this provider changes the data source without changing the tools. */
 export interface FinanceMarketDataProvider {
   readonly id: string
@@ -117,6 +173,16 @@ export interface FinanceMarketDataProvider {
   request?(request: FinanceProviderRequest, signal?: AbortSignal): Promise<FinanceProviderResponse>
   /** Load normalized read-only private account data when the provider supports it. */
   loadPrivateAccount?(request: FinancePrivateAccountRequest, signal?: AbortSignal): Promise<FinancePrivateAccountSnapshot>
+  /** Load normalized CoinMarketCap latest quotes when the provider supports it. */
+  loadCoinMarketCapQuotes?(
+    request: FinanceCoinMarketCapQuoteRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceCoinMarketCapQuote[]>
+  /** Load normalized CoinMarketCap OHLCV history when the provider supports it. */
+  loadCoinMarketCapOhlcv?(
+    request: FinanceCoinMarketCapOhlcvRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceCoinMarketCapOhlcvSeries[]>
 }
 
 /** Lossless JSON value accepted from or returned by provider-native requests. */
@@ -162,13 +228,17 @@ export interface FinanceProviderRequest {
   /** Optional request headers; model tools do not expose credential headers. */
   readonly headers?: Readonly<Record<string, string>>
   /** Authentication mode requested by the caller. */
-  readonly auth?: 'none' | 'signed'
+  readonly auth?: 'none' | 'api-key' | 'signed'
 }
 
 /** One bounded WebSocket collection request. */
 export interface FinanceMarketStreamRequest {
+  /** Stream provider; defaults to Binance. */
+  readonly provider?: 'binance' | 'coinmarketcap'
   /** Combined-stream names such as `btcusdt@miniTicker`. */
   readonly streams: readonly string[]
+  /** CoinMarketCap numeric cryptocurrency IDs for latest-price subscriptions. */
+  readonly cryptoIds?: readonly number[]
   /** Optional collection timeout in milliseconds. */
   readonly timeoutMs?: number
   /** Optional maximum parsed events. */
@@ -177,6 +247,8 @@ export interface FinanceMarketStreamRequest {
 
 /** One parsed real-time stream event. */
 export interface FinanceMarketStreamEvent {
+  /** Provider that produced the event. */
+  readonly provider?: 'binance' | 'coinmarketcap'
   /** Combined-stream name. */
   readonly stream: string
   /** Local receipt time in UTC. */

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a data-to-report path over deterministic fixture data or live public HTTP and WebSocket providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical indicators and a weighted multi-indicator summary, builds a structured Markdown report, exposes generic provider requests, adds read-only normalized Binance private-account reads, and collects bounded real-time Binance stream events. A deterministic monitor planner returns `schedule_create` arguments for pre-market, after-hours, and BTC 24/7 checks.
+`dsh-experimental-finance-research` gives a finance research session a data-to-report path over deterministic fixture data or live public HTTP and WebSocket providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical indicators and a weighted multi-indicator summary, builds a structured Markdown report, exposes generic provider requests, adds read-only normalized Binance private-account reads, reads CoinMarketCap quotes and OHLCV, and collects bounded real-time Binance or CoinMarketCap stream events. A deterministic monitor planner returns `schedule_create` arguments for pre-market, after-hours, and BTC 24/7 checks.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, and `finance_realtime_stream` when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
+Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, and `finance_realtime_stream` when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-finance-research'
@@ -58,7 +58,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 With `provider: http`, call `finance_provider_describe` to discover configured bases, authentication mode, and upstream documentation. Then call `finance_provider_request` with a base, an upstream path, a method, and provider-native query or body parameters.
 
-The provider does not enforce an endpoint whitelist. What can be obtained is limited by the upstream API, credentials, rate limits, account permissions, network policy, and applicable terms. Binance Spot, USD-M Futures, COIN-M Futures, Options, Yahoo Finance, Polymarket Gamma, and Polymarket CLOB are configured as separate bases.
+The provider does not enforce an endpoint whitelist. What can be obtained is limited by the upstream API, credentials, rate limits, account permissions, network policy, and applicable terms. Binance Spot, USD-M Futures, COIN-M Futures, Options, Yahoo Finance, Polymarket Gamma, Polymarket CLOB, and CoinMarketCap Pro are configured as separate bases. CoinMarketCap REST and WebSocket requests use the stored `FINANCE_COINMARKETCAP_API_KEY` credential; the key is sent only by the Host.
 
 Examples:
 
@@ -106,7 +106,7 @@ The package separates data, credentials, transport, analysis, report constructio
 
 #### What the model sees
 
-The model sees up to eight generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report` cover normalized research; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_realtime_stream` returns a bounded WebSocket event batch; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except the report result, which contains the complete Markdown report.
+The model sees up to ten generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report` cover normalized research; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_coinmarketcap_quotes` and `finance_coinmarketcap_ohlcv` expose normalized CoinMarketCap market data; `finance_realtime_stream` returns a bounded Binance or CoinMarketCap WebSocket event batch; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except the report result, which contains the complete Markdown report.
 
 #### Token effect
 
@@ -126,6 +126,7 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Provider-native data is upstream JSON** — results follow provider field names, response shapes, rate limits, authentication, and endpoint availability rather than this package's normalized snapshot schema.
 - **Private account data is read-only** — signed Binance requests are limited to GET/query endpoints; order placement, cancellation, and withdrawal operations are not provided.
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
+- **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
 - **The Web dashboard is a separate plugin** — live charts are browser-side and read public Binance Spot data; private account data remains Host-only.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 

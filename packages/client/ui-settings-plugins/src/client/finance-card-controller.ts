@@ -15,9 +15,12 @@ export const FINANCE_NS = 'finance-research'
 export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 /** Credential reference for the Binance API secret. */
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
+/** Credential reference for the CoinMarketCap API key. */
+export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
 
 const API_KEY_FIELD = 'binanceApiKey'
 const API_SECRET_FIELD = 'binanceApiSecret'
+const COINMARKETCAP_API_KEY_FIELD = 'coinMarketCapApiKey'
 
 /** Non-secret fields this page edits. */
 export interface FinanceSettings {
@@ -31,7 +34,9 @@ export interface FinanceSettings {
   binanceOptionsBaseUrl?: string
   polymarketGammaBaseUrl?: string
   polymarketClobBaseUrl?: string
+  coinMarketCapBaseUrl?: string
   enableSignedRequests?: boolean
+  enableCoinMarketCapRequests?: boolean
   requestCacheTtlMs?: number
   requestCacheMaxEntries?: number
   requestMaxRetries?: number
@@ -40,6 +45,7 @@ export interface FinanceSettings {
   requestsPerMinute?: number
   requestBurst?: number
   binanceWebSocketBaseUrl?: string
+  coinMarketCapWebSocketBaseUrl?: string
   marketStreamTimeoutMs?: number
   marketStreamMaxEvents?: number
 }
@@ -61,7 +67,9 @@ export interface FinanceCardState extends CardShell {
   binanceOptionsBaseUrl: CardFieldState
   polymarketGammaBaseUrl: CardFieldState
   polymarketClobBaseUrl: CardFieldState
+  coinMarketCapBaseUrl: CardFieldState
   enableSignedRequests: CardFieldState
+  enableCoinMarketCapRequests: CardFieldState
   requestCacheTtlMs: CardFieldState
   requestCacheMaxEntries: CardFieldState
   requestMaxRetries: CardFieldState
@@ -70,14 +78,18 @@ export interface FinanceCardState extends CardShell {
   requestsPerMinute: CardFieldState
   requestBurst: CardFieldState
   binanceWebSocketBaseUrl: CardFieldState
+  coinMarketCapWebSocketBaseUrl: CardFieldState
   marketStreamTimeoutMs: CardFieldState
   marketStreamMaxEvents: CardFieldState
   binanceApiKey: CardFieldState
   binanceApiSecret: CardFieldState
+  coinMarketCapApiKey: CardFieldState
   binanceApiKeyConfigured: boolean
   binanceApiSecretConfigured: boolean
+  coinMarketCapApiKeyConfigured: boolean
   binanceApiKeyWritable: boolean
   binanceApiSecretWritable: boolean
+  coinMarketCapApiKeyWritable: boolean
 }
 
 /** Registration-side face injected into the finance settings component. */
@@ -93,6 +105,7 @@ export class FinanceCardController {
   private readonly store: SnapshotStore<FinanceCardState>
   private apiKey: CredentialState = { configured: false, writable: true }
   private apiSecret: CredentialState = { configured: false, writable: true }
+  private coinMarketCapApiKey: CredentialState = { configured: false, writable: true }
 
   /**
    * @param scope - Bound `finance-research` settings scope.
@@ -109,16 +122,19 @@ export class FinanceCardController {
         textField('yahooBaseUrl'), textField('binanceBaseUrl'), textField('binanceUsdmBaseUrl'),
         textField('binanceCoinmBaseUrl'), textField('binanceOptionsBaseUrl'),
         textField('polymarketGammaBaseUrl'), textField('polymarketClobBaseUrl'),
-        booleanField('enableSignedRequests'), numberField('requestCacheTtlMs'),
+        textField('coinMarketCapBaseUrl'),
+        booleanField('enableSignedRequests'), booleanField('enableCoinMarketCapRequests'),
+        numberField('requestCacheTtlMs'),
         numberField('requestCacheMaxEntries'), numberField('requestMaxRetries'),
         numberField('requestRetryBaseDelayMs'), numberField('requestRetryMaxDelayMs'),
         numberField('requestsPerMinute'), numberField('requestBurst'),
-        textField('binanceWebSocketBaseUrl'), numberField('marketStreamTimeoutMs'),
-        numberField('marketStreamMaxEvents'),
+        textField('binanceWebSocketBaseUrl'), textField('coinMarketCapWebSocketBaseUrl'),
+        numberField('marketStreamTimeoutMs'), numberField('marketStreamMaxEvents'),
       ],
       [
         { field: API_KEY_FIELD, write: text => this.writeCredential(BINANCE_API_KEY_REF, text) },
         { field: API_SECRET_FIELD, write: text => this.writeCredential(BINANCE_API_SECRET_REF, text) },
+        { field: COINMARKETCAP_API_KEY_FIELD, write: text => this.writeCredential(COINMARKETCAP_API_KEY_REF, text) },
       ],
     )
     this.store = this.form.bind(() => this.projection())
@@ -139,7 +155,9 @@ export class FinanceCardController {
       binanceOptionsBaseUrl: this.form.field('binanceOptionsBaseUrl'),
       polymarketGammaBaseUrl: this.form.field('polymarketGammaBaseUrl'),
       polymarketClobBaseUrl: this.form.field('polymarketClobBaseUrl'),
+      coinMarketCapBaseUrl: this.form.field('coinMarketCapBaseUrl'),
       enableSignedRequests: this.form.field('enableSignedRequests'),
+      enableCoinMarketCapRequests: this.form.field('enableCoinMarketCapRequests'),
       requestCacheTtlMs: this.form.field('requestCacheTtlMs'),
       requestCacheMaxEntries: this.form.field('requestCacheMaxEntries'),
       requestMaxRetries: this.form.field('requestMaxRetries'),
@@ -148,28 +166,42 @@ export class FinanceCardController {
       requestsPerMinute: this.form.field('requestsPerMinute'),
       requestBurst: this.form.field('requestBurst'),
       binanceWebSocketBaseUrl: this.form.field('binanceWebSocketBaseUrl'),
+      coinMarketCapWebSocketBaseUrl: this.form.field('coinMarketCapWebSocketBaseUrl'),
       marketStreamTimeoutMs: this.form.field('marketStreamTimeoutMs'),
       marketStreamMaxEvents: this.form.field('marketStreamMaxEvents'),
       binanceApiKey: this.form.field(API_KEY_FIELD),
       binanceApiSecret: this.form.field(API_SECRET_FIELD),
+      coinMarketCapApiKey: this.form.field(COINMARKETCAP_API_KEY_FIELD),
       binanceApiKeyConfigured: this.apiKey.configured,
       binanceApiSecretConfigured: this.apiSecret.configured,
+      coinMarketCapApiKeyConfigured: this.coinMarketCapApiKey.configured,
       binanceApiKeyWritable: this.apiKey.writable,
       binanceApiSecretWritable: this.apiSecret.writable,
+      coinMarketCapApiKeyWritable: this.coinMarketCapApiKey.writable,
     }
   }
 
   private async readCredentials(): Promise<void> {
-    const response = await this.ctx.remote.credentials.describe([BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF])
+    const response = await this.ctx.remote.credentials.describe([
+      BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF,
+    ])
     if (!response.ok) return
     const apiKey = response.value[BINANCE_API_KEY_REF]
     const apiSecret = response.value[BINANCE_API_SECRET_REF]
+    const coinMarketCapApiKey = response.value[COINMARKETCAP_API_KEY_REF]
     const nextKey = { configured: apiKey?.configured ?? false, writable: apiKey?.writable ?? true }
     const nextSecret = { configured: apiSecret?.configured ?? false, writable: apiSecret?.writable ?? true }
+    const nextCoinMarketCapKey = {
+      configured: coinMarketCapApiKey?.configured ?? false,
+      writable: coinMarketCapApiKey?.writable ?? true,
+    }
     if (nextKey.configured === this.apiKey.configured && nextKey.writable === this.apiKey.writable
-      && nextSecret.configured === this.apiSecret.configured && nextSecret.writable === this.apiSecret.writable) return
+      && nextSecret.configured === this.apiSecret.configured && nextSecret.writable === this.apiSecret.writable
+      && nextCoinMarketCapKey.configured === this.coinMarketCapApiKey.configured
+      && nextCoinMarketCapKey.writable === this.coinMarketCapApiKey.writable) return
     this.apiKey = nextKey
     this.apiSecret = nextSecret
+    this.coinMarketCapApiKey = nextCoinMarketCapKey
     this.store.set(this.projection())
   }
 
@@ -178,13 +210,17 @@ export class FinanceCardController {
    * @param ref - Changed credential reference.
    */
   refreshCredential(ref: string): void {
-    if (ref === BINANCE_API_KEY_REF || ref === BINANCE_API_SECRET_REF) void this.readCredentials()
+    if (ref === BINANCE_API_KEY_REF || ref === BINANCE_API_SECRET_REF || ref === COINMARKETCAP_API_KEY_REF) {
+      void this.readCredentials()
+    }
   }
 
   private async writeCredential(ref: string, value: string): Promise<boolean> {
     await this.ctx.remote.credentials.set(ref, value)
     await this.readCredentials()
-    return ref === BINANCE_API_KEY_REF ? this.apiKey.configured : this.apiSecret.configured
+    if (ref === BINANCE_API_KEY_REF) return this.apiKey.configured
+    if (ref === BINANCE_API_SECRET_REF) return this.apiSecret.configured
+    return this.coinMarketCapApiKey.configured
   }
 
   /**

@@ -33,7 +33,7 @@ Preset 不挂载 `tool-subagent`、`tool-subagent-fork` 或全局 continuable-ch
 dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
 ```
 
-Patch 会把插入的 `finance-research` 行设置为 `provider: http`。它需要能够访问这些公共 Provider 端点。HTTP Provider 还会注册 `finance_provider_describe`、`finance_provider_request`、`finance_private_account` 和 `finance_realtime_stream`；可查询 Provider 原生路径、只读 Binance 账户数据，以及有界的 WebSocket 实时事件。数据可用性取决于上游 API、凭据、限流和账户权限，而不是本地白名单。
+Patch 会把插入的 `finance-research` 行设置为 `provider: http`。它需要能够访问这些公共 Provider 端点。HTTP Provider 还会注册 `finance_provider_describe`、`finance_provider_request`、`finance_private_account`、`finance_coinmarketcap_quotes`、`finance_coinmarketcap_ohlcv` 和 `finance_realtime_stream`；可查询 Provider 原生路径、只读 Binance 账户数据、CoinMarketCap 行情/OHLCV，以及有界的 Binance 或 CoinMarketCap WebSocket 实时事件。CoinMarketCap API Key 请在金融设置中保存，并开启 CoinMarketCap API 请求。数据可用性取决于上游 API、凭据、限流、套餐和账户权限，而不是本地白名单。
 
 ## Web 仪表盘
 

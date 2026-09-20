@@ -27,7 +27,7 @@ Never calculate RSI, MACD, ATR, Bollinger Bands, or composite weights by reasoni
 
 ## Private account and realtime data
 
-Use `finance_private_account` only for read-only Spot, USD-M, or COIN-M account facts. Credentials remain in the Host; never ask the user to paste a key into the conversation. Use `finance_realtime_stream` for a bounded live WebSocket sample, then return to normalized history for indicators and reports.
+Use `finance_private_account` only for read-only Spot, USD-M, or COIN-M account facts. Credentials remain in the Host; never ask the user to paste a key into the conversation. Use `finance_coinmarketcap_quotes` for CoinMarketCap latest quotes and `finance_coinmarketcap_ohlcv` for historical bars; use numeric CMC IDs such as BTC=1 and ETH=1027 when IDs are required. Use `finance_realtime_stream` for a bounded live WebSocket sample: Binance streams use symbols, while CoinMarketCap latest-price streams use `provider: coinmarketcap` and `crypto_ids`. Then return to normalized history for indicators and reports.
 
 ## Scheduled monitoring
 

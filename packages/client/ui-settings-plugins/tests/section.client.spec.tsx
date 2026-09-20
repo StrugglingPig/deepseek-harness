@@ -464,7 +464,9 @@ describe('FinanceSettingsPage', () => {
       binanceOptionsBaseUrl: field('https://options.test'),
       polymarketGammaBaseUrl: field('https://gamma.test'),
       polymarketClobBaseUrl: field('https://clob.test'),
+      coinMarketCapBaseUrl: field('https://pro-api.test'),
       enableSignedRequests: field('true'),
+      enableCoinMarketCapRequests: field('true'),
       requestCacheTtlMs: field('100'),
       requestCacheMaxEntries: field('10'),
       requestMaxRetries: field('2'),
@@ -473,14 +475,18 @@ describe('FinanceSettingsPage', () => {
       requestsPerMinute: field('60'),
       requestBurst: field('2'),
       binanceWebSocketBaseUrl: field('wss://stream.test'),
+      coinMarketCapWebSocketBaseUrl: field('wss://pro-stream.test/v1'),
       marketStreamTimeoutMs: field('1000'),
       marketStreamMaxEvents: field('2'),
       binanceApiKey: field(''),
       binanceApiSecret: field(''),
+      coinMarketCapApiKey: field(''),
       binanceApiKeyConfigured: true,
       binanceApiSecretConfigured: true,
+      coinMarketCapApiKeyConfigured: true,
       binanceApiKeyWritable: true,
       binanceApiSecretWritable: true,
+      coinMarketCapApiKeyWritable: true,
       ...overrides,
     }
   }
@@ -509,6 +515,10 @@ describe('FinanceSettingsPage', () => {
     fireEvent.change(screen.getByLabelText(en.financeBarLimit), { target: { value: '80' } })
     fireEvent.change(screen.getByLabelText(en.financeYahooBaseUrl), { target: { value: 'https://other-yahoo.test' } })
     fireEvent.click(screen.getByLabelText(en.financeEnableSignedRequests))
+    fireEvent.click(screen.getByLabelText(en.financeEnableCoinMarketCapRequests))
+    fireEvent.change(screen.getByLabelText(en.financeCoinMarketCapBaseUrl), { target: { value: 'https://other-cmc.test' } })
+    fireEvent.change(screen.getByLabelText(en.financeCoinMarketCapWebSocketBaseUrl), { target: { value: 'wss://other-cmc-stream.test/v1' } })
+    fireEvent.change(screen.getByLabelText(en.financeCoinMarketCapApiKey), { target: { value: 'cmc-key' } })
     fireEvent.change(screen.getByLabelText(en.financeBinanceWebSocketBaseUrl), { target: { value: 'wss://other.test' } })
     fireEvent.change(screen.getByLabelText(en.financeMarketStreamTimeoutMs), { target: { value: '2000' } })
     fireEvent.change(screen.getByLabelText(en.financeMarketStreamMaxEvents), { target: { value: '3' } })
@@ -525,6 +535,10 @@ describe('FinanceSettingsPage', () => {
       ['barLimit', '80'],
       ['yahooBaseUrl', 'https://other-yahoo.test'],
       ['enableSignedRequests', 'false'],
+      ['enableCoinMarketCapRequests', 'false'],
+      ['coinMarketCapBaseUrl', 'https://other-cmc.test'],
+      ['coinMarketCapWebSocketBaseUrl', 'wss://other-cmc-stream.test/v1'],
+      ['coinMarketCapApiKey', 'cmc-key'],
       ['binanceWebSocketBaseUrl', 'wss://other.test'],
       ['marketStreamTimeoutMs', '2000'],
       ['marketStreamMaxEvents', '3'],
@@ -534,19 +548,22 @@ describe('FinanceSettingsPage', () => {
     ]))
     expect(actions.save).toHaveBeenCalledOnce()
     expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
-    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(2)
+    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(3)
   })
 
   it('uses provider and credential fallback branches', () => {
     renderFinance({
       provider: field(''),
       enableSignedRequests: field('false'),
+      enableCoinMarketCapRequests: field('false'),
       binanceApiKeyConfigured: false,
       binanceApiSecretConfigured: false,
+      coinMarketCapApiKeyConfigured: false,
     })
     fireEvent.click(screen.getByLabelText(en.financeEnableSignedRequests))
+    fireEvent.click(screen.getByLabelText(en.financeEnableCoinMarketCapRequests))
     expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('value', 'fixture')
-    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(2)
+    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(3)
   })
 
   it('disables settings and credential controls when their owners are read-only', () => {

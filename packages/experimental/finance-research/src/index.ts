@@ -6,7 +6,12 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { createBinanceRequestAuthorizer, type FinanceCredentialResolver } from './auth.ts'
+import {
+  composeRequestAuthorizers,
+  createBinanceRequestAuthorizer,
+  createCoinMarketCapRequestAuthorizer,
+  type FinanceCredentialResolver,
+} from './auth.ts'
 import { FinanceDataError } from './error.ts'
 import { fixtureProvider } from './data.ts'
 import {
@@ -31,8 +36,21 @@ export {
   priceBandDirection, rsiDirection, trendDirection, volumeDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
-export { BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, createBinanceRequestAuthorizer } from './auth.ts'
-export type { BinanceRequestAuthorizerOptions, FinanceCredentialResolver, FinanceRequestAuthorizer } from './auth.ts'
+export {
+  BINANCE_API_KEY_REF,
+  BINANCE_API_SECRET_REF,
+  COINMARKETCAP_API_KEY_REF,
+  composeRequestAuthorizers,
+  createBinanceRequestAuthorizer,
+  createCoinMarketCapRequestAuthorizer,
+} from './auth.ts'
+export type {
+  BinanceRequestAuthorizerOptions,
+  CoinMarketCapRequestAuthorizerOptions,
+  FinanceCredentialResolver,
+  FinanceRequestAuthorizer,
+} from './auth.ts'
+export { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 export { SettingsFinanceMarketDataProvider } from './settings-provider.ts'
 export type { FinanceRuntimeSettings } from './settings-provider.ts'
 export {
@@ -67,8 +85,12 @@ export interface Config {
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
   readonly polymarketClobBaseUrl?: string
+  /** CoinMarketCap Pro REST origin. */
+  readonly coinMarketCapBaseUrl?: string
   /** Whether the user permits explicit signed Binance requests. */
   readonly enableSignedRequests?: boolean
+  /** Whether the user permits CoinMarketCap API-key requests. */
+  readonly enableCoinMarketCapRequests?: boolean
   /** Successful GET cache lifetime in milliseconds. */
   readonly requestCacheTtlMs?: number
   /** Maximum cached GET responses. */
@@ -85,6 +107,8 @@ export interface Config {
   readonly requestBurst?: number
   /** Binance combined-stream WebSocket origin. */
   readonly binanceWebSocketBaseUrl?: string
+  /** CoinMarketCap latest-price WebSocket origin. */
+  readonly coinMarketCapWebSocketBaseUrl?: string
   /** WebSocket collection timeout in milliseconds. */
   readonly marketStreamTimeoutMs?: number
   /** Maximum WebSocket events returned by one collection. */
@@ -106,7 +130,9 @@ export const Config: z<Config> = z.object({
   binanceOptionsBaseUrl: z.string().default('https://eapi.binance.com'),
   polymarketGammaBaseUrl: z.string().default('https://gamma-api.polymarket.com'),
   polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
+  coinMarketCapBaseUrl: z.string().default('https://pro-api.coinmarketcap.com'),
   enableSignedRequests: z.boolean().default(false),
+  enableCoinMarketCapRequests: z.boolean().default(false),
   requestCacheTtlMs: z.number().min(0).default(5_000),
   requestCacheMaxEntries: z.number().step(1).min(0).default(256),
   requestMaxRetries: z.number().step(1).min(0).default(2),
@@ -115,6 +141,7 @@ export const Config: z<Config> = z.object({
   requestsPerMinute: z.number().min(1).default(120),
   requestBurst: z.number().step(1).min(1).default(10),
   binanceWebSocketBaseUrl: z.string().default('wss://stream.binance.com:9443'),
+  coinMarketCapWebSocketBaseUrl: z.string().default('wss://pro-stream.coinmarketcap.com/v1'),
   marketStreamTimeoutMs: z.number().min(1).default(15_000),
   marketStreamMaxEvents: z.number().step(1).min(1).default(100),
 })
@@ -638,16 +665,170 @@ export function registerFinanceTools(
     }))
   }
 
+  const loadCoinMarketCapQuotes = provider.loadCoinMarketCapQuotes?.bind(provider)
+  if (loadCoinMarketCapQuotes !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'finance_coinmarketcap_quotes',
+      description: 'Read latest CoinMarketCap cryptocurrency quotes through the Host API-key credential. Pass CoinMarketCap IDs or symbols and an optional conversion currency.',
+      parameters: {
+        id: { type: 'number', description: 'One CoinMarketCap cryptocurrency ID.' },
+        ids: { type: 'array', description: 'CoinMarketCap cryptocurrency IDs.', items: { type: 'number' } },
+        symbols: { type: 'array', description: 'Cryptocurrency symbols such as BTC or ETH.', items: { type: 'string' } },
+        convert: { type: 'string', description: 'Conversion currency; defaults to USD.' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            quotes: {
+              type: 'array',
+              required: true,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  id: { type: 'number', required: true },
+                  name: { type: 'string', required: true },
+                  symbol: { type: 'string', required: true },
+                  slug: { type: 'string' },
+                  rank: { type: 'number' },
+                  currency: { type: 'string', required: true },
+                  price: { type: 'number' },
+                  percent_change_24h: { type: 'number' },
+                  market_cap: { type: 'number' },
+                  volume_24h: { type: 'number' },
+                  last_updated: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: `${String(value.quotes.length)} CoinMarketCap quote(s)` }],
+      },
+      async execute(args, exec) {
+        const quotes = await loadCoinMarketCapQuotes({
+          ...args.id === undefined ? {} : { id: args.id },
+          ...args.ids === undefined ? {} : { ids: args.ids },
+          ...args.symbols === undefined ? {} : { symbols: args.symbols },
+          ...args.convert === undefined ? {} : { convert: args.convert },
+        }, exec.signal)
+        return {
+          quotes: quotes.map(quote => ({
+            id: quote.id,
+            name: quote.name,
+            symbol: quote.symbol,
+            ...quote.slug === undefined ? {} : { slug: quote.slug },
+            ...quote.rank === undefined ? {} : { rank: quote.rank },
+            currency: quote.currency,
+            ...quote.price === undefined ? {} : { price: quote.price },
+            ...quote.percentChange24h === undefined ? {} : { percent_change_24h: quote.percentChange24h },
+            ...quote.marketCap === undefined ? {} : { market_cap: quote.marketCap },
+            ...quote.volume24h === undefined ? {} : { volume_24h: quote.volume24h },
+            ...quote.lastUpdated === undefined ? {} : { last_updated: quote.lastUpdated },
+          })),
+        }
+      },
+    }))
+  }
+
+  const loadCoinMarketCapOhlcv = provider.loadCoinMarketCapOhlcv?.bind(provider)
+  if (loadCoinMarketCapOhlcv !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'finance_coinmarketcap_ohlcv',
+      description: 'Read CoinMarketCap historical OHLCV through the Host API-key credential. Pass a CoinMarketCap ID or symbol, dates or count, and an interval such as 1d.',
+      parameters: {
+        id: { type: 'number', description: 'One CoinMarketCap cryptocurrency ID.' },
+        ids: { type: 'array', description: 'CoinMarketCap cryptocurrency IDs.', items: { type: 'number' } },
+        symbols: { type: 'array', description: 'Cryptocurrency symbols such as BTC or ETH.', items: { type: 'string' } },
+        convert: { type: 'string', description: 'Conversion currency; defaults to USD.' },
+        time_start: { type: 'string', description: 'Exclusive ISO-8601 start time.' },
+        time_end: { type: 'string', description: 'Inclusive ISO-8601 end time.' },
+        count: { type: 'number', description: 'Number of periods when no start time is supplied.' },
+        interval: { type: 'string', description: 'CoinMarketCap interval such as 1h or 1d.' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            series: {
+              type: 'array',
+              required: true,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  id: { type: 'number', required: true },
+                  name: { type: 'string', required: true },
+                  symbol: { type: 'string', required: true },
+                  currency: { type: 'string', required: true },
+                  bars: {
+                    type: 'array',
+                    required: true,
+                    items: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        timestamp: { type: 'string', required: true },
+                        open: { type: 'number', required: true },
+                        high: { type: 'number', required: true },
+                        low: { type: 'number', required: true },
+                        close: { type: 'number', required: true },
+                        volume: { type: 'number', required: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: `${String(value.series.length)} CoinMarketCap OHLCV series` }],
+      },
+      async execute(args, exec) {
+        const series = await loadCoinMarketCapOhlcv({
+          ...args.id === undefined ? {} : { id: args.id },
+          ...args.ids === undefined ? {} : { ids: args.ids },
+          ...args.symbols === undefined ? {} : { symbols: args.symbols },
+          ...args.convert === undefined ? {} : { convert: args.convert },
+          ...args.time_start === undefined ? {} : { timeStart: args.time_start },
+          ...args.time_end === undefined ? {} : { timeEnd: args.time_end },
+          ...args.count === undefined ? {} : { count: args.count },
+          ...args.interval === undefined ? {} : { interval: args.interval },
+        }, exec.signal)
+        return {
+          series: series.map(item => ({
+            id: item.id,
+            name: item.name,
+            symbol: item.symbol,
+            currency: item.currency,
+            bars: item.bars.map(bar => ({ ...bar })),
+          })),
+        }
+      },
+    }))
+  }
+
   if (streamProvider !== undefined) {
     ctx.tools.register(defineTool({
       name: 'finance_realtime_stream',
-      description: 'Collect a bounded batch of real-time Binance WebSocket market events. Use miniTicker for current prices, trade for prints, or kline_1m for one-minute bars.',
+      description: 'Collect a bounded real-time WebSocket batch. Binance supports miniTicker/trade/kline streams; CoinMarketCap supports latest-price subscriptions by crypto_ids.',
       parameters: {
+        provider: {
+          type: 'string',
+          description: 'WebSocket provider; defaults to Binance.',
+          enum: ['binance', 'coinmarketcap'],
+        },
         symbols: {
           type: 'array',
-          required: true,
           description: 'Binance symbols such as BTCUSDT or ETHUSDT.',
           items: { type: 'string' },
+        },
+        crypto_ids: {
+          type: 'array',
+          description: 'CoinMarketCap numeric cryptocurrency IDs such as 1 for BTC or 1027 for ETH.',
+          items: { type: 'number' },
         },
         stream_type: {
           type: 'string',
@@ -675,6 +856,7 @@ export function registerFinanceTools(
                 type: 'object',
                 additionalProperties: false,
                 properties: {
+                  provider: { type: 'string', required: true, enum: ['binance', 'coinmarketcap'] },
                   stream: { type: 'string', required: true },
                   received_at: { type: 'string', required: true },
                   data: { type: 'json', required: true },
@@ -685,20 +867,39 @@ export function registerFinanceTools(
         },
         render: (_args, value) => [{
           type: 'text',
-          text: `${value.events.length} real-time events from ${new Set(value.events.map(event => event.stream)).size} streams`,
+          text: `${String(value.events.length)} real-time events from ${String(new Set(value.events.map(event => event.stream)).size)} streams`,
         }],
       },
       async execute(args, exec) {
-        if (args.symbols.length === 0) throw new FinanceDataError('symbols must contain at least one Binance symbol', 'INVALID_STREAM')
-        const streamType = args.stream_type ?? 'miniTicker'
-        const streams = args.symbols.map(symbol => `${symbol.trim().toLowerCase()}@${streamType}`)
-        const events = await streamProvider.collect({
-          streams,
-          ...args.timeout_ms === undefined ? {} : { timeoutMs: args.timeout_ms },
-          ...args.max_events === undefined ? {} : { maxEvents: args.max_events },
-        }, exec.signal)
+        const provider = args.provider ?? 'binance'
+        const events = provider === 'coinmarketcap'
+          ? await (() => {
+            if (args.crypto_ids === undefined || args.crypto_ids.length === 0) {
+              throw new FinanceDataError('crypto_ids must contain at least one CoinMarketCap cryptocurrency ID', 'INVALID_STREAM')
+            }
+            return streamProvider.collect({
+              provider,
+              streams: [],
+              cryptoIds: args.crypto_ids,
+              ...args.timeout_ms === undefined ? {} : { timeoutMs: args.timeout_ms },
+              ...args.max_events === undefined ? {} : { maxEvents: args.max_events },
+            }, exec.signal)
+          })()
+          : await (() => {
+            if (args.symbols === undefined || args.symbols.length === 0) {
+              throw new FinanceDataError('symbols must contain at least one Binance symbol', 'INVALID_STREAM')
+            }
+            const streamType = args.stream_type ?? 'miniTicker'
+            return streamProvider.collect({
+              provider,
+              streams: args.symbols.map(symbol => `${symbol.trim().toLowerCase()}@${streamType}`),
+              ...args.timeout_ms === undefined ? {} : { timeoutMs: args.timeout_ms },
+              ...args.max_events === undefined ? {} : { maxEvents: args.max_events },
+            }, exec.signal)
+          })()
         return {
           events: events.map(event => ({
+            provider: event.provider ?? provider,
             stream: event.stream,
             received_at: event.receivedAt,
             data: event.data,
@@ -805,7 +1006,9 @@ export function apply(ctx: Context, config: Config): void {
     binanceOptionsBaseUrl: resolved.binanceOptionsBaseUrl,
     polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
     polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
+    coinMarketCapBaseUrl: resolved.coinMarketCapBaseUrl,
     enableSignedRequests: resolved.enableSignedRequests,
+    enableCoinMarketCapRequests: resolved.enableCoinMarketCapRequests,
     requestCacheTtlMs: resolved.requestCacheTtlMs,
     requestCacheMaxEntries: resolved.requestCacheMaxEntries,
     requestMaxRetries: resolved.requestMaxRetries,
@@ -814,16 +1017,26 @@ export function apply(ctx: Context, config: Config): void {
     requestsPerMinute: resolved.requestsPerMinute,
     requestBurst: resolved.requestBurst,
     binanceWebSocketBaseUrl: resolved.binanceWebSocketBaseUrl,
+    coinMarketCapWebSocketBaseUrl: resolved.coinMarketCapWebSocketBaseUrl,
     marketStreamTimeoutMs: resolved.marketStreamTimeoutMs,
     marketStreamMaxEvents: resolved.marketStreamMaxEvents,
   }
   let resolveCredential: FinanceCredentialResolver = () => Promise.resolve(undefined)
-  const authorize = createBinanceRequestAuthorizer({
-    resolveCredential: ref => resolveCredential(ref),
-    enabled: () => currentSettings.enableSignedRequests,
-  })
+  const authorize = composeRequestAuthorizers(
+    createBinanceRequestAuthorizer({
+      resolveCredential: ref => resolveCredential(ref),
+      enabled: () => currentSettings.enableSignedRequests,
+    }),
+    createCoinMarketCapRequestAuthorizer({
+      resolveCredential: ref => resolveCredential(ref),
+      enabled: () => currentSettings.enableCoinMarketCapRequests,
+    }),
+  )
   const provider = new SettingsFinanceMarketDataProvider(() => currentSettings, authorize)
-  const streamProvider = new SettingsFinanceMarketStreamProvider(() => currentSettings)
+  const streamProvider = new SettingsFinanceMarketStreamProvider(
+    () => currentSettings,
+    ref => resolveCredential(ref),
+  )
   registerFinanceTools(ctx, provider, streamProvider)
 
   ctx.inject(['settings'], (settingsCtx) => {

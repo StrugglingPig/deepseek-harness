@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   BINANCE_API_KEY_REF,
   BINANCE_API_SECRET_REF,
+  COINMARKETCAP_API_KEY_REF,
+  composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
+  createCoinMarketCapRequestAuthorizer,
 } from '../src/auth.ts'
 
 const NOW = Date.UTC(2026, 8, 20, 12, 0, 0)
@@ -104,5 +107,46 @@ describe('Binance request authorizer', () => {
       new URL('https://api.binance.test/api/v3/account'),
       {},
     )).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
+  })
+
+  it('adds the CoinMarketCap API key header only to api-key requests', async () => {
+    const authorize = createCoinMarketCapRequestAuthorizer({
+      resolveCredential: async ref => ref === COINMARKETCAP_API_KEY_REF ? 'cmc-key' : undefined,
+      enabled: () => true,
+    })
+    const headers: Record<string, string> = {}
+    await authorize({ base: 'coinmarketcap', path: '/v3/cryptocurrency/quotes/latest', auth: 'api-key' }, new URL('https://pro-api.test'), headers)
+    expect(headers).toEqual({ 'X-CMC_PRO_API_KEY': 'cmc-key' })
+  })
+
+  it('rejects disabled, wrong-base, and missing CoinMarketCap credentials', async () => {
+    const request = { base: 'coinmarketcap', path: '/v3/cryptocurrency/quotes/latest', auth: 'api-key' } as const
+    await expect(createCoinMarketCapRequestAuthorizer({
+      resolveCredential: async () => 'cmc-key',
+      enabled: () => false,
+    })(request, new URL('https://pro-api.test'), {})).rejects.toMatchObject({ code: 'AUTH_DISABLED' })
+
+    await expect(createCoinMarketCapRequestAuthorizer({
+      resolveCredential: async () => 'cmc-key',
+      enabled: () => true,
+    })({ ...request, base: 'binance-spot' }, new URL('https://pro-api.test'), {})).rejects.toMatchObject({ code: 'AUTH_UNSUPPORTED' })
+
+    await expect(createCoinMarketCapRequestAuthorizer({
+      resolveCredential: async () => undefined,
+      enabled: () => true,
+    })(request, new URL('https://pro-api.test'), {})).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
+  })
+
+  it('composes Binance and CoinMarketCap authorizers without cross-handling', async () => {
+    const authorize = composeRequestAuthorizers(
+      createBinanceRequestAuthorizer(options()),
+      createCoinMarketCapRequestAuthorizer({
+        resolveCredential: async () => 'cmc-key',
+        enabled: () => true,
+      }),
+    )
+    const headers: Record<string, string> = {}
+    await authorize({ base: 'coinmarketcap', path: '/v3/cryptocurrency/quotes/latest', auth: 'api-key' }, new URL('https://pro-api.test'), headers)
+    expect(headers).toEqual({ 'X-CMC_PRO_API_KEY': 'cmc-key' })
   })
 })

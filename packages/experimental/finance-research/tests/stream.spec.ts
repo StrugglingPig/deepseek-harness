@@ -5,6 +5,7 @@ import { BinanceWebSocketStreamProvider } from '../src/stream.ts'
 
 class FakeSocket extends EventEmitter {
   readonly close = vi.fn()
+  readonly send = vi.fn()
   emitMessage(value: unknown): void { this.emit('message', Buffer.from(JSON.stringify(value))) }
 }
 
@@ -31,8 +32,8 @@ describe('Binance WebSocket stream provider', () => {
     socket.emitMessage({ stream: 'ethusdt@miniTicker', data: { c: '3000' } })
 
     await expect(pending).resolves.toEqual([
-      { stream: 'btcusdt@miniTicker', receivedAt: '2026-09-20T10:00:00.000Z', data: { c: '60000' } },
-      { stream: 'ethusdt@miniTicker', receivedAt: '2026-09-20T10:00:00.000Z', data: { c: '3000' } },
+      { provider: 'binance', stream: 'btcusdt@miniTicker', receivedAt: '2026-09-20T10:00:00.000Z', data: { c: '60000' } },
+      { provider: 'binance', stream: 'ethusdt@miniTicker', receivedAt: '2026-09-20T10:00:00.000Z', data: { c: '3000' } },
     ])
     expect(socket.close).toHaveBeenCalledOnce()
   })

@@ -14,6 +14,8 @@ Status: implemented
 
 `FinanceHttpTransport` 负责按 origin 的令牌桶限流、成功 GET 缓存、有界指数重试、请求超时和稳定传输错误。缓存、重试、限流和超时值都是插件 `Config` 字段，并在金融设置中展示。HTTP Provider 的公开请求和签名请求都通过该 transport。
 
+CoinMarketCap 是独立配置的 Provider base，使用自己的 `X-CMC_PRO_API_KEY` 凭据引用。`finance_coinmarketcap_quotes` 和 `finance_coinmarketcap_ohlcv` 标准化 REST 响应；`finance_realtime_stream` 使用 `provider: coinmarketcap` 路由到 `CoinMarketCapWebSocketStreamProvider`，后者执行文档规定的握手、发送 `market@crypto_latest_price` 订阅并返回有界数据帧。Key 只在 Host 解析，不会进入设置、模型可见结果或浏览器。
+
 `BinanceWebSocketStreamProvider` 从 Binance 组合行情流执行有界采集，支撑 `finance_realtime_stream`。它返回有限事件批次，而不是无界模型流；Web 仪表盘拥有自己的浏览器实时连接。
 
 `finance_monitor_plan` 计算确定性的盘前、盘后和 BTC 24/7 `schedule_create` 参数。它不新增金融调度器或持久化格式。金融 Profile 插入现有 `@deepseek-ai/dsh-schedule`，由 Schedule 负责持久提醒的创建、投递和重启行为。盘前和盘后计划是一次性检查，其 prompt 会在报告后请求下一时段。

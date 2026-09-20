@@ -720,8 +720,12 @@ export interface Config {
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
   readonly polymarketClobBaseUrl?: string
+  /** CoinMarketCap Pro REST origin. */
+  readonly coinMarketCapBaseUrl?: string
   /** Whether the user permits explicit signed Binance requests. */
   readonly enableSignedRequests?: boolean
+  /** Whether the user permits CoinMarketCap API-key requests. */
+  readonly enableCoinMarketCapRequests?: boolean
   /** Successful GET cache lifetime in milliseconds. */
   readonly requestCacheTtlMs?: number
   /** Maximum cached GET responses. */
@@ -738,6 +742,8 @@ export interface Config {
   readonly requestBurst?: number
   /** Binance combined-stream WebSocket origin. */
   readonly binanceWebSocketBaseUrl?: string
+  /** CoinMarketCap latest-price WebSocket origin. */
+  readonly coinMarketCapWebSocketBaseUrl?: string
   /** WebSocket collection timeout in milliseconds. */
   readonly marketStreamTimeoutMs?: number
   /** Maximum WebSocket events returned by one collection. */
@@ -745,7 +751,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:49`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:67`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 

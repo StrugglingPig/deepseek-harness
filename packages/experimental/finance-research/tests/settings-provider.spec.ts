@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events'
 import { WebSocketServer } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SettingsFinanceMarketDataProvider, SettingsFinanceMarketStreamProvider, type FinanceRuntimeSettings } from '../src/settings-provider.ts'
-import type { FinanceWebSocketLike } from '../src/stream.ts'
+import type { FinanceWebSocketLike, FinanceWebSocketOptions } from '../src/stream.ts'
+import { COINMARKETCAP_API_KEY_REF } from '../src/auth.ts'
 
 const SETTINGS: FinanceRuntimeSettings = {
   provider: 'http',
@@ -16,6 +17,8 @@ const SETTINGS: FinanceRuntimeSettings = {
   polymarketGammaBaseUrl: 'https://gamma.test',
   polymarketClobBaseUrl: 'https://clob.test',
   enableSignedRequests: true,
+  enableCoinMarketCapRequests: true,
+  coinMarketCapBaseUrl: 'https://pro-api.test',
   requestCacheTtlMs: 100,
   requestCacheMaxEntries: 10,
   requestMaxRetries: 0,
@@ -24,6 +27,7 @@ const SETTINGS: FinanceRuntimeSettings = {
   requestsPerMinute: 60,
   requestBurst: 1,
   binanceWebSocketBaseUrl: 'wss://stream.test',
+  coinMarketCapWebSocketBaseUrl: 'wss://pro-stream.test/v1',
   marketStreamTimeoutMs: 100,
   marketStreamMaxEvents: 2,
 }
@@ -35,7 +39,7 @@ function fixtureSettings(): FinanceRuntimeSettings {
 }
 
 describe('settings-backed finance providers', () => {
-  it('rejects requests, describes fixture data, and rejects private reads in fixture mode', async () => {
+  it('rejects requests, describes fixture data, and rejects private or CMC reads in fixture mode', async () => {
     const provider = new SettingsFinanceMarketDataProvider(() => fixtureSettings(), async () => undefined)
     await expect(provider.request({ base: 'binance-spot', path: '/api/v3/ping' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
@@ -43,14 +47,26 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadPrivateAccount({ scope: 'spot' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
+    await expect(provider.loadCoinMarketCapQuotes({ symbols: ['BTC'] })).rejects.toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+    })
+    await expect(provider.loadCoinMarketCapOhlcv({ id: 1 })).rejects.toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+    })
     expect(provider.describe()).toMatchObject({ id: 'fixture', bases: [] })
   })
 
-  it('delegates HTTP generic and private requests through current settings', async () => {
+  it('delegates HTTP generic, private, and CoinMarketCap requests through current settings', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       if (url.includes('/account')) {
         return new Response(JSON.stringify({ accountType: 'SPOT', canTrade: true, balances: [] }), { status: 200 })
+      }
+      if (url.includes('/ohlcv/historical')) {
+        return new Response(JSON.stringify({ data: { id: 1, name: 'Bitcoin', symbol: 'BTC', quotes: [] } }), { status: 200 })
+      }
+      if (url.includes('/quotes/latest')) {
+        return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
       }
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }))
@@ -60,6 +76,10 @@ describe('settings-backed finance providers', () => {
       .resolves.toMatchObject({ status: 200, data: { ok: true } })
     await expect(provider.loadPrivateAccount({ scope: 'spot' }))
       .resolves.toMatchObject({ scope: 'spot', accountType: 'SPOT' })
+    await expect(provider.loadCoinMarketCapQuotes({ symbols: ['BTC'] }))
+      .resolves.toMatchObject([{ symbol: 'BTC', price: 60_000 }])
+    await expect(provider.loadCoinMarketCapOhlcv({ id: 1 }))
+      .resolves.toMatchObject([{ symbol: 'BTC', bars: [] }])
   })
 
   it('uses the production WebSocket factory when no test carrier is supplied', async () => {
@@ -74,16 +94,36 @@ describe('settings-backed finance providers', () => {
       ...SETTINGS,
       binanceWebSocketBaseUrl: `ws://127.0.0.1:${String(address.port)}`,
       marketStreamMaxEvents: 1,
-    }))
+    }), async () => undefined)
     await expect(provider.collect({ streams: ['btcusdt@miniTicker'] })).resolves.toHaveLength(1)
     await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
   })
 
+  it('routes CoinMarketCap realtime collection through the API-key resolver', async () => {
+    const socket = Object.assign(new EventEmitter(), { close: vi.fn(), send: vi.fn() }) as unknown as EventEmitter & FinanceWebSocketLike
+    const provider = new SettingsFinanceMarketStreamProvider(
+      () => SETTINGS,
+      async ref => ref === COINMARKETCAP_API_KEY_REF ? 'cmc-key' : undefined,
+      { createSocket: (_url: string, _options?: FinanceWebSocketOptions) => socket },
+    )
+    const pending = provider.collect({ provider: 'coinmarketcap', streams: [], cryptoIds: [1] })
+    await vi.waitFor(() => { expect(socket.listenerCount('open')).toBe(1) })
+    socket.emit('open')
+    socket.emit('message', Buffer.from(JSON.stringify({
+      type: 'data',
+      channel: 'market@crypto_latest_price',
+      data: { cid: 1, p: 60_000 },
+    })))
+    await expect(pending).resolves.toMatchObject([{ provider: 'coinmarketcap', stream: 'market@crypto_latest_price' }])
+  })
+
   it('delegates realtime collection through the settings namespace', async () => {
-    const socket = Object.assign(new EventEmitter(), { close: vi.fn() }) as unknown as EventEmitter & FinanceWebSocketLike
-    const provider = new SettingsFinanceMarketStreamProvider(() => SETTINGS, {
-      createSocket: () => socket,
-    })
+    const socket = Object.assign(new EventEmitter(), { close: vi.fn(), send: vi.fn() }) as unknown as EventEmitter & FinanceWebSocketLike
+    const provider = new SettingsFinanceMarketStreamProvider(
+      () => SETTINGS,
+      async ref => ref === COINMARKETCAP_API_KEY_REF ? 'cmc-key' : undefined,
+      { createSocket: (_url: string, _options?: FinanceWebSocketOptions) => socket },
+    )
     const pending = provider.collect({ streams: ['btcusdt@miniTicker'] })
     socket.emit('message', Buffer.from(JSON.stringify({ stream: 'btcusdt@miniTicker', data: { c: '60000' } })))
     await expect(pending).resolves.toHaveLength(1)

@@ -84,6 +84,38 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         />
         <p className={css.hint}>{t('financeEnableSignedRequestsHint')}</p>
       </div>
+      <h3 className={css.label}>{t('financeCoinMarketCapTitle')}</h3>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-coinmarketcap">{t('financeEnableCoinMarketCapRequests')}</label>
+        </div>
+        <input
+          id="finance-enable-coinmarketcap"
+          type="checkbox"
+          checked={state.enableCoinMarketCapRequests.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableCoinMarketCapRequests', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableCoinMarketCapRequestsHint')}</p>
+      </div>
+      <ValueField id="finance-coinmarketcap-base" label={t('financeCoinMarketCapBaseUrl')} hint={t('financeEndpointHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.coinMarketCapBaseUrl}
+        onEdit={(text) => { props.edit('coinMarketCapBaseUrl', text) }} onReset={() => { props.resetField('coinMarketCapBaseUrl') }} />
+      <ValueField id="finance-coinmarketcap-ws" label={t('financeCoinMarketCapWebSocketBaseUrl')} hint={t('financeEndpointHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.coinMarketCapWebSocketBaseUrl}
+        onEdit={(text) => { props.edit('coinMarketCapWebSocketBaseUrl', text) }} onReset={() => { props.resetField('coinMarketCapWebSocketBaseUrl') }} />
+      <SecretField
+        id="finance-coinmarketcap-api-key"
+        label={t('financeCoinMarketCapApiKey')}
+        hint={t('financeCoinMarketCapApiKeyHint')}
+        disabled={!state.coinMarketCapApiKeyWritable}
+        text={state.coinMarketCapApiKey.text}
+        configured={state.coinMarketCapApiKeyConfigured}
+        stateLabel={state.coinMarketCapApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('coinMarketCapApiKey', text) }}
+      />
       <h3 className={css.label}>{t('financeDeliveryTitle')}</h3>
       <ValueField id="finance-ws-base" label={t('financeBinanceWebSocketBaseUrl')} hint={t('financeEndpointHint')}
         overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}

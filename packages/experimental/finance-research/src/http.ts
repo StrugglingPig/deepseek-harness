@@ -5,10 +5,15 @@ export { FinanceDataError } from './error.ts'
 import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
+import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
 import { isFuturesScope, normalizeFuturesAccount, normalizeSpotAccount } from './private.ts'
 import { FinanceHttpTransport } from './transport.ts'
 import type {
+  FinanceCoinMarketCapOhlcvRequest,
+  FinanceCoinMarketCapOhlcvSeries,
+  FinanceCoinMarketCapQuote,
+  FinanceCoinMarketCapQuoteRequest,
   FinanceHttpMethod,
   FinanceJsonValue,
   FinanceMarketDataProvider,
@@ -26,6 +31,7 @@ const DEFAULT_TIMEOUT_MS = 15_000
 const DEFAULT_BAR_LIMIT = 80
 const DEFAULT_YAHOO_BASE_URL = 'https://query1.finance.yahoo.com'
 const DEFAULT_BINANCE_BASE_URL = 'https://api.binance.com'
+const DEFAULT_COINMARKETCAP_BASE_URL = 'https://pro-api.coinmarketcap.com'
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = 'https://gamma-api.polymarket.com'
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = 'https://clob.polymarket.com'
 const USER_AGENT = 'deepseek-harness-finance-research/0.0.1'
@@ -104,6 +110,8 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
   readonly polymarketClobBaseUrl?: string
+  /** CoinMarketCap Pro REST origin. */
+  readonly coinMarketCapBaseUrl?: string
   /** Injectable clock for deterministic retrieved-at values. */
   readonly now?: () => Date
   /** Host-side authorization/signing applied before fetch. */
@@ -136,6 +144,7 @@ interface ResolvedOptions {
   readonly binanceOptionsBaseUrl: string
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
+  readonly coinMarketCapBaseUrl: string
   readonly now: () => Date
   readonly authorize?: FinanceRequestAuthorizer
 }
@@ -153,6 +162,7 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'yahoo', description: 'Yahoo Finance public chart and quote endpoints', auth: 'none', docs: 'https://query1.finance.yahoo.com' },
   { name: 'polymarket-gamma', description: 'Polymarket Gamma public catalog API', auth: 'none', docs: 'https://gamma-api.polymarket.com' },
   { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
+  { name: 'coinmarketcap', description: 'CoinMarketCap Pro REST API', auth: 'api-key', docs: 'https://coinmarketcap.com/api/documentation/' },
 ]
 
 const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
@@ -163,6 +173,7 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   yahoo: 'yahooBaseUrl',
   'polymarket-gamma': 'polymarketGammaBaseUrl',
   'polymarket-clob': 'polymarketClobBaseUrl',
+  coinmarketcap: 'coinMarketCapBaseUrl',
 }
 
 function queryValue(value: FinanceJsonValue): string {
@@ -225,6 +236,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       binanceOptionsBaseUrl: options.binanceOptionsBaseUrl ?? 'https://eapi.binance.com',
       polymarketGammaBaseUrl: options.polymarketGammaBaseUrl ?? DEFAULT_POLYMARKET_GAMMA_BASE_URL,
       polymarketClobBaseUrl: options.polymarketClobBaseUrl ?? DEFAULT_POLYMARKET_CLOB_BASE_URL,
+      coinMarketCapBaseUrl: options.coinMarketCapBaseUrl ?? DEFAULT_COINMARKETCAP_BASE_URL,
       now: options.now ?? (() => new Date()),
       ...options.authorize === undefined ? {} : { authorize: options.authorize },
     }
@@ -326,6 +338,62 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       status: response.status,
       data: response.data,
     }
+  }
+
+  /**
+   * Load normalized CoinMarketCap latest cryptocurrency quotes.
+   * @param request - IDs or symbols and conversion currency.
+   * @param signal - Optional caller cancellation.
+   * @returns Normalized quote records.
+   */
+  async loadCoinMarketCapQuotes(
+    request: FinanceCoinMarketCapQuoteRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceCoinMarketCapQuote[]> {
+    const convert = (request.convert ?? 'USD').toUpperCase()
+    const identifier = request.id === undefined ? request.ids?.join(',') : String(request.id)
+    const response = await this.request({
+      base: 'coinmarketcap',
+      path: '/v3/cryptocurrency/quotes/latest',
+      auth: 'api-key',
+      query: {
+        ...identifier === undefined ? {} : { id: identifier },
+        ...request.symbols === undefined || request.symbols.length === 0 ? {} : { symbol: request.symbols.join(',') },
+        convert,
+        skip_invalid: true,
+      },
+    }, signal)
+    return normalizeCoinMarketCapQuotes(response.data, convert)
+  }
+
+  /**
+   * Load normalized CoinMarketCap OHLCV history.
+   * @param request - IDs or symbols, conversion, dates, count, and interval.
+   * @param signal - Optional caller cancellation.
+   * @returns Normalized OHLCV series.
+   */
+  async loadCoinMarketCapOhlcv(
+    request: FinanceCoinMarketCapOhlcvRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceCoinMarketCapOhlcvSeries[]> {
+    const convert = (request.convert ?? 'USD').toUpperCase()
+    const identifier = request.id === undefined ? request.ids?.join(',') : String(request.id)
+    const response = await this.request({
+      base: 'coinmarketcap',
+      path: '/v2/cryptocurrency/ohlcv/historical',
+      auth: 'api-key',
+      query: {
+        ...identifier === undefined ? {} : { id: identifier },
+        ...request.symbols === undefined || request.symbols.length === 0 ? {} : { symbol: request.symbols.join(',') },
+        convert,
+        ...request.timeStart === undefined ? {} : { time_start: request.timeStart },
+        ...request.timeEnd === undefined ? {} : { time_end: request.timeEnd },
+        ...request.count === undefined ? {} : { count: request.count },
+        ...request.interval === undefined ? {} : { interval: request.interval },
+        skip_invalid: true,
+      },
+    }, signal)
+    return normalizeCoinMarketCapOhlcv(response.data, convert)
   }
 
   /**

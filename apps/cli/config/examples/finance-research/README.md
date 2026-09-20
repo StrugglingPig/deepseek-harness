@@ -33,7 +33,7 @@ Apply the live-provider patch when the profile should use Yahoo Finance, Binance
 dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
 ```
 
-The patch sets `provider: http` on the inserted `finance-research` row. It requires outbound network access to the public provider endpoints. The HTTP provider also registers `finance_provider_describe`, `finance_provider_request`, `finance_private_account`, and `finance_realtime_stream`; use them for provider-native paths, normalized read-only Binance account data, and bounded live WebSocket events. Data availability follows the upstream API, credentials, rate limits, and permissions, not a local whitelist.
+The patch sets `provider: http` on the inserted `finance-research` row. It requires outbound network access to the public provider endpoints. The HTTP provider also registers `finance_provider_describe`, `finance_provider_request`, `finance_private_account`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, and `finance_realtime_stream`; use them for provider-native paths, normalized read-only Binance account data, CoinMarketCap quotes/OHLCV, and bounded Binance or CoinMarketCap WebSocket events. Store the CoinMarketCap key in Finance settings and enable CoinMarketCap API requests there. Data availability follows the upstream API, credentials, rate limits, plan, and permissions, not a local whitelist.
 
 ## Web dashboard
 

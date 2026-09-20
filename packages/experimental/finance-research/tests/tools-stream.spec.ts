@@ -33,6 +33,7 @@ describe('finance_realtime_stream tool', () => {
 
     expect(result.isError).toBe(false)
     expect(collect).toHaveBeenCalledWith({
+      provider: 'binance',
       streams: ['btcusdt@miniTicker', 'ethusdt@miniTicker'],
       maxEvents: 2,
     }, expect.any(AbortSignal))
@@ -53,7 +54,7 @@ describe('finance_realtime_stream tool', () => {
       arguments: { symbols: ['BTCUSDT'], timeout_ms: 50 },
     })
 
-    expect(collect).toHaveBeenCalledWith({ streams: ['btcusdt@miniTicker'], timeoutMs: 50 }, expect.any(AbortSignal))
+    expect(collect).toHaveBeenCalledWith({ provider: 'binance', streams: ['btcusdt@miniTicker'], timeoutMs: 50 }, expect.any(AbortSignal))
   })
 
   it('rejects an empty symbol list before opening a socket', async () => {

@@ -33,6 +33,9 @@ export type PluginsSettingsLocaleKey =
   | 'financeBinanceCoinmBaseUrl' | 'financeBinanceOptionsBaseUrl'
   | 'financePolymarketGammaBaseUrl' | 'financePolymarketClobBaseUrl' | 'financeEndpointHint'
   | 'financeEnableSignedRequests' | 'financeEnableSignedRequestsHint'
+  | 'financeCoinMarketCapTitle' | 'financeEnableCoinMarketCapRequests' | 'financeEnableCoinMarketCapRequestsHint'
+  | 'financeCoinMarketCapBaseUrl' | 'financeCoinMarketCapWebSocketBaseUrl'
+  | 'financeCoinMarketCapApiKey' | 'financeCoinMarketCapApiKeyHint'
   | 'financeBinanceApiKey' | 'financeBinanceApiKeyHint'
   | 'financeBinanceApiSecret' | 'financeBinanceApiSecretHint'
   | 'financeCredentialSet' | 'financeCredentialUnset'
@@ -132,6 +135,13 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeEndpointHint: 'Leave blank to use the deployment default.',
   financeEnableSignedRequests: 'Allow signed Binance requests',
   financeEnableSignedRequestsHint: 'When enabled, a request explicitly marked signed is authenticated on the Host with the stored Binance credentials.',
+  financeCoinMarketCapTitle: 'CoinMarketCap',
+  financeEnableCoinMarketCapRequests: 'Allow CoinMarketCap API requests',
+  financeEnableCoinMarketCapRequestsHint: 'When enabled, Host-side CoinMarketCap REST and WebSocket requests use the stored API key.',
+  financeCoinMarketCapBaseUrl: 'CoinMarketCap Pro REST base URL',
+  financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
+  financeCoinMarketCapApiKey: 'CoinMarketCap API key',
+  financeCoinMarketCapApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
   financeBinanceApiKey: 'Binance API key',
   financeBinanceApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
   financeBinanceApiSecret: 'Binance API secret',
@@ -245,6 +255,13 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeEndpointHint: '留空则使用部署默认值。',
   financeEnableSignedRequests: '允许 Binance signed 请求',
   financeEnableSignedRequestsHint: '启用后，显式标记为 signed 的请求会在 Host 使用已存 Binance 凭据认证。',
+  financeCoinMarketCapTitle: 'CoinMarketCap',
+  financeEnableCoinMarketCapRequests: '允许 CoinMarketCap API 请求',
+  financeEnableCoinMarketCapRequestsHint: '启用后，Host 侧 CoinMarketCap REST 和 WebSocket 请求会使用已存 API Key。',
+  financeCoinMarketCapBaseUrl: 'CoinMarketCap Pro REST Base URL',
+  financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
+  financeCoinMarketCapApiKey: 'CoinMarketCap API Key',
+  financeCoinMarketCapApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
   financeBinanceApiKey: 'Binance API Key',
   financeBinanceApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
   financeBinanceApiSecret: 'Binance API Secret',

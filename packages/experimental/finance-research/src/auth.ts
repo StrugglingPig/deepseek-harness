@@ -28,6 +28,16 @@ export interface BinanceRequestAuthorizerOptions {
 export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 /** Credential reference for the Binance API secret. */
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
+/** Credential reference for the CoinMarketCap API key. */
+export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
+
+/** Options for CoinMarketCap API-key authorization. */
+export interface CoinMarketCapRequestAuthorizerOptions {
+  /** Resolve the stored API key at request time. */
+  readonly resolveCredential: FinanceCredentialResolver
+  /** Whether the user enabled CoinMarketCap API requests in settings. */
+  readonly enabled: () => boolean
+}
 
 /**
  * Create the Binance request authorizer.
@@ -57,5 +67,41 @@ export function createBinanceRequestAuthorizer(
     const signature = createHmac('sha256', apiSecret).update(url.searchParams.toString()).digest('hex')
     url.searchParams.set('signature', signature)
     headers['X-MBX-APIKEY'] = apiKey
+  }
+}
+
+
+/**
+ * Create the CoinMarketCap API-key authorizer.
+ * @param options - credential resolver and feature switch.
+ * @returns an authorizer that adds `X-CMC_PRO_API_KEY` to explicit `auth: 'api-key'` requests.
+ */
+export function createCoinMarketCapRequestAuthorizer(
+  options: CoinMarketCapRequestAuthorizerOptions,
+): FinanceRequestAuthorizer {
+  return async (request, _url, headers) => {
+    if (request.auth !== 'api-key') return
+    if (!options.enabled()) throw new FinanceDataError('CoinMarketCap requests are disabled in settings', 'AUTH_DISABLED')
+    if (request.base !== 'coinmarketcap') {
+      throw new FinanceDataError('api-key requests are configured only for the CoinMarketCap base', 'AUTH_UNSUPPORTED')
+    }
+    const apiKey = await options.resolveCredential(COINMARKETCAP_API_KEY_REF)
+    if (apiKey === undefined || apiKey.length === 0) {
+      throw new FinanceDataError('CoinMarketCap API key is not configured', 'AUTH_REQUIRED')
+    }
+    headers['X-CMC_PRO_API_KEY'] = apiKey
+  }
+}
+
+/**
+ * Compose request authorizers in order.
+ * @param authorizers - authorizers that ignore authentication modes they do not own.
+ * @returns one authorizer that delegates every request through each contributor.
+ */
+export function composeRequestAuthorizers(
+  ...authorizers: readonly FinanceRequestAuthorizer[]
+): FinanceRequestAuthorizer {
+  return async (request, url, headers) => {
+    for (const authorize of authorizers) await authorize(request, url, headers)
   }
 }
