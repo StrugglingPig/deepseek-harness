@@ -25,6 +25,20 @@ Never calculate RSI, MACD, ATR, Bollinger Bands, or composite weights by reasoni
 - **Prediction market** — separate market-implied probability from model probability; record bid/ask spread, depth, resolution rules, expiry, and cross-market consistency.
 - **Market research** — identify the regime, demand drivers, competitive structure, policy or regulatory constraints, and scenario sensitivities.
 
+## Private account and realtime data
+
+Use `finance_private_account` only for read-only Spot, USD-M, or COIN-M account facts. Credentials remain in the Host; never ask the user to paste a key into the conversation. Use `finance_realtime_stream` for a bounded live WebSocket sample, then return to normalized history for indicators and reports.
+
+## Scheduled monitoring
+
+Use `finance_monitor_plan` to obtain `schedule_create` arguments:
+
+- `pre-market` and `after-hours` return an absolute `at` value for the next US weekday session.
+- `btc-24x7` returns `every_seconds` for a fixed-rate BTC check.
+- Pass the returned `schedule` fields and `prompt` to `schedule_create`; do not invent schedule times.
+- Pre-market and after-hours are one-shot checks. The returned prompt asks the model to create the next day's check after reporting.
+- BTC 24/7 monitoring must report material changes only; it should not repeat unchanged price state.
+
 ## Multi-indicator discipline
 
 Report each signal with its direction, weight, value, and rationale. Keep conflicting signals visible. A composite score is a summary, not a replacement for the underlying evidence. State whether the analysis is directional, range-bound, or high-uncertainty.

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from either a deterministic fixture provider or public HTTP providers, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. When the HTTP provider is active, `finance_provider_describe` and `finance_provider_request` expose a generic provider transport. Three tools are always registered; the provider tools are registered only for providers that implement `describe()` and `request()`.
+`dsh-experimental-finance-research` gives a finance research session a data-to-report path over deterministic fixture data or live public HTTP and WebSocket providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical indicators and a weighted multi-indicator summary, builds a structured Markdown report, exposes generic provider requests, adds read-only normalized Binance private-account reads, and collects bounded real-time Binance stream events. A deterministic monitor planner returns `schedule_create` arguments for pre-market, after-hours, and BTC 24/7 checks.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this package in a profile or agent composition that has `ctx.tools`. The package registers `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report`. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
+Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, and `finance_realtime_stream` when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-finance-research'
@@ -83,7 +83,7 @@ The tool returns the upstream status and JSON value unchanged. Normalized `load(
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The package separates data, analysis, report construction, and tool registration. `FixtureFinanceMarketDataProvider` generates bars from a seeded integer sequence; `indicators.ts` computes pure functions; `report.ts` builds sections from one snapshot and one analysis; `index.ts` registers the three tools and maps internal values to the model-facing schemas. No runtime invariant companion is published because the package owns no independent mutable relationship: the tools are pure over their provider input, and the registry owns registration disposal.
+The package separates data, credentials, transport, analysis, report construction, scheduling, and tool registration. `FixtureFinanceMarketDataProvider` generates bars from a seeded integer sequence; `HttpFinanceMarketDataProvider` adds cache, per-origin rate limiting, bounded retry, signed requests, private-account normalization, and generic provider access; `BinanceWebSocketStreamProvider` collects bounded combined-stream events; `monitor.ts` computes scheduler plans; `indicators.ts` computes pure functions; `report.ts` builds sections; `index.ts` maps internal values to the model-facing schemas. No runtime invariant companion is published because the package owns no independent mutable relationship: the tools are pure over their provider input, and the registry owns registration disposal.
 
 </details>
 
@@ -106,15 +106,15 @@ The package separates data, analysis, report construction, and tool registration
 
 #### What the model sees
 
-The model sees three generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot` requires `symbol`; `finance_technical_analysis` requires `symbol`; `finance_research_report` requires `symbol` and accepts optional `question` and `horizon`. Results are compact text renderings of the canonical JSON values: the snapshot render names the symbol, price, currency, bar count, and provider; the analysis render names the symbol, composite direction, confidence, and conflict count; the report render is the complete Markdown report.
+The model sees up to eight generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report` cover normalized research; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_realtime_stream` returns a bounded WebSocket event batch; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except the report result, which contains the complete Markdown report.
 
 #### Token effect
 
-The three schemas add a fixed request-prefix cost while mounted. Tool results grow with the bar count only in the report result; the snapshot and analysis results are bounded summaries. The full report remains in the calling Session until ordinary compaction.
+The schemas add a fixed request-prefix cost while mounted. Tool results grow with the bar count only in the report result; snapshot, analysis, private-account, stream, and monitor results are bounded summaries. The full report remains in the calling Session until ordinary compaction.
 
 #### KV Cache effect
 
-Prefix-stable while the three tool definitions and their visibility are unchanged. Tool calls and results append after the reusable request prefix and do not invalidate earlier cache entries.
+Prefix-stable while the tool definitions and their visibility are unchanged. Tool calls and results append after the reusable request prefix and do not invalidate earlier cache entries.
 
 ## Known Limitations and Deferred Work
 
@@ -124,7 +124,9 @@ Prefix-stable while the three tool definitions and their visibility are unchange
 - **Live provider depends on public endpoints** — Yahoo Finance, Binance, and Polymarket availability, rate limits, terms, and field changes are outside this package's control.
 - **Normalized crypto snapshots are explicit** — the normalized `load()` path maps `BTC` and `ETH`; other Binance symbols are available through `finance_provider_request`.
 - **Provider-native data is upstream JSON** — results follow provider field names, response shapes, rate limits, authentication, and endpoint availability rather than this package's normalized snapshot schema.
-- **Public transport only** — the current HTTP provider configures public bases; authenticated/private account endpoints require a credential and signing provider.
+- **Private account data is read-only** — signed Binance requests are limited to GET/query endpoints; order placement, cancellation, and withdrawal operations are not provided.
+- **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
+- **The Web dashboard is a separate plugin** — live charts are browser-side and read public Binance Spot data; private account data remains Host-only.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 
 <a id="dev-note"></a>

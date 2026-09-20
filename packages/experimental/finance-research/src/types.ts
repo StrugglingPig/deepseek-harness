@@ -47,6 +47,65 @@ export interface MarketSnapshot {
   readonly prediction?: PredictionMarketSnapshot
 }
 
+/** Binance account families exposed by the private read-only provider. */
+export type FinancePrivateAccountScope = 'spot' | 'usdm' | 'coinm'
+
+/** One read-only private account request. */
+export interface FinancePrivateAccountRequest {
+  /** Binance account family. */
+  readonly scope: FinancePrivateAccountScope
+  /** Optional symbol filter for open orders and futures positions. */
+  readonly symbol?: string
+  /** Whether to include current open orders when the upstream endpoint provides them. */
+  readonly includeOpenOrders?: boolean
+}
+
+/** One normalized non-zero account balance. */
+export interface FinancePrivateBalance {
+  readonly asset: string
+  readonly free: number
+  readonly locked: number
+  readonly total: number
+}
+
+/** One normalized non-flat futures position. */
+export interface FinancePrivatePosition {
+  readonly symbol: string
+  readonly side: 'long' | 'short'
+  readonly quantity: number
+  readonly entryPrice: number
+  readonly markPrice: number
+  readonly unrealizedPnl: number
+  readonly leverage: number
+}
+
+/** One normalized open order. */
+export interface FinancePrivateOpenOrder {
+  readonly orderId: string
+  readonly symbol: string
+  readonly side: string
+  readonly type: string
+  readonly price: number
+  readonly quantity: number
+  readonly executedQuantity: number
+  readonly status: string
+  readonly time?: string
+}
+
+/** Normalized read-only private account result. */
+export interface FinancePrivateAccountSnapshot {
+  readonly scope: FinancePrivateAccountScope
+  readonly accountType: string
+  readonly canTrade: boolean
+  readonly canWithdraw?: boolean
+  readonly retrievedAt: string
+  readonly totalWalletBalance?: number
+  readonly totalUnrealizedProfit?: number
+  readonly balances: readonly FinancePrivateBalance[]
+  readonly positions: readonly FinancePrivatePosition[]
+  readonly openOrders?: readonly FinancePrivateOpenOrder[]
+}
+
 /** Replacing this provider changes the data source without changing the tools. */
 export interface FinanceMarketDataProvider {
   readonly id: string
@@ -56,6 +115,8 @@ export interface FinanceMarketDataProvider {
   describe?(): FinanceProviderDescriptor
   /** Send a provider-native request when the provider exposes a generic transport. */
   request?(request: FinanceProviderRequest, signal?: AbortSignal): Promise<FinanceProviderResponse>
+  /** Load normalized read-only private account data when the provider supports it. */
+  loadPrivateAccount?(request: FinancePrivateAccountRequest, signal?: AbortSignal): Promise<FinancePrivateAccountSnapshot>
 }
 
 /** Lossless JSON value accepted from or returned by provider-native requests. */
@@ -100,6 +161,34 @@ export interface FinanceProviderRequest {
   readonly body?: FinanceJsonValue
   /** Optional request headers; model tools do not expose credential headers. */
   readonly headers?: Readonly<Record<string, string>>
+  /** Authentication mode requested by the caller. */
+  readonly auth?: 'none' | 'signed'
+}
+
+/** One bounded WebSocket collection request. */
+export interface FinanceMarketStreamRequest {
+  /** Combined-stream names such as `btcusdt@miniTicker`. */
+  readonly streams: readonly string[]
+  /** Optional collection timeout in milliseconds. */
+  readonly timeoutMs?: number
+  /** Optional maximum parsed events. */
+  readonly maxEvents?: number
+}
+
+/** One parsed real-time stream event. */
+export interface FinanceMarketStreamEvent {
+  /** Combined-stream name. */
+  readonly stream: string
+  /** Local receipt time in UTC. */
+  readonly receivedAt: string
+  /** Upstream JSON payload. */
+  readonly data: FinanceJsonValue
+}
+
+/** Real-time market-data provider seam. */
+export interface FinanceMarketStreamProvider {
+  /** Collect a bounded event batch from the configured upstream stream. */
+  collect(request: FinanceMarketStreamRequest, signal?: AbortSignal): Promise<readonly FinanceMarketStreamEvent[]>
 }
 
 /** One generic provider response carrying the upstream JSON unchanged. */

@@ -30,12 +30,14 @@ import { SubagentCard } from './SubagentCard.tsx'
 import { subagentCardFace } from './subagent-card-controller.ts'
 import { SubagentLimitsCardController } from './subagent-limits-card-controller.ts'
 import { WebSearchCard } from './WebSearchCard.tsx'
+import { FinanceSettingsPage } from './FinanceSettingsPage.tsx'
 import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
 import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
 import {
   SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
 } from './subagent-model-selection-card-controller.ts'
 import { WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
+import { FINANCE_NS, FinanceCardController } from './finance-card-controller.ts'
 import { en, zh } from './locales.ts'
 
 export type { PluginsSettingsSectionInjected, PluginsSettingsSectionProps } from './PluginsSettingsSection.tsx'
@@ -47,6 +49,7 @@ export type {
 export type { AgentLoopCardFace, AgentLoopCardState } from './agent-loop-card-controller.ts'
 export type { BashCardFace, BashCardState } from './bash-card-controller.ts'
 export type { WebSearchCardFace, WebSearchCardState } from './web-search-card-controller.ts'
+export type { FinanceCardFace, FinanceCardState, FinanceSettings } from './finance-card-controller.ts'
 
 /** Dictionary namespace owned by this plugin. */
 const NS = 'settings.plugins'
@@ -68,6 +71,7 @@ export function apply(ctx: ClientContext): void {
   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
   const webSearch = new WebSearchCardController(
     ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx)
+  const finance = new FinanceCardController(ctx.settingsScope.bind({ namespace: FINANCE_NS }), ctx)
   const subagentLimits = new SubagentLimitsCardController(ctx.settingsScope.bind({ namespace: 'subagent' }))
   const subagentModelSelection = new SubagentModelSelectionCardController(
     ctx.settingsScope.bind({ namespace: SUBAGENT_MODEL_SELECTION_NS }),
@@ -80,7 +84,10 @@ export function apply(ctx: ClientContext): void {
   // scope publishes nothing when one is written. This is the only signal that
   // a key written on another surface reached the Host.
   ctx.effect(
-    () => ctx.remote.$on('credentials/reference-updated', (ref) => { webSearch.refreshCredential(ref) }),
+    () => ctx.remote.$on('credentials/reference-updated', (ref) => {
+      webSearch.refreshCredential(ref)
+      finance.refreshCredential(ref)
+    }),
     'ui-settings-plugins: credential invalidations',
   )
   ctx.effect(
@@ -124,8 +131,22 @@ export function apply(ctx: ClientContext): void {
   const describeFace = ctx.settingsScope.describe()
   ctx.effect(() => {
     const registered = new Map<string, () => void>()
+    let financeSection: (() => void) | undefined
     const sync = (): void => {
       const served = new Set(describeFace.getSnapshot().view?.namespaces.map(view => view.ns) ?? [])
+      if (served.has(FINANCE_NS) && financeSection === undefined) {
+        financeSection = ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section',
+          id: 'finance',
+          order: 25,
+          label: () => t('financeTitle'),
+          locale: NS,
+          inject: () => finance.inject(),
+        }, FinanceSettingsPage))
+      } else if (!served.has(FINANCE_NS) && financeSection !== undefined) {
+        financeSection()
+        financeSection = undefined
+      }
       for (const [namespaces, register] of pages) {
         const namespace = namespaces[0]
         const available = namespaces.some(namespace => served.has(namespace))
@@ -144,6 +165,8 @@ export function apply(ctx: ClientContext): void {
       unsubscribe()
       for (const off of registered.values()) off()
       registered.clear()
+      financeSection?.()
+      financeSection = undefined
     }
   }, 'ui-settings-plugins: configuration pages')
 

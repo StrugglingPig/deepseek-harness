@@ -1,11 +1,19 @@
 /** Real public HTTP market-data providers behind the finance provider interface. */
 
+export { FinanceDataError } from './error.ts'
+
 import { z as zod } from 'zod'
+import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
+import { FinanceDataError } from './error.ts'
+import { isFuturesScope, normalizeFuturesAccount, normalizeSpotAccount } from './private.ts'
+import { FinanceHttpTransport } from './transport.ts'
 import type {
   FinanceHttpMethod,
   FinanceJsonValue,
   FinanceMarketDataProvider,
+  FinancePrivateAccountRequest,
+  FinancePrivateAccountSnapshot,
   FinanceProviderBase,
   FinanceProviderDescriptor,
   FinanceProviderRequest,
@@ -74,18 +82,6 @@ const polymarketHistorySchema = zod.object({
   history: zod.array(zod.object({ t: zod.number(), p: zod.number() })),
 })
 
-/** One provider failure with a stable machine-routable code. */
-export class FinanceDataError extends Error {
-  /**
-   * @param message - Human-readable failure detail.
-   * @param code - Stable provider error code.
-   */
-  constructor(message: string, readonly code: string) {
-    super(message)
-    this.name = 'FinanceDataError'
-  }
-}
-
 /** Options accepted by the public HTTP provider. */
 export interface HttpFinanceMarketDataProviderOptions {
   /** Fetch implementation; defaults to the ambient global fetch. */
@@ -110,11 +106,28 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly polymarketClobBaseUrl?: string
   /** Injectable clock for deterministic retrieved-at values. */
   readonly now?: () => Date
+  /** Host-side authorization/signing applied before fetch. */
+  readonly authorize?: FinanceRequestAuthorizer
+  /** Successful GET cache lifetime in milliseconds. */
+  readonly cacheTtlMs?: number
+  /** Maximum cached GET responses. */
+  readonly cacheMaxEntries?: number
+  /** Retries after the initial request attempt. */
+  readonly maxRetries?: number
+  /** First retry delay in milliseconds. */
+  readonly retryBaseDelayMs?: number
+  /** Maximum retry delay in milliseconds. */
+  readonly retryMaxDelayMs?: number
+  /** Per-origin request budget in requests per minute. */
+  readonly requestsPerMinute?: number
+  /** Per-origin token-bucket burst capacity. */
+  readonly requestBurst?: number
+  /** Injectable delay for deterministic retry and rate-limit behavior. */
+  readonly sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>
 }
 
 interface ResolvedOptions {
-  readonly fetch: typeof globalThis.fetch
-  readonly timeoutMs: number
+  readonly transport: FinanceHttpTransport
   readonly barLimit: number
   readonly yahooBaseUrl: string
   readonly binanceBaseUrl: string
@@ -124,6 +137,7 @@ interface ResolvedOptions {
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
   readonly now: () => Date
+  readonly authorize?: FinanceRequestAuthorizer
 }
 
 const CRYPTO_METADATA: Readonly<Record<string, { readonly pair: string; readonly name: string }>> = {
@@ -191,8 +205,18 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
    */
   constructor(options: HttpFinanceMarketDataProviderOptions = {}) {
     this.options = {
-      fetch: options.fetch ?? globalThis.fetch,
-      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      transport: new FinanceHttpTransport({
+        fetch: options.fetch ?? globalThis.fetch,
+        timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        ...options.cacheTtlMs === undefined ? {} : { cacheTtlMs: options.cacheTtlMs },
+        ...options.cacheMaxEntries === undefined ? {} : { cacheMaxEntries: options.cacheMaxEntries },
+        ...options.maxRetries === undefined ? {} : { maxRetries: options.maxRetries },
+        ...options.retryBaseDelayMs === undefined ? {} : { retryBaseDelayMs: options.retryBaseDelayMs },
+        ...options.retryMaxDelayMs === undefined ? {} : { retryMaxDelayMs: options.retryMaxDelayMs },
+        ...options.requestsPerMinute === undefined ? {} : { requestsPerMinute: options.requestsPerMinute },
+        ...options.requestBurst === undefined ? {} : { requestBurst: options.requestBurst },
+        ...options.sleep === undefined ? {} : { sleep: options.sleep },
+      }),
       barLimit: options.barLimit ?? DEFAULT_BAR_LIMIT,
       yahooBaseUrl: options.yahooBaseUrl ?? DEFAULT_YAHOO_BASE_URL,
       binanceBaseUrl: options.binanceBaseUrl ?? DEFAULT_BINANCE_BASE_URL,
@@ -202,6 +226,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       polymarketGammaBaseUrl: options.polymarketGammaBaseUrl ?? DEFAULT_POLYMARKET_GAMMA_BASE_URL,
       polymarketClobBaseUrl: options.polymarketClobBaseUrl ?? DEFAULT_POLYMARKET_CLOB_BASE_URL,
       now: options.now ?? (() => new Date()),
+      ...options.authorize === undefined ? {} : { authorize: options.authorize },
     }
   }
 
@@ -226,10 +251,9 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       readonly method?: FinanceHttpMethod
       readonly headers?: Readonly<Record<string, string>>
       readonly body?: FinanceJsonValue
+      readonly cache?: boolean
     } = {},
   ): Promise<{ readonly status: number; readonly data: FinanceJsonValue }> {
-    const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs)
-    const requestSignal = signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal])
     const method = init.method ?? 'GET'
     const headers: Record<string, string> = {
       accept: 'application/json',
@@ -238,25 +262,14 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
     }
     const body = init.body === undefined ? undefined : JSON.stringify(init.body)
     if (body !== undefined) headers['content-type'] = 'application/json'
-    let response: Response
-    try {
-      response = await this.options.fetch(url, {
-        method,
-        headers,
-        ...body === undefined ? {} : { body },
-        signal: requestSignal,
-      })
-    } catch (error: unknown) {
-      throw new FinanceDataError(`request failed for ${url}: ${String(error)}`, 'REQUEST_FAILED')
-    }
-    if (!response.ok) {
-      throw new FinanceDataError(`request failed for ${url}: HTTP ${response.status}`, 'HTTP_ERROR')
-    }
-    try {
-      return { status: response.status, data: await response.json() as FinanceJsonValue }
-    } catch (error: unknown) {
-      throw new FinanceDataError(`invalid JSON from ${url}: ${String(error)}`, 'INVALID_JSON')
-    }
+    return await this.options.transport.request({
+      url,
+      method,
+      headers,
+      ...body === undefined ? {} : { body },
+      ...signal === undefined ? {} : { signal },
+      ...init.cache === undefined ? {} : { cache: init.cache },
+    })
   }
 
   /**
@@ -297,10 +310,13 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
         url.searchParams.set(key, queryValue(value))
       }
     }
+    const headers: Record<string, string> = { ...request.headers }
+    await this.options.authorize?.(request, url, headers)
     const response = await this.fetchJson(url.href, signal, {
       method,
-      ...request.headers === undefined ? {} : { headers: request.headers },
+      ...Object.keys(headers).length === 0 ? {} : { headers },
       ...request.body === undefined ? {} : { body: request.body },
+      cache: request.auth !== 'signed',
     })
     return {
       provider: this.id,
@@ -310,6 +326,58 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       status: response.status,
       data: response.data,
     }
+  }
+
+  /**
+   * Load normalized read-only Binance account data for the selected account family.
+   * @param request - Account scope, optional symbol, and open-order inclusion.
+   * @param signal - Optional caller cancellation.
+   * @returns Normalized balances, positions, and optional open orders.
+   */
+  async loadPrivateAccount(
+    request: FinancePrivateAccountRequest,
+    signal?: AbortSignal,
+  ): Promise<FinancePrivateAccountSnapshot> {
+    const normalizedSymbol = request.symbol?.trim().toUpperCase()
+    if (normalizedSymbol === '') throw new FinanceDataError('symbol must be a non-empty string', 'INVALID_SYMBOL')
+
+    if (request.scope === 'spot') {
+      const account = await this.request({ base: 'binance-spot', path: '/api/v3/account', auth: 'signed' }, signal)
+      const orders = request.includeOpenOrders === true
+        ? await this.request({
+          base: 'binance-spot',
+          path: '/api/v3/openOrders',
+          auth: 'signed',
+          ...normalizedSymbol === undefined ? {} : { query: { symbol: normalizedSymbol } },
+        }, signal)
+        : undefined
+      return normalizeSpotAccount(account.data, orders?.data, this.options.now())
+    }
+    if (!isFuturesScope(request.scope)) {
+      throw new FinanceDataError(`unsupported private account scope ${String(request.scope)}`, 'AUTH_UNSUPPORTED')
+    }
+    const base = request.scope === 'usdm' ? 'binance-usdm' : 'binance-coinm'
+    const accountPath = request.scope === 'usdm' ? '/fapi/v2/account' : '/dapi/v1/account'
+    const positionsPath = request.scope === 'usdm' ? '/fapi/v2/positionRisk' : '/dapi/v1/positionRisk'
+    const ordersPath = request.scope === 'usdm' ? '/fapi/v1/openOrders' : '/dapi/v1/openOrders'
+    const [account, positions] = await Promise.all([
+      this.request({ base, path: accountPath, auth: 'signed' }, signal),
+      this.request({
+        base,
+        path: positionsPath,
+        auth: 'signed',
+        ...normalizedSymbol === undefined ? {} : { query: { symbol: normalizedSymbol } },
+      }, signal),
+    ])
+    const orders = request.includeOpenOrders === true
+      ? await this.request({
+        base,
+        path: ordersPath,
+        auth: 'signed',
+        ...normalizedSymbol === undefined ? {} : { query: { symbol: normalizedSymbol } },
+      }, signal)
+      : undefined
+    return normalizeFuturesAccount(request.scope, account.data, positions.data, orders?.data, this.options.now())
   }
 
   private async loadEquity(symbol: string, signal?: AbortSignal): Promise<MarketSnapshot> {

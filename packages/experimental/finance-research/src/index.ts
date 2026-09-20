@@ -1,14 +1,25 @@
 /** Model-facing finance research tools over a replaceable market-data provider. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import type {} from '@deepseek-ai/dsh-credentials'
+import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { createBinanceRequestAuthorizer, type FinanceCredentialResolver } from './auth.ts'
+import { FinanceDataError } from './error.ts'
 import { fixtureProvider } from './data.ts'
-import { createHttpFinanceMarketDataProvider } from './http.ts'
+import {
+  SettingsFinanceMarketDataProvider,
+  SettingsFinanceMarketStreamProvider,
+  type FinanceRuntimeSettings,
+} from './settings-provider.ts'
 import { buildIndicatorAnalysis } from './indicators.ts'
+import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
 import type {
   FinanceMarketDataProvider,
+  FinanceMarketStreamProvider,
   MarketSnapshot,
 } from './types.ts'
 
@@ -20,6 +31,10 @@ export {
   priceBandDirection, rsiDirection, trendDirection, volumeDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
+export { BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, createBinanceRequestAuthorizer } from './auth.ts'
+export type { BinanceRequestAuthorizerOptions, FinanceCredentialResolver, FinanceRequestAuthorizer } from './auth.ts'
+export { SettingsFinanceMarketDataProvider } from './settings-provider.ts'
+export type { FinanceRuntimeSettings } from './settings-provider.ts'
 export {
   createHttpFinanceMarketDataProvider,
   FinanceDataError,
@@ -30,7 +45,7 @@ export type { HttpFinanceMarketDataProviderOptions } from './http.ts'
 export const name = 'experimental-finance-research'
 export const inject = ['tools']
 
-/** Deployment selection for the finance market-data provider. */
+/** Deployment selection and user settings for the finance market-data provider. */
 export interface Config {
   /** `fixture` keeps the deterministic local provider; `http` enables public live endpoints. */
   readonly provider?: 'fixture' | 'http'
@@ -52,7 +67,32 @@ export interface Config {
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
   readonly polymarketClobBaseUrl?: string
+  /** Whether the user permits explicit signed Binance requests. */
+  readonly enableSignedRequests?: boolean
+  /** Successful GET cache lifetime in milliseconds. */
+  readonly requestCacheTtlMs?: number
+  /** Maximum cached GET responses. */
+  readonly requestCacheMaxEntries?: number
+  /** Retries after the initial finance HTTP request. */
+  readonly requestMaxRetries?: number
+  /** First retry delay in milliseconds. */
+  readonly requestRetryBaseDelayMs?: number
+  /** Maximum retry delay in milliseconds. */
+  readonly requestRetryMaxDelayMs?: number
+  /** Per-origin finance request budget in requests per minute. */
+  readonly requestsPerMinute?: number
+  /** Per-origin request burst capacity. */
+  readonly requestBurst?: number
+  /** Binance combined-stream WebSocket origin. */
+  readonly binanceWebSocketBaseUrl?: string
+  /** WebSocket collection timeout in milliseconds. */
+  readonly marketStreamTimeoutMs?: number
+  /** Maximum WebSocket events returned by one collection. */
+  readonly marketStreamMaxEvents?: number
 }
+
+/** Settings namespace owned by the finance research plugin. */
+export const FINANCE_SETTINGS_NS = 'finance-research'
 
 /** Schemastery configuration for the finance research plugin. */
 export const Config: z<Config> = z.object({
@@ -66,7 +106,19 @@ export const Config: z<Config> = z.object({
   binanceOptionsBaseUrl: z.string().default('https://eapi.binance.com'),
   polymarketGammaBaseUrl: z.string().default('https://gamma-api.polymarket.com'),
   polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
+  enableSignedRequests: z.boolean().default(false),
+  requestCacheTtlMs: z.number().min(0).default(5_000),
+  requestCacheMaxEntries: z.number().step(1).min(0).default(256),
+  requestMaxRetries: z.number().step(1).min(0).default(2),
+  requestRetryBaseDelayMs: z.number().min(0).default(250),
+  requestRetryMaxDelayMs: z.number().min(0).default(4_000),
+  requestsPerMinute: z.number().min(1).default(120),
+  requestBurst: z.number().step(1).min(1).default(10),
+  binanceWebSocketBaseUrl: z.string().default('wss://stream.binance.com:9443'),
+  marketStreamTimeoutMs: z.number().min(1).default(15_000),
+  marketStreamMaxEvents: z.number().step(1).min(1).default(100),
 })
+
 
 function snapshotValue(snapshot: MarketSnapshot) {
   const prediction = snapshot.prediction
@@ -137,9 +189,14 @@ function analysisValue(snapshot: MarketSnapshot) {
 /**
  * Register the finance research tools against one data provider.
  * @param ctx - Registrant context carrying the tool registry.
- * @param provider - Market-data provider used by all three tools.
+ * @param provider - Market-data provider used by the normalized tools.
+ * @param streamProvider - Optional real-time market-stream provider.
  */
-export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataProvider = fixtureProvider): void {
+export function registerFinanceTools(
+  ctx: Context,
+  provider: FinanceMarketDataProvider = fixtureProvider,
+  streamProvider?: FinanceMarketStreamProvider,
+): void {
   ctx.tools.register(defineTool({
     name: 'finance_market_snapshot',
     description: 'Load a normalized market snapshot for an equity, crypto, or PREDICTION: instrument.',
@@ -403,6 +460,11 @@ export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataPr
           type: 'json',
           description: 'JSON request body for non-GET methods.',
         },
+        auth: {
+          type: 'string',
+          description: 'Authentication mode; signed uses stored Binance credentials without exposing them to the model.',
+          enum: ['none', 'signed'],
+        },
       },
       output: {
         schema: {
@@ -429,32 +491,352 @@ export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataPr
           ...args.method === undefined ? {} : { method: args.method },
           ...args.query === undefined ? {} : { query: args.query },
           ...args.body === undefined ? {} : { body: args.body },
+          ...args.auth === undefined ? {} : { auth: args.auth },
         }, exec.signal)
       },
     }))
   }
 
+  const loadPrivateAccount = provider.loadPrivateAccount?.bind(provider)
+  if (loadPrivateAccount !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'finance_private_account',
+      description: 'Read normalized read-only Binance account balances, futures positions, and optional open orders. Credentials remain in the Host credential service and never appear in the result.',
+      parameters: {
+        scope: {
+          type: 'string',
+          required: true,
+          description: 'Binance account family.',
+          enum: ['spot', 'usdm', 'coinm'],
+        },
+        symbol: {
+          type: 'string',
+          description: 'Optional symbol filter for open orders and futures positions.',
+        },
+        include_open_orders: {
+          type: 'boolean',
+          description: 'Include current open orders; defaults to false.',
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            scope: { type: 'string', required: true, enum: ['spot', 'usdm', 'coinm'] },
+            account_type: { type: 'string', required: true },
+            can_trade: { type: 'boolean', required: true },
+            can_withdraw: { type: 'boolean' },
+            retrieved_at: { type: 'string', required: true },
+            total_wallet_balance: { type: 'number' },
+            total_unrealized_profit: { type: 'number' },
+            balances: {
+              type: 'array',
+              required: true,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  asset: { type: 'string', required: true },
+                  free: { type: 'number', required: true },
+                  locked: { type: 'number', required: true },
+                  total: { type: 'number', required: true },
+                },
+              },
+            },
+            positions: {
+              type: 'array',
+              required: true,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  symbol: { type: 'string', required: true },
+                  side: { type: 'string', required: true, enum: ['long', 'short'] },
+                  quantity: { type: 'number', required: true },
+                  entry_price: { type: 'number', required: true },
+                  mark_price: { type: 'number', required: true },
+                  unrealized_pnl: { type: 'number', required: true },
+                  leverage: { type: 'number', required: true },
+                },
+              },
+            },
+            open_orders: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  order_id: { type: 'string', required: true },
+                  symbol: { type: 'string', required: true },
+                  side: { type: 'string', required: true },
+                  type: { type: 'string', required: true },
+                  price: { type: 'number', required: true },
+                  quantity: { type: 'number', required: true },
+                  executed_quantity: { type: 'number', required: true },
+                  status: { type: 'string', required: true },
+                  time: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        render: (_args, value) => {
+          const orders = value.open_orders === undefined
+            ? ''
+            : `, ${String(value.open_orders.length)} open orders`
+          return [{
+            type: 'text',
+            text: `${value.scope}: ${value.account_type}, ${String(value.balances.length)} non-zero balance, ${String(value.positions.length)} positions${orders}`,
+          }]
+        },
+      },
+      async execute(args, exec) {
+        const account = await loadPrivateAccount({
+          scope: args.scope,
+          ...args.symbol === undefined ? {} : { symbol: args.symbol },
+          ...args.include_open_orders === undefined ? {} : { includeOpenOrders: args.include_open_orders },
+        }, exec.signal)
+        return {
+          scope: account.scope,
+          account_type: account.accountType,
+          can_trade: account.canTrade,
+          ...account.canWithdraw === undefined ? {} : { can_withdraw: account.canWithdraw },
+          retrieved_at: account.retrievedAt,
+          ...account.totalWalletBalance === undefined ? {} : { total_wallet_balance: account.totalWalletBalance },
+          ...account.totalUnrealizedProfit === undefined ? {} : { total_unrealized_profit: account.totalUnrealizedProfit },
+          balances: account.balances.map(balance => ({
+            asset: balance.asset,
+            free: balance.free,
+            locked: balance.locked,
+            total: balance.total,
+          })),
+          positions: account.positions.map(position => ({
+            symbol: position.symbol,
+            side: position.side,
+            quantity: position.quantity,
+            entry_price: position.entryPrice,
+            mark_price: position.markPrice,
+            unrealized_pnl: position.unrealizedPnl,
+            leverage: position.leverage,
+          })),
+          ...account.openOrders === undefined ? {} : {
+            open_orders: account.openOrders.map(order => ({
+              order_id: order.orderId,
+              symbol: order.symbol,
+              side: order.side,
+              type: order.type,
+              price: order.price,
+              quantity: order.quantity,
+              executed_quantity: order.executedQuantity,
+              status: order.status,
+              ...order.time === undefined ? {} : { time: order.time },
+            })),
+          },
+        }
+      },
+    }))
+  }
+
+  if (streamProvider !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'finance_realtime_stream',
+      description: 'Collect a bounded batch of real-time Binance WebSocket market events. Use miniTicker for current prices, trade for prints, or kline_1m for one-minute bars.',
+      parameters: {
+        symbols: {
+          type: 'array',
+          required: true,
+          description: 'Binance symbols such as BTCUSDT or ETHUSDT.',
+          items: { type: 'string' },
+        },
+        stream_type: {
+          type: 'string',
+          description: 'Binance stream suffix; defaults to miniTicker.',
+          enum: ['trade', 'miniTicker', 'kline_1m'],
+        },
+        timeout_ms: {
+          type: 'number',
+          description: 'Maximum collection time in milliseconds.',
+        },
+        max_events: {
+          type: 'number',
+          description: 'Maximum parsed events to return.',
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            events: {
+              type: 'array',
+              required: true,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  stream: { type: 'string', required: true },
+                  received_at: { type: 'string', required: true },
+                  data: { type: 'json', required: true },
+                },
+              },
+            },
+          },
+        },
+        render: (_args, value) => [{
+          type: 'text',
+          text: `${value.events.length} real-time events from ${new Set(value.events.map(event => event.stream)).size} streams`,
+        }],
+      },
+      async execute(args, exec) {
+        if (args.symbols.length === 0) throw new FinanceDataError('symbols must contain at least one Binance symbol', 'INVALID_STREAM')
+        const streamType = args.stream_type ?? 'miniTicker'
+        const streams = args.symbols.map(symbol => `${symbol.trim().toLowerCase()}@${streamType}`)
+        const events = await streamProvider.collect({
+          streams,
+          ...args.timeout_ms === undefined ? {} : { timeoutMs: args.timeout_ms },
+          ...args.max_events === undefined ? {} : { maxEvents: args.max_events },
+        }, exec.signal)
+        return {
+          events: events.map(event => ({
+            stream: event.stream,
+            received_at: event.receivedAt,
+            data: event.data,
+          })),
+        }
+      },
+    }))
+  }
+
+  ctx.tools.register(defineTool({
+    name: 'finance_monitor_plan',
+    description: 'Build scheduler arguments for pre-market, after-hours, or BTC 24/7 monitoring. Pass the returned schedule and prompt to schedule_create.',
+    parameters: {
+      kind: {
+        type: 'string',
+        required: true,
+        description: 'Monitoring cadence.',
+        enum: ['pre-market', 'after-hours', 'btc-24x7'],
+      },
+      symbol: {
+        type: 'string',
+        description: 'Instrument symbol for pre-market or after-hours monitoring.',
+      },
+      pre_open_minutes: {
+        type: 'number',
+        description: 'Minutes before the US regular-session open; defaults to 30.',
+      },
+      after_close_minutes: {
+        type: 'number',
+        description: 'Minutes after the US regular-session close; defaults to 30.',
+      },
+      btc_interval_seconds: {
+        type: 'number',
+        description: `BTC fixed-rate interval in seconds; minimum ${String(MONITOR_MINIMUM_BTC_INTERVAL_SECONDS)}, default ${String(MONITOR_DEFAULT_BTC_INTERVAL_SECONDS)}.`,
+      },
+      time_zone: {
+        type: 'string',
+        description: 'IANA time zone for US session boundaries; defaults to America/New_York.',
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          kind: { type: 'string', required: true, enum: ['pre-market', 'after-hours', 'btc-24x7'] },
+          symbol: { type: 'string' },
+          schedule: {
+            type: 'object',
+            required: true,
+            additionalProperties: false,
+            properties: {
+              at: { type: 'string' },
+              every_seconds: { type: 'number' },
+            },
+          },
+          prompt: { type: 'string', required: true },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: value.schedule.at === undefined
+          ? `${value.kind}: every ${String(value.schedule.every_seconds)} seconds`
+          : `${value.kind} ${value.symbol} at ${value.schedule.at}`,
+      }],
+    },
+    execute(args) {
+      const plan = planFinanceMonitor({
+        kind: args.kind,
+        ...args.symbol === undefined ? {} : { symbol: args.symbol },
+        ...args.pre_open_minutes === undefined ? {} : { preOpenMinutes: args.pre_open_minutes },
+        ...args.after_close_minutes === undefined ? {} : { afterCloseMinutes: args.after_close_minutes },
+        ...args.btc_interval_seconds === undefined ? {} : { btcIntervalSeconds: args.btc_interval_seconds },
+        ...args.time_zone === undefined ? {} : { timeZone: args.time_zone },
+      })
+      return Promise.resolve({
+        kind: plan.kind,
+        ...plan.symbol === undefined ? {} : { symbol: plan.symbol },
+        schedule: 'at' in plan.schedule
+          ? { at: plan.schedule.at }
+          : { every_seconds: plan.schedule.everySeconds },
+        prompt: plan.prompt,
+      })
+    },
+  }))
+
 }
 
 /**
- * Register finance research tools using the configured provider.
- * @param ctx - Registrant context carrying the tool registry.
- * @param config - Resolved provider and HTTP settings.
+ * Register finance research tools using the settings-backed provider.
+ * @param ctx - Registrant context carrying tool, settings, and credential services.
+ * @param config - Resolved composition defaults.
  */
 export function apply(ctx: Context, config: Config): void {
   const resolved = config as Required<Config>
-  const provider = resolved.provider === 'http'
-    ? createHttpFinanceMarketDataProvider({
-      timeoutMs: resolved.timeoutMs,
-      barLimit: resolved.barLimit,
-      yahooBaseUrl: resolved.yahooBaseUrl,
-      binanceBaseUrl: resolved.binanceBaseUrl,
-      binanceUsdmBaseUrl: resolved.binanceUsdmBaseUrl,
-      binanceCoinmBaseUrl: resolved.binanceCoinmBaseUrl,
-      binanceOptionsBaseUrl: resolved.binanceOptionsBaseUrl,
-      polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
-      polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
+  let currentSettings: FinanceRuntimeSettings = {
+    provider: resolved.provider,
+    timeoutMs: resolved.timeoutMs,
+    barLimit: resolved.barLimit,
+    yahooBaseUrl: resolved.yahooBaseUrl,
+    binanceBaseUrl: resolved.binanceBaseUrl,
+    binanceUsdmBaseUrl: resolved.binanceUsdmBaseUrl,
+    binanceCoinmBaseUrl: resolved.binanceCoinmBaseUrl,
+    binanceOptionsBaseUrl: resolved.binanceOptionsBaseUrl,
+    polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
+    polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
+    enableSignedRequests: resolved.enableSignedRequests,
+    requestCacheTtlMs: resolved.requestCacheTtlMs,
+    requestCacheMaxEntries: resolved.requestCacheMaxEntries,
+    requestMaxRetries: resolved.requestMaxRetries,
+    requestRetryBaseDelayMs: resolved.requestRetryBaseDelayMs,
+    requestRetryMaxDelayMs: resolved.requestRetryMaxDelayMs,
+    requestsPerMinute: resolved.requestsPerMinute,
+    requestBurst: resolved.requestBurst,
+    binanceWebSocketBaseUrl: resolved.binanceWebSocketBaseUrl,
+    marketStreamTimeoutMs: resolved.marketStreamTimeoutMs,
+    marketStreamMaxEvents: resolved.marketStreamMaxEvents,
+  }
+  let resolveCredential: FinanceCredentialResolver = () => Promise.resolve(undefined)
+  const authorize = createBinanceRequestAuthorizer({
+    resolveCredential: ref => resolveCredential(ref),
+    enabled: () => currentSettings.enableSignedRequests,
+  })
+  const provider = new SettingsFinanceMarketDataProvider(() => currentSettings, authorize)
+  const streamProvider = new SettingsFinanceMarketStreamProvider(() => currentSettings)
+  registerFinanceTools(ctx, provider, streamProvider)
+
+  ctx.inject(['settings'], (settingsCtx) => {
+    const scope = settingsCtx.settings.register(FINANCE_SETTINGS_NS, Config, { base: resolved })
+    currentSettings = scope.get() as FinanceRuntimeSettings
+    scope.watch((next) => {
+      currentSettings = next as FinanceRuntimeSettings
     })
-    : fixtureProvider
-  registerFinanceTools(ctx, provider)
+  })
+  ctx.inject(['credentials'], (credentialCtx) => {
+    resolveCredential = async (ref) => {
+      const hit = await credentialCtx.credentials.resolve(credentialRef(ref))
+      return hit?.value
+    }
+  })
 }

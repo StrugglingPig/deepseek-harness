@@ -25,6 +25,28 @@ export type PluginsSettingsLocaleKey =
   | 'subagentModelSelectionPartial' | 'subagentModelSelectionUnavailable'
   | 'subagentModelSelectionUnavailableGroup' | 'subagentModelSelectionEmpty'
   | 'subagentModelSelectionRequired' | 'subagentModelSelectionConflict' | 'subagentModelSelectionOff'
+  | 'financeTitle' | 'financeDescription' | 'financeSecurityNote'
+  | 'financeProvider' | 'financeProviderHint' | 'financeProviderFixture' | 'financeProviderHttp'
+  | 'financeTimeoutMs' | 'financeTimeoutMsHint'
+  | 'financeBarLimit' | 'financeBarLimitHint'
+  | 'financeYahooBaseUrl' | 'financeBinanceSpotBaseUrl' | 'financeBinanceUsdmBaseUrl'
+  | 'financeBinanceCoinmBaseUrl' | 'financeBinanceOptionsBaseUrl'
+  | 'financePolymarketGammaBaseUrl' | 'financePolymarketClobBaseUrl' | 'financeEndpointHint'
+  | 'financeEnableSignedRequests' | 'financeEnableSignedRequestsHint'
+  | 'financeBinanceApiKey' | 'financeBinanceApiKeyHint'
+  | 'financeBinanceApiSecret' | 'financeBinanceApiSecretHint'
+  | 'financeCredentialSet' | 'financeCredentialUnset'
+  | 'financeDeliveryTitle' | 'financeBinanceWebSocketBaseUrl'
+  | 'financeMarketStreamTimeoutMs' | 'financeMarketStreamTimeoutMsHint'
+  | 'financeMarketStreamMaxEvents' | 'financeMarketStreamMaxEventsHint'
+  | 'financeTransportTitle'
+  | 'financeRequestCacheTtlMs' | 'financeRequestCacheTtlMsHint'
+  | 'financeRequestCacheMaxEntries' | 'financeRequestCacheMaxEntriesHint'
+  | 'financeRequestMaxRetries' | 'financeRequestMaxRetriesHint'
+  | 'financeRequestRetryBaseDelayMs' | 'financeRequestRetryBaseDelayMsHint'
+  | 'financeRequestRetryMaxDelayMs' | 'financeRequestRetryMaxDelayMsHint'
+  | 'financeRequestsPerMinute' | 'financeRequestsPerMinuteHint'
+  | 'financeRequestBurst' | 'financeRequestBurstHint'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -89,6 +111,54 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   subagentModelSelectionRequired: 'Select at least one model before saving.',
   subagentModelSelectionConflict: 'Settings changed elsewhere. Discard your draft and try again.',
   subagentModelSelectionOff: 'Subagents use configured defaults or inherit the parent agent\'s model. Saved model choices are retained.',
+  financeTitle: 'Finance research',
+  financeDescription: 'Provider endpoints, limits, and write-only Binance credentials.',
+  financeSecurityNote: 'API keys and secrets are stored by the credential service, never in this settings file. The model only asks for signed requests; it never receives the credentials.',
+  financeProvider: 'Provider',
+  financeProviderHint: 'fixture uses deterministic local data; http uses the configured public endpoints.',
+  financeProviderFixture: 'fixture',
+  financeProviderHttp: 'http',
+  financeTimeoutMs: 'Request timeout (ms)',
+  financeTimeoutMsHint: 'Per-request timeout for live provider calls.',
+  financeBarLimit: 'History bar limit',
+  financeBarLimitHint: 'Maximum bars requested by normalized snapshot loads.',
+  financeYahooBaseUrl: 'Yahoo Finance base URL',
+  financeBinanceSpotBaseUrl: 'Binance Spot base URL',
+  financeBinanceUsdmBaseUrl: 'Binance USD-M base URL',
+  financeBinanceCoinmBaseUrl: 'Binance COIN-M base URL',
+  financeBinanceOptionsBaseUrl: 'Binance Options base URL',
+  financePolymarketGammaBaseUrl: 'Polymarket Gamma base URL',
+  financePolymarketClobBaseUrl: 'Polymarket CLOB base URL',
+  financeEndpointHint: 'Leave blank to use the deployment default.',
+  financeEnableSignedRequests: 'Allow signed Binance requests',
+  financeEnableSignedRequestsHint: 'When enabled, a request explicitly marked signed is authenticated on the Host with the stored Binance credentials.',
+  financeBinanceApiKey: 'Binance API key',
+  financeBinanceApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
+  financeBinanceApiSecret: 'Binance API secret',
+  financeBinanceApiSecretHint: 'Write-only. Stored outside settings; leave blank to keep the current secret.',
+  financeCredentialSet: 'Configured',
+  financeCredentialUnset: 'Not configured',
+  financeDeliveryTitle: 'Realtime and monitoring',
+  financeBinanceWebSocketBaseUrl: 'Binance WebSocket base URL',
+  financeMarketStreamTimeoutMs: 'Realtime stream timeout (ms)',
+  financeMarketStreamTimeoutMsHint: 'Maximum wait for one realtime event collection.',
+  financeMarketStreamMaxEvents: 'Max events per collection',
+  financeMarketStreamMaxEventsHint: 'Maximum realtime messages returned by one collection.',
+  financeTransportTitle: 'Cache, rate limit, and retry',
+  financeRequestCacheTtlMs: 'Cache TTL (ms)',
+  financeRequestCacheTtlMsHint: 'Public GET cache lifetime; signed requests are never cached.',
+  financeRequestCacheMaxEntries: 'Cache entry limit',
+  financeRequestCacheMaxEntriesHint: 'Maximum public GET responses retained in memory.',
+  financeRequestMaxRetries: 'Maximum retries',
+  financeRequestMaxRetriesHint: 'Retries after the initial failed request.',
+  financeRequestRetryBaseDelayMs: 'Initial retry delay (ms)',
+  financeRequestRetryBaseDelayMsHint: 'Initial delay for bounded exponential backoff.',
+  financeRequestRetryMaxDelayMs: 'Maximum retry delay (ms)',
+  financeRequestRetryMaxDelayMsHint: 'Upper bound for bounded exponential backoff.',
+  financeRequestsPerMinute: 'Requests per minute',
+  financeRequestsPerMinuteHint: 'Shared token-bucket refill rate for each upstream origin.',
+  financeRequestBurst: 'Request burst limit',
+  financeRequestBurstHint: 'Maximum burst capacity accumulated by the token bucket.',
 }
 
 /** Simplified Chinese copy. */
@@ -154,4 +224,52 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   subagentModelSelectionRequired: '保存前请至少选择一个模型。',
   subagentModelSelectionConflict: '设置已在其他位置更新。请放弃修改后重试。',
   subagentModelSelectionOff: '关闭后，Subagent 使用配置的默认模型或继承父 Agent 的模型；已选模型会保留。',
+  financeTitle: '金融研究',
+  financeDescription: '配置 Provider 端点、限制和只写 Binance 凭据。',
+  financeSecurityNote: 'API Key 和 Secret 由凭据服务保存，不写入设置文件。模型只能请求 signed，永远不会收到凭据。',
+  financeProvider: 'Provider',
+  financeProviderHint: 'fixture 使用确定性本地数据；http 使用配置的公共端点。',
+  financeProviderFixture: 'fixture',
+  financeProviderHttp: 'http',
+  financeTimeoutMs: '请求超时（毫秒）',
+  financeTimeoutMsHint: '实时 Provider 调用的单次请求超时。',
+  financeBarLimit: '历史 K 线上限',
+  financeBarLimitHint: '标准化快照加载请求的最大 K 线数量。',
+  financeYahooBaseUrl: 'Yahoo Finance Base URL',
+  financeBinanceSpotBaseUrl: 'Binance Spot Base URL',
+  financeBinanceUsdmBaseUrl: 'Binance USD-M Base URL',
+  financeBinanceCoinmBaseUrl: 'Binance COIN-M Base URL',
+  financeBinanceOptionsBaseUrl: 'Binance Options Base URL',
+  financePolymarketGammaBaseUrl: 'Polymarket Gamma Base URL',
+  financePolymarketClobBaseUrl: 'Polymarket CLOB Base URL',
+  financeEndpointHint: '留空则使用部署默认值。',
+  financeEnableSignedRequests: '允许 Binance signed 请求',
+  financeEnableSignedRequestsHint: '启用后，显式标记为 signed 的请求会在 Host 使用已存 Binance 凭据认证。',
+  financeBinanceApiKey: 'Binance API Key',
+  financeBinanceApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
+  financeBinanceApiSecret: 'Binance API Secret',
+  financeBinanceApiSecretHint: '只写。保存在设置文件之外；留空表示保持当前 Secret。',
+  financeCredentialSet: '已配置',
+  financeCredentialUnset: '未配置',
+  financeDeliveryTitle: '实时与监控',
+  financeBinanceWebSocketBaseUrl: 'Binance WebSocket Base URL',
+  financeMarketStreamTimeoutMs: '实时流超时（毫秒）',
+  financeMarketStreamTimeoutMsHint: '一次实时事件采集的最长等待时间。',
+  financeMarketStreamMaxEvents: '单次最大事件数',
+  financeMarketStreamMaxEventsHint: '一次实时事件采集最多返回多少条消息。',
+  financeTransportTitle: '缓存、限流与重试',
+  financeRequestCacheTtlMs: '缓存有效期（毫秒）',
+  financeRequestCacheTtlMsHint: '公开 GET 响应的缓存时间；signed 请求不缓存。',
+  financeRequestCacheMaxEntries: '缓存条目上限',
+  financeRequestCacheMaxEntriesHint: '内存中最多保留多少个公开 GET 响应。',
+  financeRequestMaxRetries: '最大重试次数',
+  financeRequestMaxRetriesHint: '初次请求失败后最多重试多少次。',
+  financeRequestRetryBaseDelayMs: '首次重试延迟（毫秒）',
+  financeRequestRetryBaseDelayMsHint: '指数退避的初始延迟。',
+  financeRequestRetryMaxDelayMs: '最大重试延迟（毫秒）',
+  financeRequestRetryMaxDelayMsHint: '指数退避允许的最大延迟。',
+  financeRequestsPerMinute: '每分钟请求上限',
+  financeRequestsPerMinuteHint: '每个上游 origin 共享的令牌桶补充速率。',
+  financeRequestBurst: '突发请求上限',
+  financeRequestBurstHint: '令牌桶可积累的最大突发容量。',
 }

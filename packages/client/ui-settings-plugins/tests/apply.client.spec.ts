@@ -162,6 +162,33 @@ describe('ui-settings-plugins apply', () => {
     }
   })
 
+  it('registers the Finance settings section only while its namespace is served', async () => {
+    const { ctx, slots, describeSettings, remote } = await bench(['finance-research'])
+    declareRoot(slots)
+    await ctx.plugin({ inject: [...inject], apply }).await()
+
+    await vi.waitFor(() => {
+      expect(slots.entries('settings.section').map(entry => entry.options.id)).toEqual(['plugins', 'finance'])
+    })
+    const finance = slots.entries('settings.section').find(entry => entry.options.id === 'finance')!
+    expect(resolveSlotLabel(finance.options.label)).toBe('金融研究')
+    const face = (finance.inject as unknown as () => { hooks: { financeCard: unknown } })()
+    expect(face.hooks.financeCard).toBeDefined()
+
+    describeSettings.mockResolvedValue({
+      ok: true,
+      value: {
+        writable: true,
+        hasDocument: true,
+        namespaces: [{ ns: 'agent-loop', schema: {}, value: {}, applies: 'live', secrets: [], revision: 1 }],
+      },
+    })
+    remote.emit('settings/document-updated', ['finance-research', 1])
+    await vi.waitFor(() => {
+      expect(slots.entries('settings.section').map(entry => entry.options.id)).toEqual(['plugins'])
+    })
+  })
+
   it('registers the pages of the served namespaces only, and withdraws one the Host stops serving', async () => {
     // ui-theme is served but belongs to another surface, and a deployment
     // composing no PowerShell/POSIX executor serves no `bash` at all.

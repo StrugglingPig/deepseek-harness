@@ -26,7 +26,8 @@ kind: "package-group"
 |---|---|---|
 | [`agent-team-profile`](agent-team-profile/README.zh.md) | Agent Teams 的公开 opt-in profile 层 | — |
 | [`finance-research`](finance-research/README.zh.md) | 确定性金融快照、指标和报告 | 在 `ctx.tools` 注册工具 |
-| [`finance-research-profile`](finance-research-profile/README.zh.md) | 金融研究工具包的 Profile 层 | — |
+| [`finance-research-profile`](finance-research-profile/README.zh.md) | 金融研究工具和定时监控的 Profile 层 | — |
+| [`client-ui-finance-dashboard`](client-ui-finance-dashboard/README.zh.md) | Web 端 Binance Spot 实时图表和连接状态仪表盘 | — |
 | [`agent-team`](agent-team/README.zh.md) | 具名 teammate，成员之间持久消息与共享任务板 | `ctx.agentTeams` |
 | [`agent-team-web-profile`](agent-team-web-profile/README.zh.md) | Agent Teams 的公开 opt-in Web 层 | — |
 | [`client-ui-agent-team`](client-ui-agent-team/README.zh.md) | Web Team roster、任务板与 teammate 导航 | — |

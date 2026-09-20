@@ -393,6 +393,59 @@ describe('HTTP finance market data provider', () => {
     await expect(shortHistory.load('PREDICTION:FED-CUT')).rejects.toMatchObject({ code: 'INSUFFICIENT_HISTORY' })
   })
 
+  it('caches repeated public provider requests', async () => {
+    let calls = 0
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      cacheTtlMs: 100,
+      fetch: async () => {
+        calls += 1
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      },
+    })
+
+    await provider.request({ base: 'binance-spot', path: '/api/v3/ping' })
+    await provider.request({ base: 'binance-spot', path: '/api/v3/ping' })
+
+    expect(calls).toBe(1)
+  })
+
+  it('does not cache signed provider requests', async () => {
+    let calls = 0
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      cacheTtlMs: 100,
+      fetch: async () => {
+        calls += 1
+        return new Response(JSON.stringify({ balances: [] }), { status: 200 })
+      },
+    })
+
+    await provider.request({ base: 'binance-spot', path: '/api/v3/account', auth: 'signed' })
+    await provider.request({ base: 'binance-spot', path: '/api/v3/account', auth: 'signed' })
+
+    expect(calls).toBe(2)
+  })
+
+  it('accepts an injected retry delay for provider requests', async () => {
+    const sleep = vi.fn(async () => {})
+    let calls = 0
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      fetch: async () => {
+        calls += 1
+        return calls === 1
+          ? new Response(JSON.stringify({ error: 'busy' }), { status: 500 })
+          : new Response(JSON.stringify({ ok: true }), { status: 200 })
+      },
+      maxRetries: 1,
+      retryBaseDelayMs: 1,
+      sleep,
+    })
+    await provider.request({ base: 'binance-spot', path: '/api/v3/ping' })
+    expect(sleep).toHaveBeenCalledWith(1, undefined)
+  })
+
   it('exposes FinanceDataError for programmatic callers', () => {
     const error = new FinanceDataError('failure', 'TEST')
     expect(error.name).toBe('FinanceDataError')

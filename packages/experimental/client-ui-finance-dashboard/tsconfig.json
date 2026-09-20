@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../finance-research" },
+    { "path": "../../client/locale" },
+    { "path": "../../client/store" },
+    { "path": "../../test-support/client-runtime" },
+    { "path": "../../client/ui-layout" },
+    { "path": "../../client/ui-primitives" },
+    { "path": "../../client/ui-renderer" },
+    { "path": "../../client/ui-settings" },
+    { "path": "../../client/ui-sidebar" },
+    { "path": "../../client/ui-slots" }
+  ]
+}

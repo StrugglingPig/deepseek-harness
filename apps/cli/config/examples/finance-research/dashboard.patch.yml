@@ -1,0 +1,5 @@
+# Web finance dashboard overlay. Apply after the finance-research profile bundle
+# so the browser plugin can read the served finance settings namespace.
+- insert:
+    - id: finance-dashboard
+      name: '@deepseek-ai/dsh-experimental-client-ui-finance-dashboard'

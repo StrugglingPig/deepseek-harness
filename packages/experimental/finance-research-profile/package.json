@@ -34,7 +34,8 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-experimental-finance-research": "workspace:^"
+    "@deepseek-ai/dsh-experimental-finance-research": "workspace:^",
+    "@deepseek-ai/dsh-schedule": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^"

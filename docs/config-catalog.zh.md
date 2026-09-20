@@ -700,7 +700,7 @@ Depends on: [`McpClient`](../packages/mcp/mcp-client/src/index.ts)
 需要：`tools`
 
 ```ts config-catalog
-/** Deployment selection for the finance market-data provider. */
+/** Deployment selection and user settings for the finance market-data provider. */
 export interface Config {
   /** `fixture` keeps the deterministic local provider; `http` enables public live endpoints. */
   readonly provider?: 'fixture' | 'http'
@@ -722,10 +722,32 @@ export interface Config {
   readonly polymarketGammaBaseUrl?: string
   /** Polymarket CLOB API origin. */
   readonly polymarketClobBaseUrl?: string
+  /** Whether the user permits explicit signed Binance requests. */
+  readonly enableSignedRequests?: boolean
+  /** Successful GET cache lifetime in milliseconds. */
+  readonly requestCacheTtlMs?: number
+  /** Maximum cached GET responses. */
+  readonly requestCacheMaxEntries?: number
+  /** Retries after the initial finance HTTP request. */
+  readonly requestMaxRetries?: number
+  /** First retry delay in milliseconds. */
+  readonly requestRetryBaseDelayMs?: number
+  /** Maximum retry delay in milliseconds. */
+  readonly requestRetryMaxDelayMs?: number
+  /** Per-origin finance request budget in requests per minute. */
+  readonly requestsPerMinute?: number
+  /** Per-origin request burst capacity. */
+  readonly requestBurst?: number
+  /** Binance combined-stream WebSocket origin. */
+  readonly binanceWebSocketBaseUrl?: string
+  /** WebSocket collection timeout in milliseconds. */
+  readonly marketStreamTimeoutMs?: number
+  /** Maximum WebSocket events returned by one collection. */
+  readonly marketStreamMaxEvents?: number
 }
 ```
 
-来源：[`packages/experimental/finance-research/src/index.ts:34`](../packages/experimental/finance-research/src/index.ts)
+来源：[`packages/experimental/finance-research/src/index.ts:49`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 
@@ -3870,6 +3892,7 @@ export interface Config {
 - `@deepseek-ai/dsh-deepseek-llm-api-extensions`（[`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-auto-review` — 需要 `llm` · `permissionPresets` · `sessions` · `tools`（[`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-client-ui-agent-team`（[`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-client-ui-finance-dashboard`（[`packages/experimental/client-ui-finance-dashboard/src/index.ts`](../packages/experimental/client-ui-finance-dashboard/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` — requires `computerUse` · `tools` · `systemPrompt` ([`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy`（[`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts)）
 - `@deepseek-ai/dsh-fs-ssh` — 需要 `ssh` · `sandboxPolicy`（[`packages/ssh/fs-ssh/src/index.ts`](../packages/ssh/fs-ssh/src/index.ts)）

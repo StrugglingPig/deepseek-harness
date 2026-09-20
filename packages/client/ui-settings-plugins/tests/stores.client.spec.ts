@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError, stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
-import { CardForm, numberField, textField } from '../src/client/card-form.ts'
+import { booleanField, CardForm, numberField, textField } from '../src/client/card-form.ts'
 import { SubagentLimitsCardController, type SubagentLimitsSettings } from '../src/client/subagent-limits-card-controller.ts'
 import { subagentCardFace, subagentCardShell } from '../src/client/subagent-card-controller.ts'
 import { AgentLoopCardController, type AgentLoopSettings } from '../src/client/agent-loop-card-controller.ts'
@@ -17,6 +17,10 @@ import {
   type SubagentModelSelectionSettings,
 } from '../src/client/subagent-model-selection-card-controller.ts'
 import { WebSearchCardController, type WebSearchSettings } from '../src/client/web-search-card-controller.ts'
+import {
+  BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, FinanceCardController, financeScopeValue,
+  type FinanceSettings,
+} from '../src/client/finance-card-controller.ts'
 
 /** Make the stub behave like a Host that accepts every write. */
 function acceptWrites<T>(host: StubSettingsScope<T>): void {
@@ -1014,6 +1018,132 @@ describe('WebSearchCardController', () => {
 
     expect(host.set.mock.calls).toEqual([['baseURL', 'https://other.test'], ['maxUses', 3]])
     expect(credentials.set).not.toHaveBeenCalled()
+  })
+})
+
+describe('FinanceCardController', () => {
+  function financeCredentials(initial: { keyConfigured: boolean; secretConfigured: boolean; writable?: boolean }) {
+    let keyConfigured = initial.keyConfigured
+    let secretConfigured = initial.secretConfigured
+    const describe = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        [BINANCE_API_KEY_REF]: { configured: keyConfigured, writable: initial.writable ?? true },
+        [BINANCE_API_SECRET_REF]: { configured: secretConfigured, writable: initial.writable ?? true },
+      },
+    }))
+    const set = vi.fn(async (ref: string) => {
+      if (ref === BINANCE_API_KEY_REF) keyConfigured = true
+      else secretConfigured = true
+      return { ok: true as const, value: undefined }
+    })
+    return { ctx: ctxWith({ credentials: { describe, set } }), describe, set }
+  }
+
+  it('projects finance fields and credential status, and ignores unrelated invalidations', async () => {
+    const host = stubSettingsScope<FinanceSettings>()
+    const credentials = financeCredentials({ keyConfigured: true, secretConfigured: false, writable: false })
+    const controller = new FinanceCardController(host.scope, credentials.ctx)
+    const face = controller.inject()
+    await vi.waitFor(() => { expect(credentials.describe).toHaveBeenCalled() })
+    host.publish({
+      status: 'ready',
+      writable: true,
+      value: {
+        provider: 'http', timeoutMs: 1_000, barLimit: 60, enableSignedRequests: true,
+        requestCacheTtlMs: 100, requestCacheMaxEntries: 10, requestMaxRetries: 2,
+        requestRetryBaseDelayMs: 10, requestRetryMaxDelayMs: 20, requestsPerMinute: 60,
+        requestBurst: 2, binanceWebSocketBaseUrl: 'wss://stream.test',
+        marketStreamTimeoutMs: 1_000, marketStreamMaxEvents: 2,
+      },
+      user: {},
+    })
+
+    expect(face.hooks.financeCard.getSnapshot()).toMatchObject({
+      provider: { text: 'http' },
+      timeoutMs: { text: '1000' },
+      enableSignedRequests: { text: 'true' },
+      requestMaxRetries: { text: '2' },
+      binanceWebSocketBaseUrl: { text: 'wss://stream.test' },
+      binanceApiKeyConfigured: true,
+      binanceApiKeyWritable: false,
+      binanceApiSecretConfigured: false,
+    })
+    expect(financeScopeValue(host.scope.getSnapshot()).provider).toBe('http')
+    expect(financeScopeValue({ ...host.scope.getSnapshot(), value: undefined })).toEqual({})
+
+    credentials.describe.mockClear()
+    controller.refreshCredential('OTHER_KEY')
+    expect(credentials.describe).not.toHaveBeenCalled()
+    controller.refreshCredential(BINANCE_API_KEY_REF)
+    await vi.waitFor(() => { expect(credentials.describe).toHaveBeenCalledTimes(1) })
+  })
+
+  it('saves non-secret fields and writes each Binance credential separately', async () => {
+    const host = stubSettingsScope<FinanceSettings>()
+    acceptWrites(host)
+    const credentials = financeCredentials({ keyConfigured: false, secretConfigured: false })
+    const controller = new FinanceCardController(host.scope, credentials.ctx)
+    const face = controller.inject()
+    host.publish({ status: 'ready', writable: true, value: {}, base: {}, user: {} })
+
+    face.edit('enableSignedRequests', 'maybe')
+    expect(face.hooks.financeCard.getSnapshot().invalid).toBe(true)
+    face.edit('enableSignedRequests', 'true')
+    face.edit('requestMaxRetries', '3')
+    face.edit('binanceApiKey', ' key ')
+    face.edit('binanceApiSecret', ' secret ')
+    face.save()
+    await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalledTimes(2) })
+    expect(credentials.set.mock.calls).toEqual([
+      [BINANCE_API_KEY_REF, 'key'],
+      [BINANCE_API_SECRET_REF, 'secret'],
+    ])
+    expect(host.scope.getSnapshot().value).toMatchObject({ enableSignedRequests: true, requestMaxRetries: 3 })
+    await vi.waitFor(() => {
+      expect(face.hooks.financeCard.getSnapshot()).toMatchObject({
+        binanceApiKeyConfigured: true,
+        binanceApiSecretConfigured: true,
+        dirty: false,
+      })
+    })
+
+    face.edit('binanceApiKey', '   ')
+    face.save()
+    expect(credentials.set).toHaveBeenCalledTimes(2)
+  })
+
+  it('defaults credential flags that the Host does not report', async () => {
+    const host = stubSettingsScope<FinanceSettings>()
+    const describe = vi.fn(async () => ({
+      ok: true as const,
+      value: {},
+    }))
+    const controller = new FinanceCardController(host.scope, ctxWith({ credentials: { describe, set: vi.fn() } }))
+    const face = controller.inject()
+    await vi.waitFor(() => { expect(describe).toHaveBeenCalled() })
+    expect(face.hooks.financeCard.getSnapshot()).toMatchObject({
+      binanceApiKeyConfigured: false,
+      binanceApiSecretConfigured: false,
+      binanceApiSecretWritable: true,
+      binanceApiKeyWritable: true,
+    })
+  })
+
+  it('keeps defaults when the credential read is refused', async () => {
+    const host = stubSettingsScope<FinanceSettings>()
+    const describe = vi.fn(async () => ({ ok: false as const, error: new RemoteError('gateway/internal', 'offline', {}) }))
+    const controller = new FinanceCardController(host.scope, ctxWith({ credentials: { describe, set: vi.fn() } }))
+    const face = controller.inject()
+    await vi.waitFor(() => { expect(describe).toHaveBeenCalled() })
+    expect(face.hooks.financeCard.getSnapshot()).toMatchObject({
+      binanceApiKeyConfigured: false,
+      binanceApiSecretConfigured: false,
+    })
+    expect(booleanField('enabled').parse('false')).toEqual({ kind: 'set', value: false })
+    expect(booleanField('enabled').parse('TRUE')).toEqual({ kind: 'set', value: true })
+    expect(booleanField('enabled').parse('')).toEqual({ kind: 'clear' })
+    expect(booleanField('enabled').parse('yes')).toBeUndefined()
   })
 })
 

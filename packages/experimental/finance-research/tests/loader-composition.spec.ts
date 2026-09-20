@@ -58,10 +58,12 @@ function textOf(result: { content: { type: string; text?: string }[] }): string 
 }
 
 describe('finance research real Loader composition', () => {
-  it('registers and executes the three finance tools', async () => {
+  it('registers and executes the finance tools', async () => {
     const ctx = await boot()
     expect(ctx.tools.schemas().map(schema => schema.name)).toEqual([
       'finance_market_snapshot', 'finance_technical_analysis', 'finance_research_report',
+      'finance_provider_describe', 'finance_provider_request', 'finance_private_account',
+      'finance_realtime_stream', 'finance_monitor_plan',
     ])
 
     const snapshot = await ctx.tools.execute({
@@ -111,7 +113,7 @@ describe('finance research real Loader composition', () => {
 
   it('selects the HTTP provider and exposes generic provider tools', async () => {
     const ctx = await boot(['    provider: http'])
-    expect(ctx.tools.schemas()).toHaveLength(5)
+    expect(ctx.tools.schemas()).toHaveLength(8)
     const described = await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: 'finance-provider-describe' as never,
@@ -187,7 +189,7 @@ describe('finance research real Loader composition', () => {
 
   it('removes all registered tools when the finance entry is disposed', async () => {
     const ctx = await boot()
-    expect(ctx.tools.schemas()).toHaveLength(3)
+    expect(ctx.tools.schemas()).toHaveLength(8)
     const entry = [...ctx.loader.entries()].find(
       candidate => candidate.options.name === '@deepseek-ai/dsh-experimental-finance-research',
     )

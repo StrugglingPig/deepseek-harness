@@ -26,7 +26,8 @@ The experimental group contains prototype capabilities whose contracts can chang
 |---|---|---|
 | [`agent-team-profile`](agent-team-profile/README.md) | Published opt-in profile layer for Agent Teams | — |
 | [`finance-research`](finance-research/README.md) | Deterministic finance snapshots, indicators, and reports | registers tools on `ctx.tools` |
-| [`finance-research-profile`](finance-research-profile/README.md) | Profile layer for the finance research tools | — |
+| [`finance-research-profile`](finance-research-profile/README.md) | Profile layer for finance research tools and scheduled monitoring | — |
+| [`client-ui-finance-dashboard`](client-ui-finance-dashboard/README.md) | Live Binance Spot chart and stream-health dashboard for Web | — |
 | [`agent-team`](agent-team/README.md) | Named teammates with durable messages and a shared task board | `ctx.agentTeams` |
 | [`agent-team-web-profile`](agent-team-web-profile/README.md) | Published opt-in Web layer for Agent Teams | — |
 | [`client-ui-agent-team`](client-ui-agent-team/README.md) | Team roster, task board, and teammate navigation for Web | — |

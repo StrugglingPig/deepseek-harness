@@ -13,6 +13,9 @@ import type { BashCardProps } from '../src/client/BashCard.tsx'
 import { PluginsSettingsSection } from '../src/client/PluginsSettingsSection.tsx'
 import type { PluginsSettingsSectionProps, PluginsSettingsTabEntry } from '../src/client/PluginsSettingsSection.tsx'
 import { WebSearchCard } from '../src/client/WebSearchCard.tsx'
+import { FinanceSettingsPage } from '../src/client/FinanceSettingsPage.tsx'
+import type { FinanceSettingsPageProps } from '../src/client/FinanceSettingsPage.tsx'
+import type { FinanceCardState } from '../src/client/finance-card-controller.ts'
 import type { WebSearchCardProps } from '../src/client/WebSearchCard.tsx'
 import type { AgentLoopCardState } from '../src/client/agent-loop-card-controller.ts'
 import type { BashCardState } from '../src/client/bash-card-controller.ts'
@@ -444,6 +447,114 @@ describe('AgentLoopCard', () => {
     fireEvent.click(screen.getByRole('button', { name: en.reset }))
 
     expect(actions.resetField).toHaveBeenCalledWith('maxParallelToolCalls')
+  })
+})
+
+describe('FinanceSettingsPage', () => {
+  function financeState(overrides: Partial<FinanceCardState> = {}): FinanceCardState {
+    return {
+      ...settled,
+      provider: field('http'),
+      timeoutMs: field('1000'),
+      barLimit: field('60'),
+      yahooBaseUrl: field('https://yahoo.test'),
+      binanceBaseUrl: field('https://spot.test'),
+      binanceUsdmBaseUrl: field('https://usdm.test'),
+      binanceCoinmBaseUrl: field('https://coinm.test'),
+      binanceOptionsBaseUrl: field('https://options.test'),
+      polymarketGammaBaseUrl: field('https://gamma.test'),
+      polymarketClobBaseUrl: field('https://clob.test'),
+      enableSignedRequests: field('true'),
+      requestCacheTtlMs: field('100'),
+      requestCacheMaxEntries: field('10'),
+      requestMaxRetries: field('2'),
+      requestRetryBaseDelayMs: field('10'),
+      requestRetryMaxDelayMs: field('20'),
+      requestsPerMinute: field('60'),
+      requestBurst: field('2'),
+      binanceWebSocketBaseUrl: field('wss://stream.test'),
+      marketStreamTimeoutMs: field('1000'),
+      marketStreamMaxEvents: field('2'),
+      binanceApiKey: field(''),
+      binanceApiSecret: field(''),
+      binanceApiKeyConfigured: true,
+      binanceApiSecretConfigured: true,
+      binanceApiKeyWritable: true,
+      binanceApiSecretWritable: true,
+      ...overrides,
+    }
+  }
+
+  function renderFinance(state: Partial<FinanceCardState> = {}) {
+    const base = financeState({ dirty: true, ...state })
+    const overridden = Object.fromEntries(Object.entries(base).map(([key, value]) => [
+      key,
+      typeof value === 'object' && value !== null && 'text' in value ? { ...value, overridden: true } : value,
+    ])) as FinanceCardState
+    const store = createSnapshotStore<FinanceCardState>(overridden)
+    const actions = cardActions()
+    const props = {
+      ...actions,
+      t,
+      useFinanceCard: bindSnapshotSelector(store),
+    } as unknown as FinanceSettingsPageProps
+    render(<FinanceSettingsPage {...props} />)
+    return actions
+  }
+
+  it('stages provider, transport, stream, and write-only credential controls', () => {
+    const actions = renderFinance()
+    fireEvent.change(screen.getByLabelText(en.financeProvider), { target: { value: 'fixture' } })
+    fireEvent.change(screen.getByLabelText(en.financeTimeoutMs), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText(en.financeBarLimit), { target: { value: '80' } })
+    fireEvent.change(screen.getByLabelText(en.financeYahooBaseUrl), { target: { value: 'https://other-yahoo.test' } })
+    fireEvent.click(screen.getByLabelText(en.financeEnableSignedRequests))
+    fireEvent.change(screen.getByLabelText(en.financeBinanceWebSocketBaseUrl), { target: { value: 'wss://other.test' } })
+    fireEvent.change(screen.getByLabelText(en.financeMarketStreamTimeoutMs), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText(en.financeMarketStreamMaxEvents), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText(en.financeRequestMaxRetries), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText(en.financeBinanceApiKey), { target: { value: 'key' } })
+    fireEvent.change(screen.getByLabelText(en.financeBinanceApiSecret), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    const resets = screen.getAllByRole('button', { name: en.reset })
+    for (const reset of resets) fireEvent.click(reset)
+
+    expect(actions.edit.mock.calls).toEqual(expect.arrayContaining([
+      ['provider', 'fixture'],
+      ['timeoutMs', '2000'],
+      ['barLimit', '80'],
+      ['yahooBaseUrl', 'https://other-yahoo.test'],
+      ['enableSignedRequests', 'false'],
+      ['binanceWebSocketBaseUrl', 'wss://other.test'],
+      ['marketStreamTimeoutMs', '2000'],
+      ['marketStreamMaxEvents', '3'],
+      ['requestMaxRetries', '4'],
+      ['binanceApiKey', 'key'],
+      ['binanceApiSecret', 'secret'],
+    ]))
+    expect(actions.save).toHaveBeenCalledOnce()
+    expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
+    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(2)
+  })
+
+  it('uses provider and credential fallback branches', () => {
+    renderFinance({
+      provider: field(''),
+      enableSignedRequests: field('false'),
+      binanceApiKeyConfigured: false,
+      binanceApiSecretConfigured: false,
+    })
+    fireEvent.click(screen.getByLabelText(en.financeEnableSignedRequests))
+    expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('value', 'fixture')
+    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(2)
+  })
+
+  it('disables settings and credential controls when their owners are read-only', () => {
+    renderFinance({ writable: false, binanceApiKeyWritable: false, binanceApiSecretWritable: false })
+    expect(screen.getByText(en.readOnly)).toBeTruthy()
+    expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('disabled', true)
+    expect(screen.getByLabelText(en.financeBinanceApiKey)).toHaveProperty('disabled', true)
+    expect(screen.getByLabelText(en.financeBinanceApiSecret)).toHaveProperty('disabled', true)
   })
 })
 

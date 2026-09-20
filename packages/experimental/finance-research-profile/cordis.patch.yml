@@ -5,3 +5,6 @@
 - insert:
     - id: finance-research
       name: '@deepseek-ai/dsh-experimental-finance-research'
+
+    - id: finance-schedule
+      name: '@deepseek-ai/dsh-schedule'

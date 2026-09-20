@@ -10,6 +10,8 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../core/tools" },
+    { "path": "../../credentials/credentials" },
+    { "path": "../../settings/settings" },
     { "path": "../../core/system-prompt" }
   ]
 }
