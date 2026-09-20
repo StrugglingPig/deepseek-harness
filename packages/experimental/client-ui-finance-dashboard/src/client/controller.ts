@@ -202,7 +202,8 @@ export class FinanceDashboardController {
     const state = this.store.getSnapshot()
     const query = `symbol=${encodeURIComponent(toBinanceSymbol(state.symbol))}&interval=${encodeURIComponent(state.interval)}&limit=${String(DEFAULT_LIMIT)}`
     try {
-      const response = await this.options.fetch(`${this.settings().baseUrl}/api/v3/klines?${query}`)
+      const request = this.options.fetch
+      const response = await request(`${this.settings().baseUrl}/api/v3/klines?${query}`)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const bars = parseKlines(await response.json())
       if (bars.length === 0) throw new Error('no market data')

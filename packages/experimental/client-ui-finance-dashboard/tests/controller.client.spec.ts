@@ -85,6 +85,18 @@ describe('FinanceDashboardController', () => {
     controller.dispose()
   })
 
+  it('calls fetch without rebinding the options object as this', async () => {
+    const fetch = vi.fn(async function (this: unknown) {
+      expect(this).toBeUndefined()
+      return new Response(JSON.stringify(klines()), { status: 200 })
+    })
+    const { controller } = bench({ fetch: fetch as unknown as typeof globalThis.fetch })
+    const face = controller.inject()
+    await vi.waitFor(() => { expect(face.hooks.dashboard.getSnapshot().status).toBe('ready') })
+    expect(fetch).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
+
   it('reports HTTP, empty-data, and non-Error failures', async () => {
     const http = bench({ fetch: async () => new Response('no', { status: 503 }) })
     http.controller.refresh()
