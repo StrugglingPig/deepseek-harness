@@ -63,8 +63,11 @@ function textChunks(text) {
   ]
 }
 
-function researcher(messages) {
+function researcher(messages, financeMode) {
   const names = calls(messages)
+  if (financeMode && !names.includes('finance_provider_describe')) {
+    return toolChunks([{ name: 'finance_provider_describe', args: {} }])
+  }
   if (!names.includes('team_task_create')) {
     return toolChunks([{ name: 'team_task_create', args: {
       subject: 'Research', description: 'Collect the deterministic finding.', write_scopes: ['research'],
@@ -84,8 +87,11 @@ function researcher(messages) {
   return textChunks('Research teammate complete.')
 }
 
-function implementer(messages) {
+function implementer(messages, financeMode) {
   const names = calls(messages)
+  if (financeMode && !names.includes('finance_provider_describe')) {
+    return toolChunks([{ name: 'finance_provider_describe', args: {} }])
+  }
   const last = latestAssistantCalls(messages)
   const text = latestToolText(messages)
   const userText = messages.flatMap(message => message.role === 'user'
@@ -131,10 +137,16 @@ function implementer(messages) {
   return textChunks('Implementation teammate complete.')
 }
 
-function lead(messages) {
+function lead(messages, financeMode) {
   const names = calls(messages)
+  const skipWorkflow = messages.flatMap(message => message.role === 'user'
+    ? message.content.filter(block => block.type === 'text').map(block => block.text)
+    : []).join('\n').includes('SKIP_WORKFLOW')
+  if (financeMode && !names.includes('finance_provider_describe')) {
+    return toolChunks([{ name: 'finance_provider_describe', args: {} }])
+  }
   const last = latestAssistantCalls(messages)
-  if (!names.includes('workflow')) {
+  if (!skipWorkflow && !names.includes('workflow')) {
     return toolChunks([{ name: 'workflow', args: {
       meta: { name: 'team-preflight', description: 'Check fresh workflow delegation alongside teammates.' },
       script: 'return await agent("TEAM_WORKFLOW_CHILD");',
@@ -171,7 +183,9 @@ function lead(messages) {
   }
   if (last.includes('list_agents')) {
     const inactive = result.match(/"status":"inactive"/gu)?.length ?? 0
-    if (inactive >= 2) return textChunks('TEAM_WORKFLOW_OK: both teammates and dependent tasks completed.')
+    if (inactive >= 2) return textChunks(financeMode
+      ? 'FINANCE_TEAM_OK: finance provider discovery, workflow, teammates, and dependent tasks completed.'
+      : 'TEAM_WORKFLOW_OK: both teammates and dependent tasks completed.')
     return toolChunks([{ name: 'list_agents', args: {} }])
   }
   if (last.includes('wait_agent')) return toolChunks([{ name: 'team_task_list', args: {} }])
@@ -186,16 +200,20 @@ class TeamFixtureAdapter extends LlmAdapter {
     }
     const initial = options.messages.findLast(message => message.role === 'user' && message.source.kind === 'user')
     const identity = initial?.content[0]?.text?.trimEnd()
-    if (identity !== 'TEAM_WORKFLOW_CHILD' && (!tools.includes('spawn_teammate') || !tools.includes('workflow'))) {
+    const skipWorkflow = initial?.content[0]?.text?.includes('SKIP_WORKFLOW') ?? false
+    if (identity !== 'TEAM_WORKFLOW_CHILD' && (!tools.includes('spawn_teammate') || (!skipWorkflow && !tools.includes('workflow')))) {
       throw new Error('Team profile is missing teammate or workflow tools')
     }
+    const financeMode = tools.includes('finance_provider_describe')
     const chunks = identity === 'TEAM_WORKFLOW_CHILD'
-      ? textChunks('Fresh workflow child complete.')
-      : identity === '<system-reminder>\nYou are teammate "researcher".\n</system-reminder>'
-      ? researcher(options.messages)
-      : identity === '<system-reminder>\nYou are teammate "implementer".\n</system-reminder>'
-        ? implementer(options.messages)
-        : lead(options.messages)
+      ? financeMode && !calls(options.messages).includes('finance_provider_describe')
+        ? toolChunks([{ name: 'finance_provider_describe', args: {} }])
+        : textChunks('Fresh workflow child complete.')
+      : identity === '<system-reminder>\nYou are teammate \"researcher\".\n</system-reminder>'
+      ? researcher(options.messages, financeMode)
+      : identity === '<system-reminder>\nYou are teammate \"implementer\".\n</system-reminder>'
+        ? implementer(options.messages, financeMode)
+        : lead(options.messages, financeMode)
     for (const chunk of chunks) {
       options.signal?.throwIfAborted()
       yield chunk
