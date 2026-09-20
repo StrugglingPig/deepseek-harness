@@ -18,7 +18,7 @@ Harness 已经具备持久 Agent Team、Workflow 编排、网页访问、后台�
 
 初始 Provider 是确定性 fixture。包保留 `FinanceMarketDataProvider` 接口，部署可以替换为真实 Provider，而不改变工具或报告结构。组合包 `@deepseek-ai/dsh-experimental-finance-research-profile` 在 `dsh-base` 之上插入金融插件。它设计为在 `dsh-experimental-agent-team-profile` 之后安装：Team profile 保留 `workflow`，并用 `spawn_teammate` 取代直接 `subagent` 工具；金融插件只新增工具名和无状态计算，不会重新启用或覆盖任何 Team 行。
 
-金融插件在当前 Bundle 中刻意放在 host 层。Agent Team teammate 和 Workflow 子 Agent 都能看到同样的三个工具；金融工具不依赖 `ctx.agentTeams`，也不依赖 Team Session。最终报告仍由 Lead 持有，因为只有 Lead Session 能通过 `present` 交付。
+金融插件在当前 Bundle 中刻意放在 host 层。Agent Team teammate 和 Workflow 子 Agent 都能看到同样的三个工具；金融工具不依赖 `ctx.agentTeams`，也不依赖 Team Session。最终报告仍由 Lead 持有，因为只有 Lead Session 能通过 `present` 交付。Team-aware 示例 preset 和研究 Skill 位于 `apps/cli/config/examples/finance-research`；它们不挂载 legacy subagent 行，需要金融 persona 和研究方法时复制到用户 preset root。
 
 ## Alternatives considered
 

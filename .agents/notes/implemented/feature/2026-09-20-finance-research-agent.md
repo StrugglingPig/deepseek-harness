@@ -18,7 +18,7 @@ The harness has a durable Agent Team domain, workflow orchestration, web access,
 
 The initial provider is a deterministic fixture. The package keeps a `FinanceMarketDataProvider` interface so a deployment can replace it with a live provider without changing the tools or report shape. The bundle `@deepseek-ai/dsh-experimental-finance-research-profile` inserts the finance plugin over `dsh-base`. It is designed to be installed after `dsh-experimental-agent-team-profile`: the Team profile keeps `workflow` and replaces direct `subagent` tools with `spawn_teammate`; the finance plugin adds only new tool names and service-free computation. It does not re-enable or override any Team row.
 
-The finance plugin is intentionally host-level in the bundle. An Agent Team teammate and a workflow child both see the same three tools; no finance tool depends on `ctx.agentTeams` or on a Team Session. The final report remains Lead-owned because only the Lead Session can deliver it with `present`.
+The finance plugin is intentionally host-level in the bundle. An Agent Team teammate and a workflow child both see the same three tools; no finance tool depends on `ctx.agentTeams` or on a Team Session. The final report remains Lead-owned because only the Lead Session can deliver it with `present`. A Team-aware example preset and research skill live under `apps/cli/config/examples/finance-research`; they omit legacy subagent rows and are copied into the user preset root when a session needs the finance persona and method.
 
 ## Alternatives considered
 
