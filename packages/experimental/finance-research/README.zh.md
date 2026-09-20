@@ -9,7 +9,7 @@ English | [中文](README.md)
 
 ## 概述
 
-`dsh-experimental-finance-research` 为金融研究会话提供一条从数据到报告的路径，可使用确定性 fixture、实时公共 HTTP 和 WebSocket Provider。它加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，构建结构化 Markdown 报告，提供通用 Provider 请求、只读 Binance 私有账户读取、CoinMarketCap 行情与 OHLCV 数据，以及有界 Binance 或 CoinMarketCap 实时 WebSocket 事件。确定性监控规划器会为盘前、盘后和 BTC 24/7 检查返回 `schedule_create` 参数。
+`dsh-experimental-finance-research` 为金融研究会话提供一条从数据到报告的路径，可使用确定性 fixture、实时公共 HTTP 和 WebSocket Provider。它加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，构建结构化 Markdown 报告，提供通用 Provider 请求、只读 Binance 私有账户读取、CoinMarketCap 行情与 OHLCV 数据，通过 AKShare、同花顺 iFinD HTTP API 或本机 iFinDPy SDK 加载中国 A 股历史行情和实时行情，以及有界 Binance 或 CoinMarketCap 实时 WebSocket 事件。确定性监控规划器会为盘前、盘后和 BTC 24/7 检查返回 `schedule_create` 参数。
 
 ## 目录
 
@@ -106,7 +106,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 
 #### What the model sees
 
-模型最多看到十个生成的工具 Schema；其规范形态遵循 [tool catalog package map](../../../docs/tool-catalog.zh.md#tool-package-map)，而本实验包在 `src/index.ts` 中声明精确 Schema。`finance_market_snapshot`、`finance_technical_analysis` 和 `finance_research_report` 覆盖标准化研究；`finance_provider_describe` 与 `finance_provider_request` 暴露 Provider base 和通用传输；`finance_private_account` 返回标准化只读 Binance 余额、持仓和可选未成交订单；`finance_coinmarketcap_quotes` 和 `finance_coinmarketcap_ohlcv` 暴露标准化 CoinMarketCap 行情数据；`finance_realtime_stream` 返回有界 Binance 或 CoinMarketCap WebSocket 事件；`finance_monitor_plan` 返回调度参数。结果使用紧凑 canonical JSON 渲染，报告结果除外，它包含完整 Markdown 报告。
+模型最多看到十三个生成的工具 Schema；其规范形态遵循 [tool catalog package map](../../../docs/tool-catalog.zh.md#tool-package-map)，而本实验包在 `src/index.ts` 中声明精确 Schema。`finance_market_snapshot`、`finance_technical_analysis` 和 `finance_research_report` 覆盖标准化研究；`finance_provider_describe` 与 `finance_provider_request` 暴露 Provider base 和通用传输；`finance_private_account` 返回标准化只读 Binance 余额、持仓和可选未成交订单；`finance_coinmarketcap_quotes` 和 `finance_coinmarketcap_ohlcv` 暴露标准化 CoinMarketCap 行情数据；`finance_realtime_stream` 返回有界 Binance 或 CoinMarketCap WebSocket 事件；`finance_stock_snapshot`、`finance_stock_quote` 和 `finance_stock_technical_analysis` 覆盖 AKShare 与 iFinD A 股数据；`finance_monitor_plan` 返回调度参数。结果使用紧凑 canonical JSON 渲染，报告结果除外，它包含完整 Markdown 报告。
 
 #### Token effect
 
@@ -127,6 +127,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **私有账户只读** — 签名 Binance 请求限制为 GET/query 端点；不提供下单、撤单或提现操作。
 - **监控采用规划器模式** — `finance_monitor_plan` 返回可持久化的 `schedule_create` 参数；盘前和盘后是一次性检查，报告后请求下一时段。
 - **CoinMarketCap 受套餐和 Credits 限制** — API Key 必须在金融设置中启用，WebSocket 能力取决于账户套餐和 Credits。
+- **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
 - **Web 仪表盘是独立插件** — 实时图表在浏览器读取公共 Binance Spot 数据；私有账户数据仍只保留在 Host。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。
 

@@ -35,6 +35,16 @@ dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
 
 The patch sets `provider: http` on the inserted `finance-research` row. It requires outbound network access to the public provider endpoints. The HTTP provider also registers `finance_provider_describe`, `finance_provider_request`, `finance_private_account`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, and `finance_realtime_stream`; use them for provider-native paths, normalized read-only Binance account data, CoinMarketCap quotes/OHLCV, and bounded Binance or CoinMarketCap WebSocket events. Store the CoinMarketCap key in Finance settings and enable CoinMarketCap API requests there. Data availability follows the upstream API, credentials, rate limits, plan, and permissions, not a local whitelist.
 
+## Mainland stock data
+
+AKShare stock data requires Python. Install `akshare` in the configured interpreter:
+
+```sh
+python3 -m pip install akshare
+```
+
+iFinD supports two explicit transports in Finance settings. `http` uses the Tonghuashun HTTP API and requires an authorized account refresh token; save that token in Finance settings without installing a local SDK. `local` uses the vendor `iFinDPy` SDK and requires the account/password pair. Both transports run through the Host subprocess service, and missing dependencies, credentials, permissions, or data quotas fail explicitly.
+
 ## Web dashboard
 
 Apply the dashboard overlay to the Web profile after the finance profile:

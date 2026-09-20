@@ -35,6 +35,16 @@ dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
 
 Patch 会把插入的 `finance-research` 行设置为 `provider: http`。它需要能够访问这些公共 Provider 端点。HTTP Provider 还会注册 `finance_provider_describe`、`finance_provider_request`、`finance_private_account`、`finance_coinmarketcap_quotes`、`finance_coinmarketcap_ohlcv` 和 `finance_realtime_stream`；可查询 Provider 原生路径、只读 Binance 账户数据、CoinMarketCap 行情/OHLCV，以及有界的 Binance 或 CoinMarketCap WebSocket 实时事件。CoinMarketCap API Key 请在金融设置中保存，并开启 CoinMarketCap API 请求。数据可用性取决于上游 API、凭据、限流、套餐和账户权限，而不是本地白名单。
 
+## A 股数据
+
+AKShare 股票数据需要 Python。请在配置的 Python 解释器中安装 `akshare`：
+
+```sh
+python3 -m pip install akshare
+```
+
+iFinD 在金融设置中提供两条明确的接入方式。`http` 使用同花顺 HTTP API，需要已授权账号的 refresh token；将 token 保存到金融设置即可，不需要安装本地 SDK。`local` 使用厂商 `iFinDPy` SDK，需要账号和密码。两种方式都通过 Host subprocess 服务运行；依赖、凭据、权限或数据额度缺失时会显式失败。
+
 ## Web 仪表盘
 
 在金融 Profile 之后应用仪表盘 overlay：

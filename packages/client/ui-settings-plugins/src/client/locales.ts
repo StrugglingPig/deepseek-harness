@@ -36,6 +36,16 @@ export type PluginsSettingsLocaleKey =
   | 'financeCoinMarketCapTitle' | 'financeEnableCoinMarketCapRequests' | 'financeEnableCoinMarketCapRequestsHint'
   | 'financeCoinMarketCapBaseUrl' | 'financeCoinMarketCapWebSocketBaseUrl'
   | 'financeCoinMarketCapApiKey' | 'financeCoinMarketCapApiKeyHint'
+  | 'financeStockTitle' | 'financeEnableAkshare' | 'financeEnableAkshareHint'
+  | 'financeEnableIfind' | 'financeEnableIfindHint'
+  | 'financeIfindTransport' | 'financeIfindTransportHint'
+  | 'financeIfindTransportHttp' | 'financeIfindTransportLocal'
+  | 'financeIfindBaseUrl' | 'financeIfindBaseUrlHint'
+  | 'financePythonExecutable' | 'financePythonExecutableHint'
+  | 'financeStockBridgeTimeoutMs' | 'financeStockBridgeTimeoutMsHint'
+  | 'financeStockBridgeMaxOutputBytes' | 'financeStockBridgeMaxOutputBytesHint'
+  | 'financeIfindUser' | 'financeIfindUserHint' | 'financeIfindPassword' | 'financeIfindPasswordHint'
+  | 'financeIfindRefreshToken' | 'financeIfindRefreshTokenHint'
   | 'financeBinanceApiKey' | 'financeBinanceApiKeyHint'
   | 'financeBinanceApiSecret' | 'financeBinanceApiSecretHint'
   | 'financeCredentialSet' | 'financeCredentialUnset'
@@ -142,6 +152,29 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
   financeCoinMarketCapApiKey: 'CoinMarketCap API key',
   financeCoinMarketCapApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
+  financeStockTitle: 'A-share stock bridge',
+  financeEnableAkshare: 'Enable AKShare stock data',
+  financeEnableAkshareHint: 'Requires the Python package akshare in the configured interpreter.',
+  financeEnableIfind: 'Enable Tonghuashun iFinD stock data',
+  financeEnableIfindHint: 'Requires an authorized iFinD account. HTTP API needs a refresh token; local SDK needs the vendor SDK.',
+  financeIfindTransport: 'iFinD transport',
+  financeIfindTransportHint: 'http uses the Tonghuashun HTTP API; local uses the vendor iFinDPy SDK.',
+  financeIfindTransportHttp: 'HTTP API',
+  financeIfindTransportLocal: 'Local SDK',
+  financeIfindBaseUrl: 'iFinD HTTP API base URL',
+  financeIfindBaseUrlHint: 'Base origin for the Tonghuashun iFinD HTTP API.',
+  financePythonExecutable: 'Python executable',
+  financePythonExecutableHint: 'Interpreter used to run the bundled stock bridge.',
+  financeStockBridgeTimeoutMs: 'Stock bridge timeout (ms)',
+  financeStockBridgeTimeoutMsHint: 'Maximum time for one AKShare or iFinD request.',
+  financeStockBridgeMaxOutputBytes: 'Stock bridge output cap (bytes)',
+  financeStockBridgeMaxOutputBytesHint: 'Maximum captured output per bridge stream.',
+  financeIfindUser: 'iFinD account',
+  financeIfindUserHint: 'Write-only. Stored outside settings; leave blank to keep the current account.',
+  financeIfindPassword: 'iFinD password',
+  financeIfindPasswordHint: 'Write-only. Stored outside settings; leave blank to keep the current password.',
+  financeIfindRefreshToken: 'iFinD refresh token',
+  financeIfindRefreshTokenHint: 'Write-only. Used by the HTTP API transport; leave blank to keep the current token.',
   financeBinanceApiKey: 'Binance API key',
   financeBinanceApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
   financeBinanceApiSecret: 'Binance API secret',
@@ -262,6 +295,29 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
   financeCoinMarketCapApiKey: 'CoinMarketCap API Key',
   financeCoinMarketCapApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
+  financeStockTitle: 'A 股数据桥',
+  financeEnableAkshare: '启用 AKShare 股票数据',
+  financeEnableAkshareHint: '需要在配置的 Python 解释器中安装 akshare。',
+  financeEnableIfind: '启用同花顺 iFinD 股票数据',
+  financeEnableIfindHint: '需要已授权的 iFinD 账号；HTTP API 使用 refresh token，本地 SDK 需要厂商 SDK。',
+  financeIfindTransport: 'iFinD 接入方式',
+  financeIfindTransportHint: 'http 使用同花顺 HTTP API；local 使用厂商 iFinDPy SDK。',
+  financeIfindTransportHttp: 'HTTP API',
+  financeIfindTransportLocal: '本地 SDK',
+  financeIfindBaseUrl: 'iFinD HTTP API Base URL',
+  financeIfindBaseUrlHint: '同花顺 iFinD HTTP API 的 Base origin。',
+  financePythonExecutable: 'Python 可执行文件',
+  financePythonExecutableHint: '运行内置股票桥的 Python 解释器。',
+  financeStockBridgeTimeoutMs: '股票桥超时（毫秒）',
+  financeStockBridgeTimeoutMsHint: '单次 AKShare 或 iFinD 请求的最长时间。',
+  financeStockBridgeMaxOutputBytes: '股票桥输出上限（字节）',
+  financeStockBridgeMaxOutputBytesHint: '每个输出流最多捕获多少字节。',
+  financeIfindUser: 'iFinD 账号',
+  financeIfindUserHint: '只写。保存在设置文件之外；留空表示保持当前账号。',
+  financeIfindPassword: 'iFinD 密码',
+  financeIfindPasswordHint: '只写。保存在设置文件之外；留空表示保持当前密码。',
+  financeIfindRefreshToken: 'iFinD refresh token',
+  financeIfindRefreshTokenHint: '只写。HTTP API 接入使用；留空表示保持当前 token。',
   financeBinanceApiKey: 'Binance API Key',
   financeBinanceApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
   financeBinanceApiSecret: 'Binance API Secret',

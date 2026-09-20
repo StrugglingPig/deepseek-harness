@@ -19,6 +19,11 @@ import {
   SettingsFinanceMarketStreamProvider,
   type FinanceRuntimeSettings,
 } from './settings-provider.ts'
+import {
+  FinanceStockSubprocessBridge,
+  SubprocessFinanceStockDataProvider,
+  registerStockTools,
+} from './stock.ts'
 import { buildIndicatorAnalysis } from './indicators.ts'
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
@@ -59,6 +64,17 @@ export {
   HttpFinanceMarketDataProvider,
 } from './http.ts'
 export type { HttpFinanceMarketDataProviderOptions } from './http.ts'
+export {
+  FinanceStockSubprocessBridge,
+  SubprocessFinanceStockDataProvider,
+  registerStockTools,
+} from './stock.ts'
+export type {
+  FinanceStockBridge,
+  FinanceStockBridgeRequest,
+  FinanceStockSubprocessBridgeOptions,
+  SubprocessFinanceStockDataProviderOptions,
+} from './stock.ts'
 
 export const name = 'experimental-finance-research'
 export const inject = ['tools']
@@ -91,6 +107,20 @@ export interface Config {
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
   readonly enableCoinMarketCapRequests?: boolean
+  /** Whether AKShare stock data is available. */
+  readonly enableAkshare?: boolean
+  /** Whether iFinD stock data is available. */
+  readonly enableIfind?: boolean
+  /** iFinD transport: HTTP API or local iFinDPy SDK. */
+  readonly ifindTransport?: 'http' | 'local'
+  /** Tonghuashun iFinD HTTP API origin. */
+  readonly ifindBaseUrl?: string
+  /** Python executable used by the stock bridge. */
+  readonly pythonExecutable?: string
+  /** Stock bridge timeout in milliseconds. */
+  readonly stockBridgeTimeoutMs?: number
+  /** Maximum stock bridge output captured per stream. */
+  readonly stockBridgeMaxOutputBytes?: number
   /** Successful GET cache lifetime in milliseconds. */
   readonly requestCacheTtlMs?: number
   /** Maximum cached GET responses. */
@@ -133,6 +163,13 @@ export const Config: z<Config> = z.object({
   coinMarketCapBaseUrl: z.string().default('https://pro-api.coinmarketcap.com'),
   enableSignedRequests: z.boolean().default(false),
   enableCoinMarketCapRequests: z.boolean().default(false),
+  enableAkshare: z.boolean().default(true),
+  enableIfind: z.boolean().default(false),
+  ifindTransport: z.union(['http', 'local'] as const).default('http'),
+  ifindBaseUrl: z.string().default('https://quantapi.51ifind.com'),
+  pythonExecutable: z.string().default('python3'),
+  stockBridgeTimeoutMs: z.number().min(1).default(60_000),
+  stockBridgeMaxOutputBytes: z.number().step(1).min(1).default(4 * 1024 * 1024),
   requestCacheTtlMs: z.number().min(0).default(5_000),
   requestCacheMaxEntries: z.number().step(1).min(0).default(256),
   requestMaxRetries: z.number().step(1).min(0).default(2),
@@ -1009,6 +1046,13 @@ export function apply(ctx: Context, config: Config): void {
     coinMarketCapBaseUrl: resolved.coinMarketCapBaseUrl,
     enableSignedRequests: resolved.enableSignedRequests,
     enableCoinMarketCapRequests: resolved.enableCoinMarketCapRequests,
+    enableAkshare: resolved.enableAkshare,
+    enableIfind: resolved.enableIfind,
+    ifindTransport: resolved.ifindTransport,
+    ifindBaseUrl: resolved.ifindBaseUrl,
+    pythonExecutable: resolved.pythonExecutable,
+    stockBridgeTimeoutMs: resolved.stockBridgeTimeoutMs,
+    stockBridgeMaxOutputBytes: resolved.stockBridgeMaxOutputBytes,
     requestCacheTtlMs: resolved.requestCacheTtlMs,
     requestCacheMaxEntries: resolved.requestCacheMaxEntries,
     requestMaxRetries: resolved.requestMaxRetries,
@@ -1038,6 +1082,22 @@ export function apply(ctx: Context, config: Config): void {
     ref => resolveCredential(ref),
   )
   registerFinanceTools(ctx, provider, streamProvider)
+  ctx.inject(['subprocess'], (subprocessCtx) => {
+    const bridge = new FinanceStockSubprocessBridge({
+      subprocess: subprocessCtx.subprocess,
+      pythonExecutable: currentSettings.pythonExecutable,
+      timeoutMs: currentSettings.stockBridgeTimeoutMs,
+      maxOutputBytes: currentSettings.stockBridgeMaxOutputBytes,
+      ifindBaseUrl: currentSettings.ifindBaseUrl,
+      resolveCredential: ref => resolveCredential(ref),
+    })
+    registerStockTools(ctx, new SubprocessFinanceStockDataProvider(bridge, {
+      enabled: provider => provider === 'akshare'
+        ? currentSettings.enableAkshare
+        : currentSettings.enableIfind,
+      ifindTransport: () => currentSettings.ifindTransport,
+    }))
+  })
 
   ctx.inject(['settings'], (settingsCtx) => {
     const scope = settingsCtx.settings.register(FINANCE_SETTINGS_NS, Config, { base: resolved })

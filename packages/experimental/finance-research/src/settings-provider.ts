@@ -37,6 +37,13 @@ export interface FinanceRuntimeSettings {
   readonly polymarketClobBaseUrl: string
   readonly enableSignedRequests: boolean
   readonly enableCoinMarketCapRequests: boolean
+  readonly enableAkshare: boolean
+  readonly enableIfind: boolean
+  readonly ifindTransport: 'http' | 'local'
+  readonly ifindBaseUrl: string
+  readonly pythonExecutable: string
+  readonly stockBridgeTimeoutMs: number
+  readonly stockBridgeMaxOutputBytes: number
   readonly requestCacheTtlMs: number
   readonly requestCacheMaxEntries: number
   readonly requestMaxRetries: number

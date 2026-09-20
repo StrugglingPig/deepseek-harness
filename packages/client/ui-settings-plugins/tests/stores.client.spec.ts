@@ -19,7 +19,7 @@ import {
 import { WebSearchCardController, type WebSearchSettings } from '../src/client/web-search-card-controller.ts'
 import {
   BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF, FinanceCardController,
-  financeScopeValue, type FinanceSettings,
+  IFIND_PASSWORD_REF, IFIND_REFRESH_TOKEN_REF, IFIND_USER_REF, financeScopeValue, type FinanceSettings,
 } from '../src/client/finance-card-controller.ts'
 
 /** Make the stub behave like a Host that accepts every write. */
@@ -1026,18 +1026,27 @@ describe('FinanceCardController', () => {
     let keyConfigured = initial.keyConfigured
     let secretConfigured = initial.secretConfigured
     let cmcConfigured = false
+    let ifindUserConfigured = false
+    let ifindPasswordConfigured = false
+    let ifindRefreshTokenConfigured = false
     const describe = vi.fn(async () => ({
       ok: true as const,
       value: {
         [BINANCE_API_KEY_REF]: { configured: keyConfigured, writable: initial.writable ?? true },
         [BINANCE_API_SECRET_REF]: { configured: secretConfigured, writable: initial.writable ?? true },
         [COINMARKETCAP_API_KEY_REF]: { configured: cmcConfigured, writable: initial.writable ?? true },
+        [IFIND_USER_REF]: { configured: ifindUserConfigured, writable: initial.writable ?? true },
+        [IFIND_PASSWORD_REF]: { configured: ifindPasswordConfigured, writable: initial.writable ?? true },
+        [IFIND_REFRESH_TOKEN_REF]: { configured: ifindRefreshTokenConfigured, writable: initial.writable ?? true },
       },
     }))
     const set = vi.fn(async (ref: string) => {
       if (ref === BINANCE_API_KEY_REF) keyConfigured = true
       else if (ref === BINANCE_API_SECRET_REF) secretConfigured = true
-      else cmcConfigured = true
+      else if (ref === COINMARKETCAP_API_KEY_REF) cmcConfigured = true
+      else if (ref === IFIND_USER_REF) ifindUserConfigured = true
+      else if (ref === IFIND_PASSWORD_REF) ifindPasswordConfigured = true
+      else ifindRefreshTokenConfigured = true
       return { ok: true as const, value: undefined }
     })
     return { ctx: ctxWith({ credentials: { describe, set } }), describe, set }
@@ -1054,6 +1063,7 @@ describe('FinanceCardController', () => {
       writable: true,
       value: {
         provider: 'http', timeoutMs: 1_000, barLimit: 60, enableSignedRequests: true,
+        ifindTransport: 'http', ifindBaseUrl: 'https://quantapi.test',
         requestCacheTtlMs: 100, requestCacheMaxEntries: 10, requestMaxRetries: 2,
         requestRetryBaseDelayMs: 10, requestRetryMaxDelayMs: 20, requestsPerMinute: 60,
         requestBurst: 2, binanceWebSocketBaseUrl: 'wss://stream.test',
@@ -1067,6 +1077,8 @@ describe('FinanceCardController', () => {
       timeoutMs: { text: '1000' },
       enableSignedRequests: { text: 'true' },
       requestMaxRetries: { text: '2' },
+      ifindTransport: { text: 'http' },
+      ifindBaseUrl: { text: 'https://quantapi.test' },
       binanceWebSocketBaseUrl: { text: 'wss://stream.test' },
       binanceApiKeyConfigured: true,
       binanceApiKeyWritable: false,
@@ -1082,7 +1094,7 @@ describe('FinanceCardController', () => {
     await vi.waitFor(() => { expect(credentials.describe).toHaveBeenCalledTimes(1) })
   })
 
-  it('saves non-secret fields and writes each Binance credential separately', async () => {
+  it('saves non-secret fields and writes each credential separately', async () => {
     const host = stubSettingsScope<FinanceSettings>()
     acceptWrites(host)
     const credentials = financeCredentials({ keyConfigured: false, secretConfigured: false })
@@ -1097,12 +1109,18 @@ describe('FinanceCardController', () => {
     face.edit('binanceApiKey', ' key ')
     face.edit('binanceApiSecret', ' secret ')
     face.edit('coinMarketCapApiKey', ' cmc-key ')
+    face.edit('ifindUser', ' ifind-user ')
+    face.edit('ifindPassword', ' ifind-password ')
+    face.edit('ifindRefreshToken', ' ifind-refresh-token ')
     face.save()
-    await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalledTimes(3) })
+    await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalledTimes(6) })
     expect(credentials.set.mock.calls).toEqual([
       [BINANCE_API_KEY_REF, 'key'],
       [BINANCE_API_SECRET_REF, 'secret'],
       [COINMARKETCAP_API_KEY_REF, 'cmc-key'],
+      [IFIND_USER_REF, 'ifind-user'],
+      [IFIND_PASSWORD_REF, 'ifind-password'],
+      [IFIND_REFRESH_TOKEN_REF, 'ifind-refresh-token'],
     ])
     expect(host.scope.getSnapshot().value).toMatchObject({ enableSignedRequests: true, requestMaxRetries: 3 })
     await vi.waitFor(() => {
@@ -1110,13 +1128,16 @@ describe('FinanceCardController', () => {
         binanceApiKeyConfigured: true,
         binanceApiSecretConfigured: true,
         coinMarketCapApiKeyConfigured: true,
+        ifindUserConfigured: true,
+        ifindPasswordConfigured: true,
+        ifindRefreshTokenConfigured: true,
         dirty: false,
       })
     })
 
     face.edit('binanceApiKey', '   ')
     face.save()
-    expect(credentials.set).toHaveBeenCalledTimes(3)
+    expect(credentials.set).toHaveBeenCalledTimes(6)
   })
 
   it('defaults credential flags that the Host does not report', async () => {

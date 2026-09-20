@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a data-to-report path over deterministic fixture data or live public HTTP and WebSocket providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical indicators and a weighted multi-indicator summary, builds a structured Markdown report, exposes generic provider requests, adds read-only normalized Binance private-account reads, reads CoinMarketCap quotes and OHLCV, and collects bounded real-time Binance or CoinMarketCap stream events. A deterministic monitor planner returns `schedule_create` arguments for pre-market, after-hours, and BTC 24/7 checks.
+`dsh-experimental-finance-research` gives a finance research session a data-to-report path over deterministic fixture data or live public HTTP and WebSocket providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical indicators and a weighted multi-indicator summary, builds a structured Markdown report, exposes generic provider requests, adds read-only normalized Binance private-account reads, reads CoinMarketCap quotes and OHLCV, loads mainland A-share history and quotes through AKShare, the Tonghuashun iFinD HTTP API, or the local iFinDPy SDK, and collects bounded real-time Binance or CoinMarketCap stream events. A deterministic monitor planner returns `schedule_create` arguments for pre-market, after-hours, and BTC 24/7 checks.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, and `finance_realtime_stream` when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
+Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, `finance_realtime_stream`, and the mainland stock tools when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-finance-research'
@@ -106,7 +106,7 @@ The package separates data, credentials, transport, analysis, report constructio
 
 #### What the model sees
 
-The model sees up to ten generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report` cover normalized research; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_coinmarketcap_quotes` and `finance_coinmarketcap_ohlcv` expose normalized CoinMarketCap market data; `finance_realtime_stream` returns a bounded Binance or CoinMarketCap WebSocket event batch; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except the report result, which contains the complete Markdown report.
+The model sees up to thirteen generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report` cover normalized research; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_coinmarketcap_quotes` and `finance_coinmarketcap_ohlcv` expose normalized CoinMarketCap market data; `finance_realtime_stream` returns a bounded Binance or CoinMarketCap WebSocket event batch; `finance_stock_snapshot`, `finance_stock_quote`, and `finance_stock_technical_analysis` cover AKShare and iFinD mainland stock data; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except the report result, which contains the complete Markdown report.
 
 #### Token effect
 
@@ -127,6 +127,7 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Private account data is read-only** — signed Binance requests are limited to GET/query endpoints; order placement, cancellation, and withdrawal operations are not provided.
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
 - **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
+- **Stock data depends on provider access** — AKShare requires the Python package `akshare`. iFinD HTTP uses an authorized account refresh token; iFinD local uses the vendor `iFinDPy` SDK and account credentials. Missing dependencies, credentials, permissions, or data quotas fail explicitly.
 - **The Web dashboard is a separate plugin** — live charts are browser-side and read public Binance Spot data; private account data remains Host-only.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 

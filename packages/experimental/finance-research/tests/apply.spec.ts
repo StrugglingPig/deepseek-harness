@@ -1,4 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
+import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 import { WebSocketServer } from 'ws'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -20,6 +21,13 @@ const CONFIG: Required<Config> = {
   polymarketClobBaseUrl: 'https://clob.test',
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
+  enableAkshare: true,
+  enableIfind: true,
+  ifindTransport: 'http',
+  ifindBaseUrl: 'https://quantapi.test',
+  pythonExecutable: 'python3',
+  stockBridgeTimeoutMs: 60_000,
+  stockBridgeMaxOutputBytes: 4 * 1024 * 1024,
   coinMarketCapBaseUrl: 'https://pro-api.test',
   requestCacheTtlMs: 0,
   requestCacheMaxEntries: 10,
@@ -126,6 +134,58 @@ describe('finance apply', () => {
     await new Promise<void>((resolve) => { cmcServer.close(() => { resolve() }) })
     await ctx.fiber.dispose()
     vi.unstubAllGlobals()
+  })
+
+  it('registers Python stock tools when the subprocess service is present', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    const scope = { get: () => CONFIG, watch: vi.fn() }
+    ctx.provide('settings', { register: vi.fn(() => scope) } as never)
+    const history = {
+      symbol: '600519',
+      name: '贵州茅台',
+      bars: Array.from({ length: 60 }, (_, index) => ({
+        timestamp: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+        open: 10 + index,
+        high: 11 + index,
+        low: 9 + index,
+        close: 10.5 + index,
+        volume: 1_000 + index,
+      })),
+    }
+    const handle = {
+      collected: {
+        stdout: { readFrom: () => ({ text: JSON.stringify({ ok: true, data: history }), nextOffset: 0, lossy: false }) },
+        stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) },
+      },
+      done: Promise.resolve({ exitCode: 0, signal: null }),
+    } as unknown as SubprocessHandle
+    ctx.provide('subprocess', {
+      resolveExecutable: async () => '/usr/bin/python3',
+      spawn: () => handle,
+    } as never)
+    ctx.provide('credentials', { resolve: async () => ({ value: 'credential' }) } as never)
+
+    apply(ctx, CONFIG)
+    await Promise.resolve()
+    const result = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-snapshot' as never,
+      name: 'finance_stock_snapshot',
+      arguments: { provider: 'akshare', symbol: '600519' },
+    })
+    expect(result.isError).toBe(false)
+    expect(result.content[0]?.type === 'text' ? result.content[0].text : '').toContain('贵州茅台')
+
+    const ifind = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-ifind' as never,
+      name: 'finance_stock_snapshot',
+      arguments: { provider: 'ifind', symbol: '600519' },
+    })
+    expect(ifind.isError).toBe(false)
+    await ctx.fiber.dispose()
   })
 
   it('uses the default credential resolver when the credentials service is absent', async () => {

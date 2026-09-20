@@ -156,6 +156,7 @@ describe('FinanceHttpTransport', () => {
       fetch: async () => jsonResponse({ ok: true }),
       requestsPerMinute: 60_000,
       requestBurst: 1,
+      now: () => 1_000,
       sleep: async (_milliseconds, signal) => {
         controller.abort()
         throw signal?.reason ?? new Error('aborted')
@@ -171,6 +172,7 @@ describe('FinanceHttpTransport', () => {
       fetch: async () => jsonResponse({ ok: true }),
       requestsPerMinute: 60_000,
       requestBurst: 1,
+      now: () => 1_000,
       sleep: async () => { throw new Error('sleep failed') },
     })
     await transport.request({ url: 'https://sleep.test/a', method: 'GET', cache: false })

@@ -467,6 +467,13 @@ describe('FinanceSettingsPage', () => {
       coinMarketCapBaseUrl: field('https://pro-api.test'),
       enableSignedRequests: field('true'),
       enableCoinMarketCapRequests: field('true'),
+      enableAkshare: field('true'),
+      enableIfind: field('true'),
+      ifindTransport: field('http'),
+      ifindBaseUrl: field('https://quantapi.test'),
+      pythonExecutable: field('python3'),
+      stockBridgeTimeoutMs: field('60000'),
+      stockBridgeMaxOutputBytes: field('4194304'),
       requestCacheTtlMs: field('100'),
       requestCacheMaxEntries: field('10'),
       requestMaxRetries: field('2'),
@@ -481,12 +488,21 @@ describe('FinanceSettingsPage', () => {
       binanceApiKey: field(''),
       binanceApiSecret: field(''),
       coinMarketCapApiKey: field(''),
+      ifindUser: field(''),
+      ifindPassword: field(''),
+      ifindRefreshToken: field(''),
       binanceApiKeyConfigured: true,
       binanceApiSecretConfigured: true,
       coinMarketCapApiKeyConfigured: true,
+      ifindUserConfigured: true,
+      ifindPasswordConfigured: true,
+      ifindRefreshTokenConfigured: true,
       binanceApiKeyWritable: true,
       binanceApiSecretWritable: true,
       coinMarketCapApiKeyWritable: true,
+      ifindUserWritable: true,
+      ifindPasswordWritable: true,
+      ifindRefreshTokenWritable: true,
       ...overrides,
     }
   }
@@ -516,6 +532,18 @@ describe('FinanceSettingsPage', () => {
     fireEvent.change(screen.getByLabelText(en.financeYahooBaseUrl), { target: { value: 'https://other-yahoo.test' } })
     fireEvent.click(screen.getByLabelText(en.financeEnableSignedRequests))
     fireEvent.click(screen.getByLabelText(en.financeEnableCoinMarketCapRequests))
+    fireEvent.click(screen.getByLabelText(en.financeEnableAkshare))
+    fireEvent.click(screen.getByLabelText(en.financeEnableIfind))
+    fireEvent.click(screen.getByLabelText(en.financeEnableAkshare))
+    fireEvent.click(screen.getByLabelText(en.financeEnableIfind))
+    fireEvent.change(screen.getByLabelText(en.financeIfindTransport), { target: { value: 'local' } })
+    fireEvent.change(screen.getByLabelText(en.financeIfindBaseUrl), { target: { value: 'https://other-quantapi.test' } })
+    fireEvent.change(screen.getByLabelText(en.financePythonExecutable), { target: { value: 'python3.12' } })
+    fireEvent.change(screen.getByLabelText(en.financeStockBridgeTimeoutMs), { target: { value: '90000' } })
+    fireEvent.change(screen.getByLabelText(en.financeStockBridgeMaxOutputBytes), { target: { value: '8388608' } })
+    fireEvent.change(screen.getByLabelText(en.financeIfindRefreshToken), { target: { value: 'ifind-refresh-token' } })
+    fireEvent.change(screen.getByLabelText(en.financeIfindUser), { target: { value: 'ifind-user' } })
+    fireEvent.change(screen.getByLabelText(en.financeIfindPassword), { target: { value: 'ifind-password' } })
     fireEvent.change(screen.getByLabelText(en.financeCoinMarketCapBaseUrl), { target: { value: 'https://other-cmc.test' } })
     fireEvent.change(screen.getByLabelText(en.financeCoinMarketCapWebSocketBaseUrl), { target: { value: 'wss://other-cmc-stream.test/v1' } })
     fireEvent.change(screen.getByLabelText(en.financeCoinMarketCapApiKey), { target: { value: 'cmc-key' } })
@@ -536,6 +564,16 @@ describe('FinanceSettingsPage', () => {
       ['yahooBaseUrl', 'https://other-yahoo.test'],
       ['enableSignedRequests', 'false'],
       ['enableCoinMarketCapRequests', 'false'],
+      ['enableAkshare', 'false'],
+      ['enableIfind', 'false'],
+      ['ifindTransport', 'local'],
+      ['ifindBaseUrl', 'https://other-quantapi.test'],
+      ['pythonExecutable', 'python3.12'],
+      ['stockBridgeTimeoutMs', '90000'],
+      ['stockBridgeMaxOutputBytes', '8388608'],
+      ['ifindRefreshToken', 'ifind-refresh-token'],
+      ['ifindUser', 'ifind-user'],
+      ['ifindPassword', 'ifind-password'],
       ['coinMarketCapBaseUrl', 'https://other-cmc.test'],
       ['coinMarketCapWebSocketBaseUrl', 'wss://other-cmc-stream.test/v1'],
       ['coinMarketCapApiKey', 'cmc-key'],
@@ -548,7 +586,7 @@ describe('FinanceSettingsPage', () => {
     ]))
     expect(actions.save).toHaveBeenCalledOnce()
     expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
-    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(3)
+    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(6)
   })
 
   it('uses provider and credential fallback branches', () => {
@@ -556,14 +594,30 @@ describe('FinanceSettingsPage', () => {
       provider: field(''),
       enableSignedRequests: field('false'),
       enableCoinMarketCapRequests: field('false'),
+      enableAkshare: field('false'),
+      enableIfind: field('false'),
+      ifindTransport: field(''),
       binanceApiKeyConfigured: false,
       binanceApiSecretConfigured: false,
       coinMarketCapApiKeyConfigured: false,
+      ifindUserConfigured: false,
+      ifindPasswordConfigured: false,
+      ifindRefreshTokenConfigured: false,
     })
     fireEvent.click(screen.getByLabelText(en.financeEnableSignedRequests))
     fireEvent.click(screen.getByLabelText(en.financeEnableCoinMarketCapRequests))
+    fireEvent.click(screen.getByLabelText(en.financeEnableAkshare))
+    fireEvent.click(screen.getByLabelText(en.financeEnableIfind))
+    fireEvent.click(screen.getByLabelText(en.financeEnableAkshare))
+    fireEvent.click(screen.getByLabelText(en.financeEnableIfind))
+    fireEvent.change(screen.getByLabelText(en.financePythonExecutable), { target: { value: 'python3.12' } })
+    fireEvent.change(screen.getByLabelText(en.financeStockBridgeTimeoutMs), { target: { value: '90000' } })
+    fireEvent.change(screen.getByLabelText(en.financeStockBridgeMaxOutputBytes), { target: { value: '8388608' } })
+    fireEvent.change(screen.getByLabelText(en.financeIfindUser), { target: { value: 'ifind-user' } })
+    fireEvent.change(screen.getByLabelText(en.financeIfindPassword), { target: { value: 'ifind-password' } })
     expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('value', 'fixture')
-    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(3)
+    expect(screen.getByLabelText(en.financeIfindTransport)).toHaveProperty('value', 'http')
+    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(6)
   })
 
   it('disables settings and credential controls when their owners are read-only', () => {

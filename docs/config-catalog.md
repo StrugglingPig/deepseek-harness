@@ -726,6 +726,20 @@ export interface Config {
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
   readonly enableCoinMarketCapRequests?: boolean
+  /** Whether AKShare stock data is available. */
+  readonly enableAkshare?: boolean
+  /** Whether iFinD stock data is available. */
+  readonly enableIfind?: boolean
+  /** iFinD transport: HTTP API or local iFinDPy SDK. */
+  readonly ifindTransport?: 'http' | 'local'
+  /** Tonghuashun iFinD HTTP API origin. */
+  readonly ifindBaseUrl?: string
+  /** Python executable used by the stock bridge. */
+  readonly pythonExecutable?: string
+  /** Stock bridge timeout in milliseconds. */
+  readonly stockBridgeTimeoutMs?: number
+  /** Maximum stock bridge output captured per stream. */
+  readonly stockBridgeMaxOutputBytes?: number
   /** Successful GET cache lifetime in milliseconds. */
   readonly requestCacheTtlMs?: number
   /** Maximum cached GET responses. */
@@ -751,7 +765,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:67`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:83`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 

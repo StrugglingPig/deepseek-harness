@@ -162,6 +162,80 @@ export interface FinanceCoinMarketCapOhlcvSeries {
   readonly bars: readonly MarketBar[]
 }
 
+/** Python-backed mainland stock data providers. */
+export type FinanceStockProviderId = 'akshare' | 'ifind'
+
+/** One mainland stock history request. */
+export interface FinanceStockHistoryRequest {
+  /** Data provider. */
+  readonly provider: FinanceStockProviderId
+  /** Six-digit A-share symbol, with or without exchange suffix. */
+  readonly symbol: string
+  /** Inclusive ISO start date. */
+  readonly startDate?: string
+  /** Inclusive ISO end date. */
+  readonly endDate?: string
+  /** Price adjustment mode. */
+  readonly adjust?: 'none' | 'qfq' | 'hfq'
+}
+
+/** One mainland stock real-time quote request. */
+export interface FinanceStockQuoteRequest {
+  /** Data provider. */
+  readonly provider: FinanceStockProviderId
+  /** Six-digit A-share symbols. */
+  readonly symbols: readonly string[]
+}
+
+/** One normalized mainland stock real-time quote. */
+export interface FinanceStockQuote {
+  readonly symbol: string
+  readonly name: string | undefined
+  readonly currency: 'CNY'
+  readonly asOf: string
+  readonly source: FinanceStockProviderId
+  readonly price: number | undefined
+  readonly changePercent: number | undefined
+  readonly change: number | undefined
+  readonly open: number | undefined
+  readonly high: number | undefined
+  readonly low: number | undefined
+  readonly previousClose: number | undefined
+  readonly volume: number | undefined
+  readonly amount: number | undefined
+}
+
+/** Normalized mainland stock snapshot used by indicators and reports. */
+export interface FinanceStockSnapshot {
+  readonly instrument: {
+    readonly symbol: string
+    readonly name: string
+    readonly assetClass: 'equity'
+    readonly currency: 'CNY'
+  }
+  readonly asOf: string
+  readonly source: {
+    readonly provider: FinanceStockProviderId
+    readonly retrievedAt: string
+    readonly synthetic: false
+  }
+  readonly quote: {
+    readonly price: number
+    readonly changePercent: number
+  }
+  readonly bars: readonly MarketBar[]
+}
+
+/** Mainland stock data provider backed by an installed Python data environment. */
+export interface FinanceStockDataProvider {
+  /** Stable provider id. */
+  readonly id: string
+  /** Load normalized daily stock history. */
+  loadStockSnapshot(request: FinanceStockHistoryRequest, signal?: AbortSignal): Promise<FinanceStockSnapshot>
+  /** Load normalized current stock quotes. */
+  loadStockQuotes(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockQuote[]>
+}
+
 /** Replacing this provider changes the data source without changing the tools. */
 export interface FinanceMarketDataProvider {
   readonly id: string

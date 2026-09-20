@@ -14,6 +14,8 @@ Status: implemented
 
 `FinanceHttpTransport` 负责按 origin 的令牌桶限流、成功 GET 缓存、有界指数重试、请求超时和稳定传输错误。缓存、重试、限流和超时值都是插件 `Config` 字段，并在金融设置中展示。HTTP Provider 的公开请求和签名请求都通过该 transport。
 
+中国 A 股数据通过 `ctx.subprocess` 执行内置 Python 桥。AKShare 和两种 iFinD 接入方式保持在 npm 运行时之外；桥接层检测缺失依赖并返回稳定的结构化错误。iFinD HTTP refresh token 和本机 SDK 账号/密码通过 `ctx.credentials` 解析，只作为显式子进程环境变量传入。股票工具覆盖标准化历史行情、实时行情和确定性技术分析，不向模型暴露 Python traceback 或凭据。
+
 CoinMarketCap 是独立配置的 Provider base，使用自己的 `X-CMC_PRO_API_KEY` 凭据引用。`finance_coinmarketcap_quotes` 和 `finance_coinmarketcap_ohlcv` 标准化 REST 响应；`finance_realtime_stream` 使用 `provider: coinmarketcap` 路由到 `CoinMarketCapWebSocketStreamProvider`，后者执行文档规定的握手、发送 `market@crypto_latest_price` 订阅并返回有界数据帧。Key 只在 Host 解析，不会进入设置、模型可见结果或浏览器。
 
 `BinanceWebSocketStreamProvider` 从 Binance 组合行情流执行有界采集，支撑 `finance_realtime_stream`。它返回有限事件批次，而不是无界模型流；Web 仪表盘拥有自己的浏览器实时连接。

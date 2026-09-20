@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-20-finance-research-productionization.md
-2026-09-20-finance-research-productionization.md: ab048ce929b5add4abab146fba24e1a16a209ede
-2026-09-20-finance-research-productionization.zh.md: 516784b4905e06fa588603db54e3ce3b522d3589
+2026-09-20-finance-research-productionization.md: 327ea2311ecc79b946982111066334111fd61204
+2026-09-20-finance-research-productionization.zh.md: 5844b33db33baf791d3913864da0d1236e3451c3

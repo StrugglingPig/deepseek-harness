@@ -84,6 +84,95 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         />
         <p className={css.hint}>{t('financeEnableSignedRequestsHint')}</p>
       </div>
+      <h3 className={css.label}>{t('financeStockTitle')}</h3>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-akshare">{t('financeEnableAkshare')}</label>
+        </div>
+        <input
+          id="finance-enable-akshare"
+          type="checkbox"
+          checked={state.enableAkshare.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableAkshare', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableAkshareHint')}</p>
+      </div>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-ifind">{t('financeEnableIfind')}</label>
+        </div>
+        <input
+          id="finance-enable-ifind"
+          type="checkbox"
+          checked={state.enableIfind.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableIfind', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableIfindHint')}</p>
+      </div>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-ifind-transport">{t('financeIfindTransport')}</label>
+        </div>
+        <select
+          id="finance-ifind-transport"
+          className={css.input}
+          value={state.ifindTransport.text || 'http'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('ifindTransport', event.target.value) }}
+        >
+          <option value="http">{t('financeIfindTransportHttp')}</option>
+          <option value="local">{t('financeIfindTransportLocal')}</option>
+        </select>
+        <p className={css.hint}>{t('financeIfindTransportHint')}</p>
+      </div>
+      <ValueField id="finance-ifind-base-url" label={t('financeIfindBaseUrl')} hint={t('financeIfindBaseUrlHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.ifindBaseUrl}
+        onEdit={(text) => { props.edit('ifindBaseUrl', text) }} onReset={() => { props.resetField('ifindBaseUrl') }} />
+      <ValueField id="finance-python-executable" label={t('financePythonExecutable')} hint={t('financePythonExecutableHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.pythonExecutable}
+        onEdit={(text) => { props.edit('pythonExecutable', text) }} onReset={() => { props.resetField('pythonExecutable') }} />
+      <ValueField id="finance-stock-bridge-timeout" label={t('financeStockBridgeTimeoutMs')} hint={t('financeStockBridgeTimeoutMsHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        numeric disabled={disabled} {...state.stockBridgeTimeoutMs}
+        onEdit={(text) => { props.edit('stockBridgeTimeoutMs', text) }} onReset={() => { props.resetField('stockBridgeTimeoutMs') }} />
+      <ValueField id="finance-stock-bridge-max-output" label={t('financeStockBridgeMaxOutputBytes')} hint={t('financeStockBridgeMaxOutputBytesHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        numeric disabled={disabled} {...state.stockBridgeMaxOutputBytes}
+        onEdit={(text) => { props.edit('stockBridgeMaxOutputBytes', text) }} onReset={() => { props.resetField('stockBridgeMaxOutputBytes') }} />
+      <SecretField
+        id="finance-ifind-refresh-token"
+        label={t('financeIfindRefreshToken')}
+        hint={t('financeIfindRefreshTokenHint')}
+        disabled={!state.ifindRefreshTokenWritable}
+        text={state.ifindRefreshToken.text}
+        configured={state.ifindRefreshTokenConfigured}
+        stateLabel={state.ifindRefreshTokenConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('ifindRefreshToken', text) }}
+      />
+      <SecretField
+        id="finance-ifind-user"
+        label={t('financeIfindUser')}
+        hint={t('financeIfindUserHint')}
+        disabled={!state.ifindUserWritable}
+        text={state.ifindUser.text}
+        configured={state.ifindUserConfigured}
+        stateLabel={state.ifindUserConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('ifindUser', text) }}
+      />
+      <SecretField
+        id="finance-ifind-password"
+        label={t('financeIfindPassword')}
+        hint={t('financeIfindPasswordHint')}
+        disabled={!state.ifindPasswordWritable}
+        text={state.ifindPassword.text}
+        configured={state.ifindPasswordConfigured}
+        stateLabel={state.ifindPasswordConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('ifindPassword', text) }}
+      />
       <h3 className={css.label}>{t('financeCoinMarketCapTitle')}</h3>
       <div className={css.field}>
         <div className={css.head}>
