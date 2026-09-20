@@ -1,0 +1,182 @@
+{
+  "provider-describe": {
+    "status": "ok",
+    "elapsedMs": 0,
+    "value": {
+      "id": "http",
+      "displayName": "Public HTTP finance providers",
+      "bases": [
+        {
+          "name": "binance-spot",
+          "description": "Binance Spot public REST",
+          "auth": "none",
+          "docs": "https://developers.binance.com/docs/binance-spot-api-docs/rest-api"
+        },
+        {
+          "name": "binance-usdm",
+          "description": "Binance USD-M Futures public REST",
+          "auth": "none",
+          "docs": "https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info"
+        },
+        {
+          "name": "binance-coinm",
+          "description": "Binance COIN-M Futures public REST",
+          "auth": "none",
+          "docs": "https://developers.binance.com/docs/derivatives/coin-margined-futures/general-info"
+        },
+        {
+          "name": "binance-options",
+          "description": "Binance Options public REST",
+          "auth": "none",
+          "docs": "https://developers.binance.com/docs/derivatives/options-trading/general-info"
+        },
+        {
+          "name": "yahoo",
+          "description": "Yahoo Finance public chart and quote endpoints",
+          "auth": "none",
+          "docs": "https://query1.finance.yahoo.com"
+        },
+        {
+          "name": "polymarket-gamma",
+          "description": "Polymarket Gamma public catalog API",
+          "auth": "none",
+          "docs": "https://gamma-api.polymarket.com"
+        },
+        {
+          "name": "polymarket-clob",
+          "description": "Polymarket CLOB public market API",
+          "auth": "none",
+          "docs": "https://clob.polymarket.com"
+        },
+        {
+          "name": "coinmarketcap",
+          "description": "CoinMarketCap Pro REST API",
+          "auth": "api-key",
+          "docs": "https://coinmarketcap.com/api/documentation/"
+        }
+      ],
+      "notes": [
+        "Data availability is defined by the upstream API, credentials, rate limits, and network policy.",
+        "No endpoint whitelist is enforced; pass a base, an absolute public path, and provider-native parameters."
+      ]
+    }
+  },
+  "yahoo-aapl-snapshot": {
+    "status": "ok",
+    "elapsedMs": 611,
+    "value": {
+      "provider": "yahoo-finance",
+      "bars": 127,
+      "price": 336.13
+    }
+  },
+  "binance-btc-snapshot": {
+    "status": "ok",
+    "elapsedMs": 1117,
+    "value": {
+      "provider": "binance",
+      "bars": 80,
+      "price": 80400,
+      "asOf": "2026-09-20T00:00:00.000Z"
+    }
+  },
+  "binance-public-ticker": {
+    "status": "ok",
+    "elapsedMs": 327,
+    "value": {
+      "status": 200,
+      "lastPrice": "80400.00000000",
+      "priceChangePercent": "-1.279"
+    }
+  },
+  "coinmarketcap-quotes": {
+    "status": "ok",
+    "elapsedMs": 631,
+    "value": [
+      {
+        "id": 1,
+        "symbol": "BTC",
+        "price": 80336.88688482839,
+        "change24h": -1.38411466
+      },
+      {
+        "id": 1027,
+        "symbol": "ETH",
+        "price": 2579.1192519301985,
+        "change24h": -2.74796083
+      }
+    ]
+  },
+  "coinmarketcap-ohlcv": {
+    "status": "error",
+    "elapsedMs": 284,
+    "code": "HTTP_ERROR",
+    "message": "request failed for https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical?id=1&convert=USD&count=5&interval=daily&skip_invalid=true: HTTP 403"
+  },
+  "binance-websocket": {
+    "status": "ok",
+    "elapsedMs": 4020,
+    "value": {
+      "count": 1,
+      "stream": "btcusdt@kline_1m"
+    }
+  },
+  "coinmarketcap-websocket": {
+    "status": "error",
+    "elapsedMs": 459,
+    "code": "STREAM_FAILED",
+    "message": "CoinMarketCap WebSocket stream failed: Error: read ECONNRESET"
+  },
+  "polymarket-gamma": {
+    "status": "ok",
+    "elapsedMs": 494,
+    "value": {
+      "status": 200,
+      "records": 1
+    }
+  },
+  "akshare-stock-snapshot": {
+    "status": "ok",
+    "elapsedMs": 1698,
+    "value": {
+      "provider": "akshare",
+      "symbol": "600519",
+      "name": "600519",
+      "bars": 97,
+      "asOf": "2026-09-18T00:00:00.000Z",
+      "price": 1257.12,
+      "changePercent": -0.7782285434655738,
+      "reportTitle": "600519 (600519) research report"
+    }
+  },
+  "akshare-stock-quotes": {
+    "status": "ok",
+    "elapsedMs": 13383,
+    "value": [
+      {
+        "symbol": "600519",
+        "name": "贵州茅台",
+        "price": 1257.12,
+        "changePercent": -0.78
+      },
+      {
+        "symbol": "000001",
+        "name": "平安银行",
+        "price": 11.7,
+        "changePercent": 0.78
+      }
+    ]
+  },
+  "ifind-http-missing-token": {
+    "status": "error",
+    "elapsedMs": 0,
+    "code": "IFIND_AUTH_REQUIRED",
+    "message": "iFinD refresh token is not configured"
+  },
+  "ifind-local-missing-sdk": {
+    "status": "error",
+    "elapsedMs": 0,
+    "code": "IFIND_AUTH_REQUIRED",
+    "message": "iFinD account and password are not configured"
+  }
+}

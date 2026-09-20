@@ -1,0 +1,49 @@
+{
+  "date": "2026-09-20",
+  "timezone": "Asia/Shanghai",
+  "branch": "codex/finance-research-agent",
+  "baseCommit": "9983a20692fb8c63cd10d3980b8c906fdb1aa5d0",
+  "status": "passed_with_external_blockers",
+  "passed": [
+    "web_finance_dashboard_live_binance",
+    "yw_deepseek_flash_tool_call",
+    "yw_deepseek_flash_finance_agent_report",
+    "akshare_stock_snapshot",
+    "akshare_stock_quotes",
+    "stock_technical_analysis",
+    "coinmarketcap_quotes",
+    "yahoo_aapl_snapshot",
+    "binance_btc_snapshot",
+    "binance_public_ticker",
+    "binance_websocket",
+    "polymarket_gamma",
+    "workflow_e2e",
+    "agent_team_e2e",
+    "typecheck",
+    "tool_catalog",
+    "config_catalog",
+    "test_docs",
+    "coverage"
+  ],
+  "blocked_or_skipped": {
+    "coinmarketcap_ohlcv": "HTTP 403: current API plan does not support the endpoint",
+    "coinmarketcap_websocket": "ECONNRESET before a usable subscription completed",
+    "ifind_http": "IFIND_AUTH_REQUIRED: refresh token is not configured",
+    "ifind_local": "IFINDPy and account credentials are not configured",
+    "official_deepseek_route": "disabled/invalid token; verification used the yw provider"
+  },
+  "fixes": [
+    "registry-safe TOOL_RUNTIME_SCHEDULER symbol for source/lib coexistence",
+    "AKShare Eastmoney/Sina/Tencent fallback",
+    "non-fixture report source limitation text",
+    "detailed stock snapshot and technical-analysis tool output"
+  ],
+  "evidence": {
+    "tests": "286 finance/Core targeted tests passed; 552 selected coverage tests passed",
+    "coverage": "100% statements, branches, functions, lines for changed TS files",
+    "e2e": "Finance Workflow and Agent Team each passed",
+    "webAgentReport": "web-agent-600519-report.md",
+    "liveProviderSummary": "finance-agent-live-providers.json"
+  },
+  "fixCommit": "6736a17bd6"
+}
