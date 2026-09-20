@@ -1,5 +1,6 @@
 /** Finance dashboard controller owning Host market snapshots and refresh lifecycle. */
 
+import { DASHBOARD_MARKET_PATH } from '@deepseek-ai/dsh-experimental-finance-research/shared'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
@@ -158,7 +159,7 @@ export class FinanceDashboardController {
       limit: String(DEFAULT_LIMIT),
     })
     try {
-      const response = await request(`/api/finance-dashboard/market?${query.toString()}`, {
+      const response = await request(`${DASHBOARD_MARKET_PATH}?${query.toString()}`, {
         headers: { accept: 'application/json' },
       })
       if (!response.ok) throw new Error(`HTTP ${String(response.status)}`)
@@ -230,7 +231,10 @@ export class FinanceDashboardController {
     this.refresh()
   }
 
-  /** Build the public browser face. */
+  /**
+ * Build the public browser face.
+ * @returns The actions and state store bound to this controller.
+ */
   inject(): FinanceDashboardFace {
     return {
       ensure: () => { this.ensure() },

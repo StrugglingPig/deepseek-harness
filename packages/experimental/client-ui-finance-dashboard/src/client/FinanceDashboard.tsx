@@ -1,4 +1,4 @@
-/** Finance dashboard page: multi-asset quotes, TradingView-style chart, and stream status. */
+/** Finance dashboard page: multi-asset quotes, TradingView-style chart, and request status. */
 
 import { useEffect, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -45,9 +45,9 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
   const { t } = props
   const state = props.useDashboard(snapshot => snapshot)
   const latest = state.bars.at(-1)
-  const currentAsset = state.asset ?? 'crypto'
-  const [draft, setDraft] = useState(state.symbol ?? defaultSymbol(currentAsset))
-  useEffect(() => { setDraft(state.symbol ?? defaultSymbol(currentAsset)) }, [state.symbol, currentAsset])
+  const currentAsset = state.asset
+  const [draft, setDraft] = useState(state.symbol)
+  useEffect(() => { setDraft(state.symbol) }, [state.symbol, currentAsset])
   const submit = (): void => { props.setSymbol(draft) }
   return (
     <section className={css.root}>
@@ -113,7 +113,7 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
             <article><span>{t('interval')}</span><strong>{state.interval}</strong></article>
           </div>
           <TradingChart bars={state.bars} interval={state.interval} chartLabel={t('chartLabel')} />
-          <div className={css.legend}><span data-color="blue">SMA20</span><span data-color="amber">EMA12</span><span data-color="violet">RSI14</span><span data-color="sky">MACD</span></div>
+          <div className={css.legend}><span data-color="blue">{t('sma')}</span><span data-color="amber">{t('ema')}</span><span data-color="violet">{t('rsi')}</span><span data-color="sky">{t('macd')}</span></div>
         </>
       ) : null}
       <p className={css.accountNote}>{t('accountNote')}</p>

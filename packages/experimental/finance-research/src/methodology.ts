@@ -234,7 +234,11 @@ function byId(id: string): MethodologyCatalogEntry {
   return CATALOG.find(entry => entry.id === id) as MethodologyCatalogEntry
 }
 
-/** Build deterministic methodology readings and the strategy catalog. */
+/**
+ * Build deterministic methodology readings and the strategy catalog.
+ * @param snapshot - Normalized market snapshot.
+ * @returns Data-backed readings, investor lenses, and the strategy catalog.
+ */
 export function buildMethodologyAnalysis(snapshot: MarketSnapshot): MethodologyAnalysis {
   const analysis: IndicatorAnalysis = buildIndicatorAnalysis(snapshot)
   const bars = snapshot.bars

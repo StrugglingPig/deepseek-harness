@@ -53,4 +53,4 @@ Apply the dashboard overlay to the Web profile after the finance profile:
 dsh web --patch apps/cli/config/examples/finance-research/dashboard.patch.yml
 ```
 
-The **Finance dashboard** sidebar entry reads the `finance-research` settings namespace and the Host market route, then renders crypto, A-share, and US-equity candlesticks, volume, moving averages, RSI, MACD, asset tabs, and quick-symbol lists through `lightweight-charts`. It never receives API keys or secret values; private account data remains available to the agent through `finance_private_account`.
+The **Finance dashboard** sidebar entry reads the `finance-research` settings namespace and the Connection-authenticated `/api/finance-dashboard/market` route, then renders crypto, A-share, and US-equity candlesticks, volume, moving averages, RSI, MACD, asset tabs, and quick-symbol lists through `lightweight-charts`. It never receives API keys or secret values; private account data remains available to the agent through `finance_private_account`.

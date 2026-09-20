@@ -7,8 +7,26 @@ import {
   type DashboardRouteDependencies,
 } from '../src/dashboard.ts'
 import type { Context } from '@deepseek-ai/cordis'
-import type { DashboardBar } from '../src/dashboard.ts'
-import type { FinanceProviderResponse, FinanceStockSnapshot } from '../src/types.ts'
+import { DASHBOARD_MARKET_PATH } from '../src/shared.ts'
+import type { DashboardBar } from '../src/shared.ts'
+import type { FinanceProviderRequest, FinanceProviderResponse, FinanceStockSnapshot } from '../src/types.ts'
+
+/** Fetch route shape claimed from Connection's exact-route registry. */
+interface DashboardFetchRoute {
+  readonly path: string
+  readonly methods: readonly string[]
+  readonly requestBody: string
+  readonly fetch: (request: Request) => Promise<Response>
+}
+
+/** Context whose injection hands the callback a Connection fetch registry. */
+function routeContext(register: (route: DashboardFetchRoute) => () => Promise<void>): Context {
+  return {
+    inject: (_deps: readonly string[], callback: (ctx: unknown) => unknown) => callback({
+      connection: { fetch: { register } },
+    }),
+  } as unknown as Context
+}
 
 function marketResponse(data: unknown): FinanceProviderResponse {
   return {
@@ -52,7 +70,7 @@ function snapshot(): FinanceStockSnapshot {
 function deps(overrides: Partial<DashboardRouteDependencies> = {}): DashboardRouteDependencies {
   return {
     market: {
-      request: vi.fn(async request => marketResponse(
+      request: vi.fn(async (request: FinanceProviderRequest) => marketResponse(
         request.base === 'binance-spot'
           ? [[1_700_000_000_000, '100', '110', '95', '105', '12']]
           : {
@@ -182,30 +200,24 @@ describe('finance dashboard market route', () => {
     expect(monthly.bars.length).toBeGreaterThan(0)
   })
 
-  it('registers and answers the Host route', async () => {
-    let routeHandler: ((req: never, res: never) => Promise<void>) | undefined
-    const register = vi.fn((route: { handler: typeof routeHandler }) => {
-      routeHandler = route.handler
-      return () => undefined
+  it('registers and answers the authenticated Fetch route', async () => {
+    let route: DashboardFetchRoute | undefined
+    const register = vi.fn((value: DashboardFetchRoute) => {
+      route = value
+      return () => Promise.resolve()
     })
-    const ctx = {
-      inject: (_deps: readonly string[], callback: (ctx: unknown) => unknown) => callback({ webServer: { register } }),
-    } as unknown as Context
-    registerFinanceDashboardRoutes(ctx, deps())
+    registerFinanceDashboardRoutes(routeContext(register), deps())
     expect(register).toHaveBeenCalledOnce()
-    const status: number[] = []
-    const bodies: string[] = []
-    const response = {
-      writeHead: (code: number) => { status.push(code) },
-      end: (body?: string) => { bodies.push(body ?? '') },
-    }
-    await routeHandler?.({ method: 'POST', url: '/api/finance-dashboard/market' } as never, response as never)
-    await routeHandler?.({ method: 'GET', url: '/api/finance-dashboard/market?asset=crypto&symbol=BTC' } as never, response as never)
-    await routeHandler?.({ method: 'GET', url: '/api/finance-dashboard/market?asset=bad' } as never, response as never)
-    expect(status).toEqual([405, 200, 400])
-    expect(bodies[0]).toContain('METHOD_NOT_ALLOWED')
-    expect(bodies[1]).toContain('BTCUSDT')
-    expect(bodies[2]).toContain('DASHBOARD_INVALID_REQUEST')
+    expect(route?.path).toBe(DASHBOARD_MARKET_PATH)
+    expect(route?.methods).toEqual(['GET'])
+    expect(route?.requestBody).toBe('buffered')
+    const served = await route?.fetch(new Request(`http://localhost${DASHBOARD_MARKET_PATH}?asset=crypto&symbol=BTC`))
+    expect(served?.status).toBe(200)
+    expect(served?.headers.get('cache-control')).toBe('no-store')
+    expect(await served?.text()).toContain('BTCUSDT')
+    const rejected = await route?.fetch(new Request(`http://localhost${DASHBOARD_MARKET_PATH}?asset=bad`))
+    expect(rejected?.status).toBe(400)
+    expect(await rejected?.text()).toContain('DASHBOARD_INVALID_REQUEST')
   })
 
   it('covers defaults and malformed provider payload failures', async () => {
@@ -302,25 +314,20 @@ describe('finance dashboard market route', () => {
     )
     expect(daily.bars.length).toBe(60)
 
-    let routeHandler: ((req: never, res: never) => Promise<void>) | undefined
-    const register = vi.fn((route: { handler: typeof routeHandler }) => {
-      routeHandler = route.handler
-      return () => undefined
+    let routeHandler: ((request: Request) => Promise<Response>) | undefined
+    const register = vi.fn((value: DashboardFetchRoute) => {
+      routeHandler = value.fetch
+      return () => Promise.resolve()
     })
-    const routeContext = {
-      inject: (_deps: readonly string[], callback: (ctx: unknown) => unknown) => callback({ webServer: { register } }),
-    } as unknown as Context
-    registerFinanceDashboardRoutes(routeContext, deps({
+    registerFinanceDashboardRoutes(routeContext(register), deps({
       market: { request: async () => { throw new Error('boom') } },
     }))
-    const status: number[] = []
-    const bodies: string[] = []
-    const response = { writeHead: (code: number) => { status.push(code) }, end: (body?: string) => { bodies.push(body ?? '') } }
-    await routeHandler?.({ method: 'GET', url: undefined } as never, response as never)
-    await routeHandler?.({ method: 'GET', url: '/api/finance-dashboard/market?asset=crypto&symbol=BTC' } as never, response as never)
-    expect(status).toEqual([400, 400])
-    expect(bodies[0]).toContain('DASHBOARD_INVALID_REQUEST')
-    expect(bodies[1]).toContain('DASHBOARD_FAILED')
+    const invalid = await routeHandler?.(new Request('http://localhost')) as Response
+    const failed = await routeHandler?.(new Request(`http://localhost${DASHBOARD_MARKET_PATH}?asset=crypto&symbol=BTC`)) as Response
+    expect(invalid.status).toBe(400)
+    expect(await invalid.text()).toContain('DASHBOARD_INVALID_REQUEST')
+    expect(failed.status).toBe(400)
+    expect(await failed.text()).toContain('DASHBOARD_FAILED')
   })
 
 })

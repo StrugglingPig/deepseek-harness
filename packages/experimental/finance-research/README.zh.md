@@ -128,7 +128,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **监控采用规划器模式** — `finance_monitor_plan` 返回可持久化的 `schedule_create` 参数；盘前和盘后是一次性检查，报告后请求下一时段。
 - **CoinMarketCap 受套餐和 Credits 限制** — API Key 必须在金融设置中启用，WebSocket 能力取决于账户套餐和 Credits。
 - **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
-- **Web 仪表盘是独立插件** — 仪表盘读取 Host 行情路由，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表；私有账户数据仍只保留在 Host。
+- **Web 仪表盘是独立插件** — 仪表盘从 Connection 的认证精确路由注册表读取 `/api/finance-dashboard/market`，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表；只有组合提供 Connection 时该路由才注册，私有账户数据仍只保留在 Host。
 - **方法论覆盖状态是显式的** — 只有所需数据存在时确定性方法才会运行；波浪计数、Wyckoff、横截面因子、统计套利、机器学习和微观结构方法仍作为需要额外输入或模型的目录项。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。
 

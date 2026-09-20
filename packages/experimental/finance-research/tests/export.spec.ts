@@ -18,14 +18,13 @@ function report(title = 'Test report'): ResearchReport {
 
 function bench() {
   const writes = new Map<string, string>()
-  const fs = {
-    resolve: vi.fn(async (path: string) => ({ targetKey: path, displayPath: path }) as unknown as FsTarget),
-    writeText: vi.fn(async (target: FsTarget, content: string) => {
-      writes.set(target.displayPath, content)
-      return { operation: 'create', version: 'v', after: content }
-    }),
-  } as unknown as FileSystem
-  return { fs, writes }
+  const resolve = vi.fn(async (path: string) => ({ targetKey: path, displayPath: path }) as unknown as FsTarget)
+  const writeText = vi.fn(async (target: FsTarget, content: string) => {
+    writes.set(target.displayPath, content)
+    return { operation: 'create', version: 'v', after: content }
+  })
+  const fs = { resolve, writeText } as unknown as FileSystem
+  return { fs, resolve, writes }
 }
 
 describe('finance report export', () => {
@@ -38,10 +37,10 @@ describe('finance report export', () => {
   })
 
   it('falls back to a safe stem and forwards cancellation', async () => {
-    const { fs } = bench()
+    const { fs, resolve } = bench()
     const signal = new AbortController().signal
     const result = await exportResearchReport(fs, report('***'), 'reports', undefined, signal)
     expect(result.markdown).toBe('reports/finance-report.md')
-    expect(fs.resolve).toHaveBeenCalledWith('reports/finance-report.md', { signal })
+    expect(resolve).toHaveBeenCalledWith('reports/finance-report.md', { signal })
   })
 })

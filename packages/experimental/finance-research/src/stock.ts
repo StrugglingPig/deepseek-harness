@@ -638,7 +638,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
       }, exec.signal)
       const stockMarketProvider: FinanceMarketDataProvider = {
         id: 'stock-python',
-        load: async () => snapshot,
+        load: () => Promise.resolve(snapshot),
       }
       const report = await buildResearchReport(stockMarketProvider, {
         symbol: args.symbol,
@@ -776,7 +776,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
         }, exec.signal)
         const report = await buildResearchReport({
           id: 'stock-python',
-          load: async () => snapshot,
+          load: () => Promise.resolve(snapshot),
         }, {
           symbol: args.symbol,
           ...args.question === undefined ? {} : { question: args.question },

@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-experimental-client-ui-finance-dashboard",
-  "description": "Finance research Web dashboard with live Binance charts and stream status",
+  "description": "Finance research Web dashboard for crypto, A-share, and US-equity charts on the Host market route",
   "version": "0.1.6-alpha.2",
   "publishConfig": {
     "access": "public"
@@ -63,6 +63,7 @@
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-sidebar": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
+    "@deepseek-ai/dsh-experimental-finance-research": "workspace:^",
     "@testing-library/react": "^16.1.0",
     "@types/react": "~18.3.1",
     "react": "^18.2.0",

@@ -47,7 +47,8 @@ export { buildResearchReport } from './report.ts'
 export { buildMethodologyAnalysis } from './methodology.ts'
 export type { InvestorLens, MethodologyAnalysis, MethodologyCatalogEntry, MethodologyCategory, MethodologyDirection, MethodologyReading, MethodologyStatus } from './methodology.ts'
 export { loadDashboardMarket, parseDashboardRequest, registerFinanceDashboardRoutes } from './dashboard.ts'
-export type { DashboardAsset, DashboardBar, DashboardInterval, DashboardMarketResponse, DashboardQuote } from './dashboard.ts'
+export { DASHBOARD_MARKET_PATH } from './shared.ts'
+export type { DashboardAsset, DashboardBar, DashboardInterval, DashboardMarketResponse, DashboardQuote } from './shared.ts'
 export {
   BINANCE_API_KEY_REF,
   BINANCE_API_SECRET_REF,

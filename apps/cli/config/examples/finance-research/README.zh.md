@@ -53,4 +53,4 @@ iFinD 在金融设置中提供两条明确的接入方式。`http` 使用同花�
 dsh web --patch apps/cli/config/examples/finance-research/dashboard.patch.yml
 ```
 
-侧边栏中的 **金融仪表盘** 会读取 `finance-research` 设置命名空间和 Host 行情路由，并通过 `lightweight-charts` 渲染加密货币、A 股和美股 K 线、成交量、均线、RSI、MACD、资产切换和快捷标的列表。它不会收到 API Key 或 Secret；私有账户数据仍由 Agent 通过 `finance_private_account` 查询。
+侧边栏中的 **金融仪表盘** 会读取 `finance-research` 设置命名空间和 Connection 认证的 `/api/finance-dashboard/market` 路由，并通过 `lightweight-charts` 渲染加密货币、A 股和美股 K 线、成交量、均线、RSI、MACD、资产切换和快捷标的列表。它不会收到 API Key 或 Secret；私有账户数据仍由 Agent 通过 `finance_private_account` 查询。

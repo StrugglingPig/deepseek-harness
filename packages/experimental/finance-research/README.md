@@ -128,7 +128,7 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
 - **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
 - **Stock data depends on provider access** — AKShare requires the Python package `akshare`. iFinD HTTP uses an authorized account refresh token; iFinD local uses the vendor `iFinDPy` SDK and account credentials. Missing dependencies, credentials, permissions, or data quotas fail explicitly.
-- **The Web dashboard is a separate plugin** — the dashboard reads the Host market route and can render crypto, A-share, and US-equity charts through `lightweight-charts`; private account data remains Host-only.
+- **The Web dashboard is a separate plugin** — the dashboard reads `/api/finance-dashboard/market` from Connection's authenticated exact-route registry and renders crypto, A-share, and US-equity charts through `lightweight-charts`; the route registers only when the composition provides Connection, and private account data remains Host-only.
 - **Methodology coverage is explicit** — deterministic methods run only when their required data is present; wave counts, Wyckoff, cross-sectional factors, statistical arbitrage, machine learning, and microstructure methods remain catalog entries requiring additional inputs or models.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 

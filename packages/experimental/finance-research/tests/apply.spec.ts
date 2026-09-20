@@ -5,6 +5,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, BINANCE_API_KEY_REF, COINMARKETCAP_API_KEY_REF } from '../src/index.ts'
+import { DASHBOARD_MARKET_PATH } from '../src/shared.ts'
 import type { Config } from '../src/index.ts'
 import type { FinanceRuntimeSettings } from '../src/settings-provider.ts'
 
@@ -166,8 +167,10 @@ describe('finance apply', () => {
       spawn: () => handle,
     } as never)
     ctx.provide('credentials', { resolve: async () => ({ value: 'credential' }) } as never)
-    let route: { handler: (req: never, res: never) => Promise<void> } | undefined
-    ctx.provide('webServer', { register: (value: typeof route) => { route = value; return () => undefined } } as never)
+    let route: { fetch: (request: Request) => Promise<Response> } | undefined
+    ctx.provide('connection', {
+      fetch: { register: (value: typeof route) => { route = value; return () => Promise.resolve() } },
+    } as never)
 
     apply(ctx, CONFIG)
     await Promise.resolve()
@@ -188,18 +191,11 @@ describe('finance apply', () => {
     })
     expect(ifind.isError).toBe(false)
 
-    const status: number[] = []
-    const bodies: string[] = []
-    await route?.handler({ method: 'GET', url: '/api/finance-dashboard/market?asset=stock&symbol=600519&provider=akshare' } as never, {
-      writeHead: (code: number) => { status.push(code) },
-      end: (body?: string) => { bodies.push(body ?? '') },
-    } as never)
-    await route?.handler({ method: 'GET', url: '/api/finance-dashboard/market?asset=stock&symbol=600519&provider=ifind' } as never, {
-      writeHead: (code: number) => { status.push(code) },
-      end: (body?: string) => { bodies.push(body ?? '') },
-    } as never)
-    expect(status).toEqual([200, 200])
-    expect(bodies[0]).toContain('贵州茅台')
+    const akshareRoute = await route?.fetch(new Request(`http://localhost${DASHBOARD_MARKET_PATH}?asset=stock&symbol=600519&provider=akshare`))
+    const ifindRoute = await route?.fetch(new Request(`http://localhost${DASHBOARD_MARKET_PATH}?asset=stock&symbol=600519&provider=ifind`))
+    expect(akshareRoute?.status).toBe(200)
+    expect(ifindRoute?.status).toBe(200)
+    expect(await akshareRoute?.text()).toContain('贵州茅台')
     await ctx.fiber.dispose()
   })
 

@@ -1,39 +1,19 @@
 /** Browser-side dashboard market data, indicators, and chart geometry. */
 
-/** Asset families supported by the dashboard. */
-export type DashboardAsset = 'crypto' | 'stock' | 'us'
+import type {
+  DashboardAsset,
+  DashboardBar,
+  DashboardInterval,
+  DashboardMarketResponse,
+  DashboardQuote,
+} from '@deepseek-ai/dsh-experimental-finance-research/shared'
 
-/** Chart intervals supported by the dashboard. */
-export type DashboardInterval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w' | '1M'
-
-/** One plotted OHLCV bar. */
-export interface DashboardBar {
-  readonly time: number
-  readonly open: number
-  readonly high: number
-  readonly low: number
-  readonly close: number
-  readonly volume: number
-}
-
-/** One quote displayed above the chart. */
-export interface DashboardQuote {
-  readonly price: number
-  readonly changePercent: number
-  readonly volume: number
-  readonly currency: string
-}
-
-/** Normalized Host response for one dashboard request. */
-export interface DashboardMarketResponse {
-  readonly asset: DashboardAsset
-  readonly symbol: string
-  readonly name: string
-  readonly interval: DashboardInterval
-  readonly source: string
-  readonly asOf: string
-  readonly bars: readonly DashboardBar[]
-  readonly quote: DashboardQuote
+export type {
+  DashboardAsset,
+  DashboardBar,
+  DashboardInterval,
+  DashboardMarketResponse,
+  DashboardQuote,
 }
 
 /** One normalized value in an indicator series. */
@@ -70,38 +50,66 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 }
 
-/** Whether one value is a supported asset family. */
+/**
+ * Whether one value is a supported asset family.
+ * @param value - Candidate value.
+ * @returns True when the value names a supported asset family.
+ */
 export function isDashboardAsset(value: unknown): value is DashboardAsset {
   return typeof value === 'string' && ASSETS.includes(value as DashboardAsset)
 }
 
-/** Whether one value is a supported dashboard interval. */
+/**
+ * Whether one value is a supported dashboard interval.
+ * @param value - Candidate value.
+ * @returns True when the value names a supported interval.
+ */
 export function isDashboardInterval(value: unknown): value is DashboardInterval {
   return typeof value === 'string' && INTERVALS.includes(value as DashboardInterval)
 }
 
-/** Return the default symbol for an asset family. */
+/**
+ * Return the default symbol for an asset family.
+ * @param asset - Asset family.
+ * @returns The default symbol.
+ */
 export function defaultSymbol(asset: DashboardAsset): string {
   return DEFAULT_SYMBOLS[asset]
 }
 
-/** Return the quick-select symbols for an asset family. */
+/**
+ * Return the quick-select symbols for an asset family.
+ * @param asset - Asset family.
+ * @returns The quick-select symbols.
+ */
 export function watchlist(asset: DashboardAsset): readonly string[] {
   return WATCHLISTS[asset]
 }
 
-/** Return intervals that make sense for an asset family. */
+/**
+ * Return intervals that make sense for an asset family.
+ * @param asset - Asset family.
+ * @returns The intervals offered for that family.
+ */
 export function intervalsFor(asset: DashboardAsset): readonly DashboardInterval[] {
   return asset === 'stock' ? ['1d', '1w', '1M'] : INTERVALS
 }
 
-/** Normalize a user symbol to a Binance Spot pair. */
+/**
+ * Normalize a user symbol to a Binance Spot pair.
+ * @param symbol - User-entered symbol.
+ * @returns The Binance Spot pair.
+ */
 export function toBinanceSymbol(symbol: string): string {
   const normalized = symbol.trim().toUpperCase()
   return normalized.endsWith('USDT') ? normalized : `${normalized}USDT`
 }
 
-/** Parse Binance kline rows and discard malformed values. */
+/**
+ * Parse Binance kline rows and discard malformed values.
+ * @param payload - Upstream kline payload.
+ * @returns Complete bars in ascending time order.
+ */
 export function parseKlines(payload: unknown): DashboardBar[] {
   if (!Array.isArray(payload)) return []
   return payload.flatMap((row) => {
@@ -119,7 +127,11 @@ export function parseKlines(payload: unknown): DashboardBar[] {
   })
 }
 
-/** Parse one Host dashboard payload. */
+/**
+ * Parse one Host dashboard payload.
+ * @param payload - Host route response body.
+ * @returns The normalized response, or undefined when fields are missing.
+ */
 export function parseDashboardMarket(payload: unknown): DashboardMarketResponse | undefined {
   const value = record(payload)
   const asset = value?.asset
@@ -151,7 +163,12 @@ export function parseDashboardMarket(payload: unknown): DashboardMarketResponse 
   return { asset, symbol, name, interval, source, asOf, bars, quote: { price, changePercent, volume, currency } }
 }
 
-/** Simple moving average values over close prices. */
+/**
+ * Simple moving average values over close prices.
+ * @param bars - Bars to average.
+ * @param period - Lookback length.
+ * @returns One point per completed window.
+ */
 export function sma(bars: readonly DashboardBar[], period: number): IndicatorPoint[] {
   if (period < 1) return []
   return bars.flatMap((bar, index) => {
@@ -161,7 +178,12 @@ export function sma(bars: readonly DashboardBar[], period: number): IndicatorPoi
   })
 }
 
-/** Exponential moving average values over close prices. */
+/**
+ * Exponential moving average values over close prices.
+ * @param bars - Bars to average.
+ * @param period - Lookback length.
+ * @returns One point per bar.
+ */
 export function ema(bars: readonly DashboardBar[], period: number): IndicatorPoint[] {
   if (period < 1 || bars.length === 0) return []
   const multiplier = 2 / (period + 1)
@@ -172,7 +194,12 @@ export function ema(bars: readonly DashboardBar[], period: number): IndicatorPoi
   })
 }
 
-/** Relative strength index values. */
+/**
+ * Relative strength index values.
+ * @param bars - Bars to measure.
+ * @param period - Lookback length.
+ * @returns One point per bar after the first window.
+ */
 export function rsi(bars: readonly DashboardBar[], period = 14): IndicatorPoint[] {
   if (bars.length <= period) return []
   let gains = 0
@@ -198,7 +225,14 @@ export function rsi(bars: readonly DashboardBar[], period = 14): IndicatorPoint[
   return values
 }
 
-/** MACD and signal-line values. */
+/**
+ * MACD and signal-line values.
+ * @param bars - Bars to measure.
+ * @param fast - Fast EMA period.
+ * @param slow - Slow EMA period.
+ * @param signal - Signal EMA period.
+ * @returns The MACD and signal series.
+ */
 export function macd(
   bars: readonly DashboardBar[],
   fast = 12,

@@ -276,6 +276,7 @@
       "@deepseek-ai/dsh-experimental-agent-team-web-profile": ["./packages/experimental/agent-team-web-profile/src"],
       "@deepseek-ai/dsh-experimental-tool-agent-team": ["./packages/experimental/tool-agent-team/src"],
       "@deepseek-ai/dsh-experimental-finance-research": ["./packages/experimental/finance-research/src"],
+      "@deepseek-ai/dsh-experimental-finance-research/shared": ["./packages/experimental/finance-research/src/shared.ts"],
       "@deepseek-ai/dsh-experimental-finance-research-profile": ["./packages/experimental/finance-research-profile/src"],
       "@deepseek-ai/dsh-experimental-webworker-runtime": ["./packages/experimental/webworker-runtime/src"],
       "@deepseek-ai/dsh-experimental-webworker-packer": ["./packages/experimental/webworker-packer/src"],

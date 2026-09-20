@@ -121,7 +121,7 @@ describe('FinanceDashboardController', () => {
 
     let release: ((value: Response) => void) | undefined
     const pending = new Promise<Response>((resolve) => { release = resolve })
-    const raced = new FinanceDashboardController(scope, { fetch: (async () => pending) as typeof globalThis.fetch, pollMs: 0 })
+    const raced = new FinanceDashboardController(scope, { fetch: async () => pending, pollMs: 0 })
     const racedFace = raced.inject()
     racedFace.refresh()
     raced.dispose()

@@ -1,9 +1,16 @@
 /** Host-side market data for the Web finance dashboard. */
 
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-client-connection'
 import { FinanceDataError } from './error.ts'
+import {
+  DASHBOARD_MARKET_PATH,
+  type DashboardAsset,
+  type DashboardBar,
+  type DashboardInterval,
+  type DashboardMarketResponse,
+  type DashboardQuote,
+} from './shared.ts'
 import type {
   FinanceProviderRequest,
   FinanceProviderResponse,
@@ -11,42 +18,6 @@ import type {
   FinanceStockSnapshot,
   MarketBar,
 } from './types.ts'
-
-/** Asset families supported by the dashboard. */
-export type DashboardAsset = 'crypto' | 'stock' | 'us'
-
-/** Chart intervals supported by the dashboard. */
-export type DashboardInterval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w' | '1M'
-
-/** One normalized dashboard candlestick. */
-export interface DashboardBar {
-  readonly time: number
-  readonly open: number
-  readonly high: number
-  readonly low: number
-  readonly close: number
-  readonly volume: number
-}
-
-/** One normalized quote displayed above the chart. */
-export interface DashboardQuote {
-  readonly price: number
-  readonly changePercent: number
-  readonly volume: number
-  readonly currency: string
-}
-
-/** One dashboard market response. */
-export interface DashboardMarketResponse {
-  readonly asset: DashboardAsset
-  readonly symbol: string
-  readonly name: string
-  readonly interval: DashboardInterval
-  readonly source: string
-  readonly asOf: string
-  readonly bars: readonly DashboardBar[]
-  readonly quote: DashboardQuote
-}
 
 /** Provider surface required by the dashboard route. */
 export interface DashboardMarketProvider {
@@ -187,7 +158,11 @@ function startDate(now: Date, interval: DashboardInterval, limit: number): strin
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1_000).toISOString().slice(0, 10)
 }
 
-/** Parse one dashboard request URL. */
+/**
+ * Parse one dashboard request URL.
+ * @param url - Request URL carrying asset, symbol, interval, limit, and provider.
+ * @returns The normalized dashboard request.
+ */
 export function parseDashboardRequest(url: URL): {
   readonly asset: DashboardAsset
   readonly symbol: string
@@ -214,7 +189,13 @@ export function parseDashboardRequest(url: URL): {
   return { asset, symbol: symbol.toUpperCase(), interval: interval as DashboardInterval, limit, provider }
 }
 
-/** Load one normalized dashboard response. */
+/**
+ * Load one normalized dashboard response.
+ * @param request - Parsed dashboard request.
+ * @param deps - Market and stock providers owned by the route.
+ * @param signal - Optional cancellation signal.
+ * @returns The normalized market response.
+ */
 export async function loadDashboardMarket(
   request: ReturnType<typeof parseDashboardRequest>,
   deps: DashboardRouteDependencies,
@@ -292,29 +273,29 @@ export async function loadDashboardMarket(
   }
 }
 
-/** Register the authenticated-origin dashboard market route. */
+/**
+ * Register the dashboard market route inside Connection's authentication fence.
+ * @param ctx - Context that receives the route registration.
+ * @param deps - Market and stock providers owned by the route.
+ */
 export function registerFinanceDashboardRoutes(ctx: Context, deps: DashboardRouteDependencies): void {
-  ctx.inject(['webServer'], webCtx => webCtx.webServer.register({
-    kind: 'exact',
-    path: '/api/finance-dashboard/market',
-    async handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-      if (req.method !== 'GET') {
-        res.writeHead(405, { 'content-type': 'application/json; charset=utf-8' })
-        res.end(JSON.stringify({ error: { code: 'METHOD_NOT_ALLOWED', message: 'GET required' } }))
-        return
-      }
-      try {
-        const request = parseDashboardRequest(new URL(req.url ?? '/', 'http://127.0.0.1'))
-        const body = await loadDashboardMarket(request, deps)
-        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
-        res.end(JSON.stringify(body satisfies DashboardMarketResponse))
-      } catch (error) {
-        const failure = error instanceof FinanceDataError
-          ? { code: error.code, message: error.message }
-          : { code: 'DASHBOARD_FAILED', message: String(error) }
-        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
-        res.end(JSON.stringify({ error: failure }))
-      }
-    },
-  }))
+  ctx.inject(['connection'], (connectionCtx) => {
+    connectionCtx.connection.fetch.register({
+      path: DASHBOARD_MARKET_PATH,
+      methods: ['GET'],
+      requestBody: 'buffered',
+      fetch: async (request) => {
+        const headers = { 'cache-control': 'no-store' }
+        try {
+          const body = await loadDashboardMarket(parseDashboardRequest(new URL(request.url)), deps, request.signal)
+          return Response.json(body satisfies DashboardMarketResponse, { headers })
+        } catch (error) {
+          const failure = error instanceof FinanceDataError
+            ? { code: error.code, message: error.message }
+            : { code: 'DASHBOARD_FAILED', message: String(error) }
+          return Response.json({ error: failure }, { status: 400, headers })
+        }
+      },
+    })
+  })
 }

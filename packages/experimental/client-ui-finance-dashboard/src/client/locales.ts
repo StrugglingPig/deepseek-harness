@@ -25,6 +25,10 @@ export const en = {
   volume: 'Volume',
   accountNote: 'Private account data stays in the Host and is available through finance_private_account.',
   chartLabel: 'Price chart',
+  sma: 'SMA20',
+  ema: 'EMA12',
+  rsi: 'RSI14',
+  macd: 'MACD',
 } as const
 
 /** Locale keys owned by the finance dashboard. */
@@ -53,4 +57,8 @@ export const zh: Record<FinanceDashboardLocaleKey, string> = {
   volume: '成交量',
   accountNote: '私有账户数据只保留在 Host，可通过 finance_private_account 查询。',
   chartLabel: '价格图',
+  sma: 'SMA20',
+  ema: 'EMA12',
+  rsi: 'RSI14',
+  macd: 'MACD',
 }

@@ -14,7 +14,7 @@
     { "path": "../../settings/settings" },
     { "path": "../../subprocess/subprocess" },
     { "path": "../../core/system-prompt" },
-    { "path": "../../host/webserver" },
+    { "path": "../../client/connection/tsconfig.host.json" },
     { "path": "../../fs/fs" }
   ]
 }

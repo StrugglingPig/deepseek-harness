@@ -100,16 +100,13 @@ describe('FinanceDashboard', () => {
     expect(view.container.querySelector('svg')?.getAttribute('width')).toBe('18')
     expect(view.container.querySelector('svg')?.getAttribute('data-active')).toBe('true')
   })
-  it('covers fallback labels, negative changes, and keyboard submission', () => {
+  it('covers placeholder labels, negative changes, and keyboard submission', () => {
     const actions = renderDashboard({
-      asset: undefined as never,
-      symbol: undefined as never,
       name: undefined,
       source: undefined,
       asOf: undefined,
       quote: { ...(state.quote as DashboardQuote), changePercent: -3 },
     })
-    expect(screen.getByDisplayValue('BTC')).toBeTruthy()
     expect(screen.getByText('-3.00%')).toBeTruthy()
     const input = screen.getByLabelText(en.symbol)
     fireEvent.keyDown(input, { key: 'a' })
