@@ -21,6 +21,7 @@ describe('finance research profile bundle', () => {
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.dependencies).toMatchObject({
       '@deepseek-ai/dsh-experimental-finance-research': 'workspace:^',
+      '@deepseek-ai/dsh-schedule': 'workspace:^',
     })
 
     const parsed = yaml.load(
@@ -35,9 +36,15 @@ describe('finance research profile bundle', () => {
     }[]
     expect(patches.some(patch => patch.id?.startsWith('tool-subagent'))).toBe(false)
     const inserted = patches.flatMap(patch => patch.insert ?? [])
-    expect(inserted).toEqual([{
-      id: 'finance-research',
-      name: '@deepseek-ai/dsh-experimental-finance-research',
-    }])
+    expect(inserted).toEqual([
+      {
+        id: 'finance-research',
+        name: '@deepseek-ai/dsh-experimental-finance-research',
+      },
+      {
+        id: 'finance-schedule',
+        name: '@deepseek-ai/dsh-schedule',
+      },
+    ])
   })
 })
