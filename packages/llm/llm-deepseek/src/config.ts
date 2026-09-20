@@ -23,6 +23,14 @@ const MODEL_MODALITIES = ['text', 'image'] as const satisfies readonly ModelModa
  * reasoning effort resolves to `high`.
  */
 export interface Config {
+  /**
+   * Whether this composition serves the DeepSeek route at all. Disabling
+   * withdraws the route and leaves nothing to send to, which is how a user
+   * removes a built-in provider: the adapter keeps declaring the entry so the
+   * configuration surface can add it back, and every other key here survives
+   * as the settings the restore re-reads.
+   */
+  disabled?: boolean
   /** Wire protocol; defaults to messages. Configure through Cordis YAML. */
   protocol?: DeepSeekProtocol
   /** Credential reference (environment-variable name) resolved per request; defaults to `DEEPSEEK_API_KEY`. */
@@ -78,6 +86,7 @@ const catalogModel: z<DeepSeekCatalogModel> = z.object({
 })
 
 export const Config: z<Config> = z.object({
+  disabled: z.boolean().default(false),
   protocol: z.union(['chat-completions', 'messages']).default('messages'),
   apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
   baseURL: z.string(),

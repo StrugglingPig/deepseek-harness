@@ -30,6 +30,8 @@ export interface ProviderDirectoryEntry {
   readonly settingsPath: readonly string[]
   readonly active: boolean
   readonly declared?: boolean
+  /** The owning adapter withdraws this route by configuration. */
+  readonly disabled?: boolean
   readonly error?: string
 }
 
@@ -52,6 +54,7 @@ export function joinProviderDirectory(
     settingsPath: [...entry.settingsPath],
     active: active.has(entry.provider),
     ...entry.declared === undefined ? {} : { declared: entry.declared },
+    ...entry.disabled === true ? { disabled: true } : {},
     ...entry.error === undefined ? {} : { error: entry.error },
   }))
   for (const provider of registered) {
@@ -73,8 +76,19 @@ export interface ProviderRow {
   entry: ProviderDirectoryEntry
   /** Whether any layer configures this provider (its profile resolves). */
   configured: boolean
-  /** Whether the user layer alone carries the profile (removal restores the base). */
-  removable: boolean
+  /**
+   * Whether this row's Delete action has anything to act on. Two shapes reach
+   * the page and they mean different things by "delete": a nested profile the
+   * user layer alone carries is removed outright and restores the composition
+   * base, while a main route's whole-section profile IS its namespace section,
+   * so deleting it clears what this page saved and restores the defaults
+   * underneath. Both need the user layer to be the one carrying the settings —
+   * an empty user layer leaves nothing to clear and no action to offer. A
+   * deployment that inlines a main route's profile in `cordis.yml` reads the
+   * same as a user-authored whole-section profile here; the row offers the
+   * clear either way, and clearing only ever touches the user layer.
+   */
+  clearable: boolean
   /** The credential reference the resolved profile names, when one does. */
   apiKeyEnv: string | undefined
   /** Credential state for {@link apiKeyEnv}, once described. */
@@ -99,6 +113,13 @@ export interface ModelsSettingsState {
   writable: boolean
   /** Every configurable provider joined with its configured/credential state. */
   rows: readonly ProviderRow[]
+  /**
+   * Rows whose owning adapter withdraws the route by configuration. They are
+   * absent from {@link rows} — a withdrawn route is not a provider the user
+   * has — and offered by the add flow instead, which is what makes removing a
+   * built-in provider reversible.
+   */
+  restorable: readonly ProviderRow[]
   /** Namespace views by ns, for the editor's schema/layers/secrets. */
   namespaces: ReadonlyMap<string, SettingsNamespaceView>
 }
@@ -134,6 +155,36 @@ export function protocolChoices(
   return list.list.map(entry => entry.value).filter((value): value is string => typeof value === 'string')
 }
 
+/**
+ * Whether the user layer is the layer carrying this row's settings — the one
+ * layer a settings document can clear. A nested profile is answered by its own
+ * path; a built-in provider has no such profile, so the question is whether
+ * the section carries anything beyond the withdrawal flag: a section holding
+ * nothing else is a provider this deployment still mounts with its composed
+ * defaults, and deleting that would be an action with nothing to act on.
+ * @param namespace - the row's owning namespace view, when it resolved.
+ * @param path - path from the section root to this provider's profile.
+ * @param schema - settings-owned schema and immutable path operations.
+ * @returns whether this row's Delete action has anything to act on.
+ */
+function userCarries(
+  namespace: SettingsNamespaceView | undefined,
+  path: readonly string[],
+  schema: SettingsSchemaOperations,
+): boolean {
+  if (namespace === undefined) return false
+  if (path.length > 0) return schema.hasPath(namespace.user, path)
+  return Object.keys(rawSection(namespace.user)).some(
+    key => key !== 'disabled' && schema.getPath(namespace.user, [key]) !== undefined,
+  )
+}
+
+/** A raw user section as an object, or an empty one when it is absent or not an object. */
+function rawSection(user: unknown): Record<string, unknown> {
+  if (typeof user !== 'object' || user === null || Array.isArray(user)) return {}
+  return user as Record<string, unknown>
+}
+
 /** The credential reference a resolved profile names (its `apiKeyEnv` field). */
 function apiKeyEnvOf(
   namespace: SettingsNamespaceView | undefined,
@@ -151,7 +202,7 @@ function apiKeyEnvOf(
 export class ModelsSettingsStore {
   /** The snapshot the section renders from (uSES-safe store). */
   readonly store: SnapshotStore<ModelsSettingsState> = createSnapshotStore<ModelsSettingsState>({
-    status: 'idle', error: null, credentialError: null, writable: false, rows: [], namespaces: new Map(),
+    status: 'idle', error: null, credentialError: null, writable: false, rows: [], restorable: [], namespaces: new Map(),
   })
 
   /** Latest load wins; an older response never overwrites a newer one. */
@@ -200,14 +251,10 @@ export class ModelsSettingsStore {
       const namespace = namespaces.get(entry.settingsNs)
       const configured = namespace !== undefined
         && (entry.settingsPath.length === 0 || this.schema.getPath(namespace.value, entry.settingsPath) !== undefined)
-      const removable = namespace !== undefined
-        && entry.settingsPath.length > 0
-        && this.schema.hasPath(namespace.user, entry.settingsPath)
-        && !this.schema.hasPath(namespace.base, entry.settingsPath)
       return {
         entry,
         configured,
-        removable,
+        clearable: userCarries(namespace, entry.settingsPath, this.schema),
         apiKeyEnv: apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
         credential: undefined,
       }
@@ -224,20 +271,25 @@ export class ModelsSettingsStore {
       else credentialError = response.error.message
     }
     if (generation !== this.generation) return
+    /** Attach the credential states one batch of rows reads. */
+    const joined = (batch: readonly ProviderRow[]): ProviderRow[] => batch.map((row) => {
+      const named = row.apiKeyEnv === undefined ? undefined : credentials[row.apiKeyEnv]
+      const derived = row.apiKeyEnv !== undefined ? undefined : credentials[deriveKeyRef(row.entry.provider)]
+      return {
+        ...row,
+        ...named === undefined ? {} : { credential: named },
+        ...derived === undefined ? {} : { derivedCredential: derived },
+      }
+    })
     this.store.update((s) => {
       s.status = 'ready'
       s.error = null
       s.credentialError = credentialError
       s.writable = writable
-      s.rows = rows.map((row) => {
-        const named = row.apiKeyEnv === undefined ? undefined : credentials[row.apiKeyEnv]
-        const derived = row.apiKeyEnv !== undefined ? undefined : credentials[deriveKeyRef(row.entry.provider)]
-        return {
-          ...row,
-          ...named === undefined ? {} : { credential: named },
-          ...derived === undefined ? {} : { derivedCredential: derived },
-        }
-      })
+      s.rows = joined(rows.filter(row => row.entry.disabled !== true))
+      // Same enrichment, different seat: a withdrawn route is offered by the
+      // add flow, whose editor reads the very credential state a live row does.
+      s.restorable = joined(rows.filter(row => row.entry.disabled === true))
       s.namespaces = namespaces
     })
   }

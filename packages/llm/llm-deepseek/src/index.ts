@@ -1,6 +1,7 @@
 /** Register DeepSeek with protocol selection and request-local settings and credentials. */
 import type { Context } from '@deepseek-ai/cordis'
 import { assertUsableApiKey, LlmError, resolveImageAttachmentAccess } from '@deepseek-ai/dsh-llm'
+import type { LlmConfigurableProvider, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-fs'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-settings'
@@ -81,6 +82,14 @@ export function apply(ctx: Context, config: Config): void {
   }
   options()
 
+  /**
+   * Whether the current configuration withdraws this route. Read from the raw
+   * snapshot rather than the resolved adapter options: the flag says whether
+   * the route exists, so it is the one fact a settings write must be able to
+   * read without the adapter facts resolving behind it.
+   */
+  const routeDisabled = (): boolean => current().disabled === true
+
   const resolveApiKey = async (connection: ResolvedDeepSeekOptions): Promise<string> => {
     // Every credential fact comes from the caller's snapshot, so a rejected
     // settings generation cannot leak its key onto the previous endpoint.
@@ -125,23 +134,71 @@ export function apply(ctx: Context, config: Config): void {
         ?? Promise.resolve({ fields: {}, accept: () => Promise.resolve() })
     },
   })
-  ctx.llm.registerConfigurableProviders([
-    { provider: PROVIDER, displayName: 'DeepSeek', settingsNs: NS, settingsPath: [] },
-  ])
+  /**
+   * The one directory entry this adapter owns; `disabled` follows the status
+   * below rather than being read here, so the entry and the directory's own
+   * status cannot disagree.
+   */
+  const directoryEntry = (disabled: boolean): LlmConfigurableProvider => ({
+    provider: PROVIDER,
+    displayName: 'DeepSeek',
+    settingsNs: NS,
+    settingsPath: [],
+    ...disabled ? { disabled: true } : {},
+  })
+  // The composition decides the opening status; the settings section below
+  // corrects it when this run's settings provider resolves a stored one.
+  let directoryDisabled = routeDisabled()
+  const directory = ctx.llm.registerConfigurableProviders([directoryEntry(directoryDisabled)])
   // Route effects bind to this apply fiber via the stable `ctx` reference,
   // even when a swap runs inside the scoped settings callback below.
   const registration = ctx.llm.registerAdapter([PROVIDER], adapter)
+  /**
+   * What the registration's route set holds right now, and the retry policy it
+   * was last reconciled to. Both facts travel in one `replace`, because the
+   * registry captures the policy at replacement time and it is the one fact
+   * per-request resolution cannot refresh. Disposing and re-registering
+   * instead would publish an empty route set between the two calls, and an
+   * observer that reacted to it would see this provider disappear and come
+   * back.
+   *
+   * The route is registered even when this composition starts withdrawn, then
+   * emptied in the same synchronous section: `replace` refuses an empty set
+   * for a registration that never held one, and that refusal is what
+   * distinguishes "this route serves nothing" from "this route was never
+   * offered". Applying the withdrawal here leaves both states reachable.
+   */
+  let routeHeld = true
   let registeredPolicy = options().retryPolicy
+  if (directoryDisabled) {
+    registration.replace([])
+    routeHeld = false
+  }
+  /** The last facts this adapter reconciled the registration to. */
+  let registrationFacts: { disabled: boolean; retryPolicy: ResolvedRetryPolicy } | undefined
   const ensureRegistrationFacts = (): void => {
-    const policy = options().retryPolicy
-    if (deepEqualJson(policy, registeredPolicy)) return
-    // The registry captures the retry policy at registration, so it is the one
-    // fact per-request resolution cannot refresh. `replace` re-reads it in one
-    // synchronous registry section: disposing and re-registering instead would
-    // publish an empty route set between the two, and an observer that reacted
-    // to it would see this provider disappear and come back.
-    registration.replace([PROVIDER])
-    registeredPolicy = policy
+    const disabled = routeDisabled()
+    const { retryPolicy } = options()
+    const desiredHolds = !disabled
+    // A held set is refreshed when the policy moved; an empty one is left
+    // alone, because emptying a set the registration does not hold is not a
+    // state this route ever held and the registry refuses it outright.
+    const policyMoved = routeHeld && !deepEqualJson(registeredPolicy, retryPolicy)
+    if (desiredHolds !== routeHeld || policyMoved) {
+      registration.replace(desiredHolds ? [PROVIDER] : [])
+      routeHeld = desiredHolds
+      registeredPolicy = retryPolicy
+    }
+    // The declaration outlives the route: it is the entry a configuration
+    // surface lists in its add list while the route is withdrawn, and the one
+    // its restore writes back to. Only the flag travels, so the entry is
+    // republished when the withdrawal itself moved and not on every unrelated
+    // settings write.
+    if (registrationFacts === undefined || disabled !== registrationFacts.disabled) {
+      directoryDisabled = disabled
+      directory.replace([directoryEntry(disabled)])
+    }
+    registrationFacts = { disabled, retryPolicy }
   }
 
   ctx.inject(['settings'], (settingsCtx) => {

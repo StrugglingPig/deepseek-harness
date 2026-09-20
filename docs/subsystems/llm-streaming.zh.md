@@ -506,6 +506,15 @@ interface LlmConfigurableProvider {
    * from outside.
    */
   declared?: boolean
+  /**
+   * Whether the owning adapter withdraws this route by configuration. A
+   * disabled route serves nothing, so a configuration surface offers it in its
+   * add list instead of its active list — the entry itself stays declared,
+   * because restoring the route is a configuration write on the same entry.
+   * Absent means enabled. Only an adapter whose route is switchable answers;
+   * a route the composition mounts unconditionally never carries it.
+   */
+  disabled?: boolean
   /** Configuration diagnostic for repair; unaffected models may remain serviceable. */
   error?: string
 }

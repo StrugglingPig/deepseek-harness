@@ -269,6 +269,46 @@ describe('request-level dynamic configuration', () => {
     expect(observed).toEqual([['deepseek-official']])
   })
 
+  it('withdraws and restores the route a configuration surface removes', async () => {
+    const dir = await home()
+    const { ctx } = await boot(dir, { baseURL: 'http://127.0.0.1:1' })
+
+    // Removing a built-in provider is a route withdrawal, not a settings
+    // clear: nothing serves the route, and the declaration survives because it
+    // is what a configuration surface offers in its add list.
+    await ctx.settings.update(NS, { disabled: true })
+    expect(ctx.llm.listProviders()).toEqual([])
+    expect(ctx.llm.listConfigurableProviders()).toEqual([{
+      provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: NS, settingsPath: [], disabled: true,
+    }])
+
+    // Restoring it brings the route back with the settings the withdrawal
+    // never touched.
+    await ctx.settings.update(NS, { disabled: false })
+    expect(ctx.llm.listProviders()).toEqual([{ id: 'deepseek-official', name: 'DeepSeek' }])
+    expect(ctx.llm.listConfigurableProviders()).toEqual([{
+      provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: NS, settingsPath: [],
+    }])
+  })
+
+  it('starts disabled without registering a route it was never allowed to hold', async () => {
+    const dir = await home()
+    const { ctx } = await boot(dir, { baseURL: 'http://127.0.0.1:1', disabled: true })
+
+    expect(ctx.llm.listProviders()).toEqual([])
+    expect(ctx.llm.listConfigurableProviders()).toEqual([{
+      provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: NS, settingsPath: [], disabled: true,
+    }])
+
+    // The withdrawal survives the first settings write that is about something
+    // else, because the section still carries it.
+    await ctx.settings.update(NS, { maxTokens: 4_096 })
+    expect(ctx.llm.listProviders()).toEqual([])
+
+    await ctx.settings.update(NS, { disabled: false })
+    expect(ctx.llm.listProviders()).toEqual([{ id: 'deepseek-official', name: 'DeepSeek' }])
+  })
+
   it('keeps the last good options when a settings snapshot fails beyond-schema validation', async () => {
     const dir = await home()
     const { ctx } = await boot(dir, { baseURL: 'http://127.0.0.1:1' })

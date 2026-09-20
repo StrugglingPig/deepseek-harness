@@ -64,6 +64,12 @@ export interface ProviderEditorProps {
   namespace: SettingsNamespaceView
   /** Settings-owned synchronous schema and immutable path operations. */
   schema: SettingsSchemaOperations
+  /**
+   * The adapter withdraws this route and applying restores it. The withdrawal
+   * is a field this card never shows, so it is cleared as one extra path op
+   * beside whatever the user edited instead of being rebuilt from the draft.
+   */
+  restore?: boolean
   /** Path from the section root to this provider's profile. */
   settingsPath: readonly string[]
   /** The Host operations this card writes and interrogates through. */
@@ -276,6 +282,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       : materializesNativeProfile
         ? [{ op: 'set', path: [...settingsPath], value: {} }]
         : pathOps(settingsPath, committedOriginal, next)
+    // The withdrawal has no field on this card, so it travels as one op beside
+    // the user's edits rather than through the draft's diff.
+    if (props.restore === true) ops.push({ op: 'unset', path: [...settingsPath, 'disabled'] })
     if (ops.length > 0) {
       const written = await operations.writeSettings(ns, ops, expectedRevision)
       if (written.kind !== 'written') return written.kind === 'conflict' ? t('conflict') : written.message

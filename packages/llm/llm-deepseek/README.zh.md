@@ -27,6 +27,10 @@ kind: "package-reference"
 
 当组合需要通过 harness LLM（大语言模型）服务流式调用 DeepSeek 模型时挂载本插件。它注册唯一的 `deepseek-official` 路由，并按请求解析连接事实，因此组合条目加可选用户设置分节即可驱动整个适配器。
 
+### 移除该提供方
+
+这条路由由组合挂载，因此设置界面无法像删除手写声明的路由那样删除它：声明归插件所有。界面能设置的是 `disabled: true`，此后适配器不提供任何服务——路由离开注册表，任何选择器都不再列出它的模型，也没有请求能路由到它。目录条目保留声明并带上 `disabled: true`，这正是界面把它放进「添加提供方」列表的依据；清空该字段即恢复路由，该段其余设置原样保留。路由被撤下期间，仍指向 `deepseek-official` 的会话或默认模型选择会像任何未注册路由一样被判定为不可服务而拒绝。
+
 ### 何时选择
 
 面向 DeepSeek 官方 API，或通过 `baseURL` 连接支持所选协议的网关时，选择本适配器。当同一组合还要通过 pi-ai 目录路由其他提供方或手工声明的网关时，选择 `dsh-llm-pi-ai`；两个适配器可以同时挂载，因为它们的路由名不冲突。为 `deepseek-official` 注册任何其他适配器会以 `DUPLICATE_ADAPTER` 失败。
@@ -49,6 +53,7 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
+| `disabled` | `false` | 不提供任何服务：撤下路由，同时保留目录声明与该段其余全部设置 |
 | `protocol` | `messages` | Cordis YAML 中选择 `messages` 或 `chat-completions`；Web 不提供选择器 |
 | `apiKeyEnv` | `DEEPSEEK_API_KEY` | 按请求解析的凭据引用：先经凭据 seam，再到环境变量 |
 | `baseURL` | 按协议选择官方根地址 | 显式值优先，其次 `$DEEPSEEK_BASE_URL`，最后采用当前协议的官方端点 |

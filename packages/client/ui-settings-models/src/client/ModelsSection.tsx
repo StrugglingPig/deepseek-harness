@@ -76,6 +76,11 @@ interface EditorTarget extends ProviderIdentity {
   credentialRef?: string
   /** The adapter reports this route as one it does not ship (see {@link ProviderEditorProps.declared}). */
   declared?: boolean
+  /**
+   * The adapter withdraws this route, so this editor is restoring it: applying
+   * clears the withdrawal after the editor's own settings land.
+   */
+  restore?: boolean
 }
 
 /** Values that vary around the shared provider-editor rendering. */
@@ -94,17 +99,23 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
       displayName={target.displayName}
       settingsPath={target.settingsPath}
       {...target.declared === true ? { declared: true } : {}}
+      {...target.restore === true ? { restore: true } : {}}
       {...props}
     />
   )
 }
 
 /**
- * Remove one user-added provider and its page-managed credential. Credential
- * removal comes first so a second-step failure leaves the provider row visible
- * and the whole operation safely retryable; both unsets are idempotent.
- * The settings removal names the profile rather than rebuilding its whole
- * namespace from a partial view.
+ * Remove one provider and its page-managed credential. Credential removal
+ * comes first so a second-step failure leaves the provider row visible and the
+ * whole operation safely retryable; both unsets are idempotent.
+ * A nested profile is removed by naming its own path, so only that provider
+ * goes and its adapter's catalogue takes over. A built-in whole-section
+ * provider has no such profile: the section IS the route's configuration and
+ * the adapter mounts it unconditionally, so the page withdraws the route the
+ * only way the owning adapter reads — by setting the flag that adapter treats
+ * as "serve nothing". Nothing else in the section is touched, which is what
+ * lets the add flow put the provider back with its settings intact.
  * @param operations - the page's Host operations.
  * @param controller - the page store to refresh.
  * @param target - the provider's settings address and optional managed credential.
@@ -119,11 +130,10 @@ export async function removeProviderProfile(
     const credential = await operations.removeCredential(target.credentialRef)
     if (credential !== undefined) return credential
   }
-  const written = await operations.writeSettings(
-    target.settingsNs,
-    [{ op: 'unset', path: [...target.settingsPath] }],
-    undefined,
-  )
+  const ops = target.settingsPath.length === 0
+    ? [{ op: 'set' as const, path: ['disabled'], value: true }]
+    : [{ op: 'unset' as const, path: [...target.settingsPath] }]
+  const written = await operations.writeSettings(target.settingsNs, ops, undefined)
   if (written.kind !== 'written') return written.message
   await controller.load()
   return undefined
@@ -172,6 +182,7 @@ function targetOf(row: ProviderRow): EditorTarget {
     ...credentialRef === undefined ? {} : { credentialRef },
     // Only declared routes may expose route-owned fields.
     ...row.entry.declared === true ? { declared: true } : {},
+    ...row.entry.disabled === true ? { restore: true } : {},
   }
 }
 
@@ -291,7 +302,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const anyUsable = state.rows.some(providerUsable)
   const configured = state.rows.filter(row => row.configured)
   const configurable = state.rows.filter(row => state.namespaces.has(row.entry.settingsNs))
-  const addable = configurable.filter(row => !row.configured)
+  // A withdrawn route is one the add flow can restore, and it is offered ahead
+  // of the never-configured ones: it is the only kind a user removed himself.
+  const addable = [...state.restorable, ...configurable.filter(row => !row.configured)]
   const addTarget = adding ? editing : undefined
   const addNamespace = addTarget === undefined ? undefined : state.namespaces.get(addTarget.settingsNs)
   // The draft's directory row, for the card extension seat. A refresh can drop
@@ -402,7 +415,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                   >
                     {t('edit')}
                   </button>
-                  {row.removable
+                  {row.clearable
                     ? (
                       <button
                         type="button"
@@ -475,6 +488,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                 operations={operations}
                 t={t}
                 readOnly={!state.writable}
+                {...addTarget.restore === true ? { restore: true } : {}}
                 onClose={(changed) => { closeEditor(changed, addTarget) }}
               />
               {addRow === undefined
@@ -557,9 +571,11 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
         description={deleteTarget === undefined
           ? ''
           : providerCopy(
-            deleteTarget.credentialRef === undefined
-              ? t('deleteDescription')
-              : t('deleteDescriptionWithCredential'),
+            deleteTarget.settingsPath.length === 0
+              ? t('deleteDescriptionBuiltIn')
+              : deleteTarget.credentialRef === undefined
+                ? t('deleteDescription')
+                : t('deleteDescriptionWithCredential'),
             deleteTarget,
           )}
         className={styles['deleteDialog'] as string}

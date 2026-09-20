@@ -499,7 +499,7 @@ describe('ModelsSection', () => {
     const row = (credential: ProviderRow['credential']): ProviderRow => ({
       entry,
       configured: true,
-      removable: false,
+      clearable: false,
       apiKeyEnv: 'X',
       credential,
     })
@@ -1497,6 +1497,62 @@ describe('ModelsSection', () => {
       [{ op: 'unset', path: ['ghost-profile'] }],
       undefined,
     ])
+  })
+
+  it('withdraws a built-in provider without touching the rest of its section', async () => {
+    // The adapter mounts this route unconditionally, so the page cannot remove
+    // it the way it removes a nested profile: it sets the flag the adapter
+    // reads as "serve nothing", which is what leaves the settings to restore.
+    const { face, mutate, controller } = await mountSection()
+    await removeProviderProfile(
+      operationsWith(face),
+      controller,
+      { settingsNs: 'llm-deepseek', settingsPath: [] },
+    )
+    expect(mutate.mock.calls[0]).toEqual([
+      'llm-deepseek',
+      [{ op: 'set', path: ['disabled'], value: true }],
+      undefined,
+    ])
+  })
+
+  it('restores a withdrawn route by clearing the withdrawal beside the edit', async () => {
+    const scripted = scriptedFace()
+    // The shipped DeepSeek route is withdrawn: the directory still declares it,
+    // so the page knows the route exists and offers it in the add list.
+    scripted.face.llm.listConfigurableProviders.mockResolvedValue(remoteOk([
+      { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [], disabled: true },
+      { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
+    ]))
+    const { mutate } = await mountFace(scripted)
+    fireEvent.click(screen.getByRole('button', { name: en.add }))
+    const pick = screen.getByLabelText(en.provider)
+    expect(within(pick).getByRole('option', { name: 'DeepSeek' })).toBeTruthy()
+    await act(async () => {
+      fireEvent.change(pick, { target: { value: 'deepseek-official' } })
+      // The card remounts under `key={provider}`; its credential probe is the
+      // effect that settles it.
+      await Promise.resolve()
+    })
+    await within(screen.getByLabelText(en.provider)).findByRole('option', { name: 'DeepSeek' })
+    await screen.findByLabelText(en.keyInput)
+    fireEvent.click(screen.getByRole('button', { name: en.apply }))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
+    expect(mutate.mock.calls[0]?.[1]).toContainEqual({ op: 'unset', path: ['disabled'] })
+  })
+
+  it('offers the main route the same delete control and confirmation the other rows carry', async () => {
+    const { unset, mutate } = await mountSection()
+    fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.removeProvider) }))
+    const dialog = screen.getByRole('dialog', { name: deepSeekCopy(en.deleteTitle) })
+    // The profile names DEEPSEEK_API_KEY, which is not the reference this page
+    // derives for the route, so the key is not page-managed and the
+    // confirmation says it is kept.
+    expect(dialog.textContent).toContain(deepSeekCopy(en.deleteDescriptionBuiltIn))
+    fireEvent.click(within(dialog).getByRole('button', { name: deepSeekCopy(en.deleteConfirm) }))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
+    expect(unset).not.toHaveBeenCalled()
+    expect(mutate.mock.calls[0]).toEqual(['llm-deepseek', [{ op: 'set', path: ['disabled'], value: true }], undefined])
   })
 
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {

@@ -27,6 +27,10 @@ Stream DeepSeek models through `deepseek-official` with Messages by default, or 
 
 Mount this plugin when a composition streams DeepSeek models through the harness LLM service. It registers the single `deepseek-official` route and resolves connection facts per request, so a composition entry plus an optional user settings section drive the whole adapter.
 
+### Removing the provider
+
+This route is mounted by the composition, so a settings surface cannot delete it the way it deletes a hand-declared route: the plugin owns the declaration. What such a surface can set instead is `disabled: true`, and the adapter then serves nothing — the route leaves the registry, so no selector offers its models and no request can route to it. The directory entry stays declared and gains `disabled: true`, which is how the surface offers the provider in its add list; clearing the field restores the route with every other setting in the section intact. While the route is withdrawn, a session or default model selection that still names `deepseek-official` is refused as unservable, exactly as any other unregistered route is.
+
 ### When to choose it
 
 Choose this adapter for DeepSeek's official API or a gateway that supports the selected protocol through `baseURL`. Choose `dsh-llm-pi-ai` when the same composition also routes other providers or hand-declared gateways through pi-ai's catalogs; the two adapters can be mounted together because their route names do not collide. Registering any other adapter for `deepseek-official` fails with `DUPLICATE_ADAPTER`.
@@ -49,6 +53,7 @@ A request selects the route with `provider: deepseek-official`; the model id pas
 
 | Field | Default | Meaning |
 |---|---|---|
+| `disabled` | `false` | Serve nothing: withdraw the route while keeping the declaration and every other setting |
 | `protocol` | `messages` | Choose `messages` or `chat-completions` in Cordis YAML; Web has no protocol selector |
 | `apiKeyEnv` | `DEEPSEEK_API_KEY` | Credential reference resolved per request through the credentials seam, then the environment |
 | `baseURL` | Selected protocol’s official root | Explicit value, then `$DEEPSEEK_BASE_URL`, then the selected protocol default |

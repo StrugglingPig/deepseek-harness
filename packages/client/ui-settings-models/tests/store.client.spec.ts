@@ -119,7 +119,7 @@ function api(overrides: {
 }
 
 describe('ModelsSettingsStore', () => {
-  it('joins rows with configured, removable, and credential state', async () => {
+  it('joins rows with configured, clearable, and credential state', async () => {
     const { ctx, mirror, seenRefs } = api()
     const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
     await store.load()
@@ -133,20 +133,36 @@ describe('ModelsSettingsStore', () => {
     const byProvider = new Map(state.rows.map(row => [row.entry.provider, row]))
     expect(byProvider.get('deepseek-official')).toMatchObject({
       configured: true,
-      removable: false,
+      clearable: false,
       apiKeyEnv: 'DEEPSEEK_API_KEY',
       credential: { configured: false, writable: true },
     })
     expect(byProvider.get('openai')).toMatchObject({
       configured: true,
-      removable: true,
+      clearable: true,
       apiKeyEnv: 'OPENAI_API_KEY',
       credential: { configured: true },
     })
-    expect(byProvider.get('anthropic')).toMatchObject({ configured: false, removable: false })
+    expect(byProvider.get('anthropic')).toMatchObject({ configured: false, clearable: false })
     expect(byProvider.get('anthropic')?.apiKeyEnv).toBeUndefined()
-    expect(byProvider.get('ghost')).toMatchObject({ configured: false, removable: false })
+    expect(byProvider.get('ghost')).toMatchObject({ configured: false, clearable: false })
     expect(state.namespaces.get('llm-pi-ai')?.ns).toBe('llm-pi-ai')
+  })
+
+  it('makes a main route clearable from the user section its whole-section profile occupies', async () => {
+    // The section root is the one path this profile has, so the flag follows
+    // the raw user section rather than a nested path.
+    const carried = { ...NAMESPACES[0], user: { baseURL: 'https://gateway.internal/v1' } } as never
+    const { ctx, mirror } = api({
+      describeSettings: () => Promise.resolve(remoteOk({
+        writable: true, hasDocument: true, namespaces: [carried, ...NAMESPACES.slice(1)],
+      })),
+    })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+
+    expect(store.store.getSnapshot().rows.find(row => row.entry.provider === 'deepseek-official'))
+      .toMatchObject({ configured: true, clearable: true })
   })
 
   it('degrades the credential badge, not the page, when the credential domain fails', async () => {
@@ -234,7 +250,7 @@ describe('edge joins', () => {
     const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
     await store.load()
     const state = store.store.getSnapshot()
-    expect(state.rows[0]).toMatchObject({ configured: true, removable: false })
+    expect(state.rows[0]).toMatchObject({ configured: true, clearable: false })
     expect(state.rows[0]?.apiKeyEnv).toBeUndefined()
   })
 

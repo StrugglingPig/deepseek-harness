@@ -1161,6 +1161,14 @@ export interface Config {
  * reasoning effort resolves to `high`.
  */
 export interface Config {
+  /**
+   * Whether this composition serves the DeepSeek route at all. Disabling
+   * withdraws the route and leaves nothing to send to, which is how a user
+   * removes a built-in provider: the adapter keeps declaring the entry so the
+   * configuration surface can add it back, and every other key here survives
+   * as the settings the restore re-reads.
+   */
+  disabled?: boolean
   /** Wire protocol; defaults to messages. Configure through Cordis YAML. */
   protocol?: DeepSeekProtocol
   /** Credential reference (environment-variable name) resolved per request; defaults to `DEEPSEEK_API_KEY`. */
