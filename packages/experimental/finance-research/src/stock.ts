@@ -369,10 +369,12 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
           price: { type: 'number', required: true },
           change_percent: { type: 'number', required: true },
           bar_count: { type: 'integer', required: true },
+          first_bar_at: { type: 'string', required: true },
+          last_bar_at: { type: 'string', required: true },
           source: { type: 'string', required: true, enum: ['akshare', 'ifind'] },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: `${value.symbol}: ${value.name}, ${String(value.price)} CNY (${String(value.change_percent)}%), ${String(value.bar_count)} bars from ${value.source}` }],
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     async execute(args, exec) {
       const snapshot = await provider.loadStockSnapshot({
@@ -391,6 +393,8 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
         price: snapshot.quote.price,
         change_percent: snapshot.quote.changePercent,
         bar_count: snapshot.bars.length,
+        first_bar_at: (snapshot.bars[0] as MarketBar).timestamp,
+        last_bar_at: (snapshot.bars.at(-1) as MarketBar).timestamp,
         source: snapshot.source.provider,
       }
     },
@@ -434,7 +438,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
           },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: `${String(value.quotes.length)} mainland stock quote(s)` }],
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     async execute(args, exec) {
       const quotes = await provider.loadStockQuotes({ provider: args.provider, symbols: args.symbols }, exec.signal)
@@ -476,6 +480,35 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
         properties: {
           symbol: { type: 'string', required: true },
           as_of: { type: 'string', required: true },
+          indicators: {
+            type: 'object',
+            additionalProperties: false,
+            required: true,
+            properties: {
+              sma20: { type: 'number', required: true }, sma50: { type: 'number', required: true },
+              ema12: { type: 'number', required: true }, ema26: { type: 'number', required: true },
+              rsi14: { type: 'number', required: true }, macd: { type: 'number', required: true },
+              macd_signal: { type: 'number', required: true }, macd_histogram: { type: 'number', required: true },
+              atr14: { type: 'number', required: true }, bollinger_middle: { type: 'number', required: true },
+              bollinger_upper: { type: 'number', required: true }, bollinger_lower: { type: 'number', required: true },
+              obv: { type: 'number', required: true }, obv_sma20: { type: 'number', required: true },
+            },
+          },
+          signals: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                name: { type: 'string', required: true },
+                direction: { type: 'string', required: true, enum: ['bullish', 'bearish', 'neutral'] },
+                weight: { type: 'number', required: true },
+                value: { type: 'number', required: true },
+                rationale: { type: 'string', required: true },
+              },
+            },
+          },
           composite: {
             type: 'object',
             required: true,
@@ -496,7 +529,7 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
           },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: `${value.symbol}: ${value.composite.direction} (${String(value.composite.confidence)}% confidence), ${String(value.conflicts.length)} conflicts` }],
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     async execute(args, exec) {
       const snapshot = await provider.loadStockSnapshot({
@@ -510,6 +543,29 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
       return {
         symbol: analysis.symbol,
         as_of: analysis.asOf,
+        indicators: {
+          sma20: analysis.indicators.sma20,
+          sma50: analysis.indicators.sma50,
+          ema12: analysis.indicators.ema12,
+          ema26: analysis.indicators.ema26,
+          rsi14: analysis.indicators.rsi14,
+          macd: analysis.indicators.macd,
+          macd_signal: analysis.indicators.macdSignal,
+          macd_histogram: analysis.indicators.macdHistogram,
+          atr14: analysis.indicators.atr14,
+          bollinger_middle: analysis.indicators.bollingerMiddle,
+          bollinger_upper: analysis.indicators.bollingerUpper,
+          bollinger_lower: analysis.indicators.bollingerLower,
+          obv: analysis.indicators.obv,
+          obv_sma20: analysis.indicators.obvSma20,
+        },
+        signals: analysis.signals.map(signal => ({
+          name: signal.name,
+          direction: signal.direction,
+          weight: signal.weight,
+          value: signal.value,
+          rationale: signal.rationale,
+        })),
         composite: analysis.composite,
         conflicts: [...analysis.conflicts],
         risk: { atr_percent: analysis.risk.atrPercent },

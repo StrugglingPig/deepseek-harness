@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -103,6 +104,44 @@ def normalize_symbol(value: str) -> str:
     if symbol.startswith(("4", "8")):
         return f"{symbol}.BJ"
     return f"{symbol}.SZ"
+
+
+def provider_symbol(value: str) -> str:
+    symbol = normalize_symbol(value)
+    code, market = symbol.split(".", 1)
+    return f"{market.lower()}{code}"
+
+
+def first_present(row: dict, keys: tuple[str, ...]):
+    for key in keys:
+        if key in row:
+            return row[key]
+    return None
+
+
+def history_bar(row: dict):
+    timestamp = iso_timestamp(first_present(row, ("日期", "date")))
+    values = [
+        number(first_present(row, ("开盘", "open"))),
+        number(first_present(row, ("最高", "high"))),
+        number(first_present(row, ("最低", "low"))),
+        number(first_present(row, ("收盘", "close"))),
+        number(first_present(row, ("成交量", "volume"))),
+    ]
+    if timestamp is None or any(value is None for value in values):
+        return None
+    return {
+        "timestamp": timestamp,
+        "open": values[0],
+        "high": values[1],
+        "low": values[2],
+        "close": values[3],
+        "volume": values[4],
+    }
+
+
+def history_bars(frame) -> list[dict]:
+    return [bar for row in rows_from_frame(frame) if (bar := history_bar(row)) is not None]
 
 
 def adjust_to_cps(value) -> str:
@@ -315,29 +354,33 @@ def ak_history(request: dict) -> dict:
     adjust = "" if adjust in (None, "none") else adjust
     start = normalize_date(request.get("startDate") or date.today().replace(year=date.today().year - 1).isoformat())
     end = normalize_date(request.get("endDate") or date.today().isoformat())
-    frame = ak.stock_zh_a_hist(
-        symbol=symbol,
-        period="daily",
-        start_date=start.replace("-", ""),
-        end_date=end.replace("-", ""),
-        adjust=adjust,
+    start_date = start.replace("-", "")
+    end_date = end.replace("-", "")
+    attempts = (
+        ("eastmoney", lambda: ak.stock_zh_a_hist(
+            symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust=adjust,
+        )),
+        ("sina", lambda: ak.stock_zh_a_daily(
+            symbol=provider_symbol(symbol), start_date=start_date, end_date=end_date, adjust=adjust,
+        )),
+        ("tencent", lambda: ak.stock_zh_a_hist_tx(
+            symbol=provider_symbol(symbol), start_date=start_date, end_date=end_date, adjust=adjust,
+        )),
     )
+    failures = []
     bars = []
-    for row in rows_from_frame(frame):
-        timestamp = iso_timestamp(row.get("日期"))
-        values = [number(row.get(key)) for key in ("开盘", "最高", "最低", "收盘", "成交量")]
-        if timestamp is None or any(value is None for value in values):
+    for source, load in attempts:
+        try:
+            bars = history_bars(load())
+        except Exception as error:
+            failures.append(f"{source}: {error}")
             continue
-        bars.append({
-            "timestamp": timestamp,
-            "open": values[0],
-            "high": values[1],
-            "low": values[2],
-            "close": values[3],
-            "volume": values[4],
-        })
+        if bars:
+            break
+        failures.append(f"{source}: empty response")
     if not bars:
-        raise RuntimeError("AKSHARE_EMPTY_RESPONSE: AKShare returned no history bars")
+        raise RuntimeError(f"AKSHARE_HISTORY_FAILED: {'; '.join(failures)}")
+
     name = symbol
     try:
         info = rows_from_frame(ak.stock_individual_info_em(symbol=symbol))
@@ -350,31 +393,55 @@ def ak_history(request: dict) -> dict:
 def ak_quotes(request: dict) -> dict:
     ak = import_akshare()
     requested = {bare_symbol(symbol) for symbol in request.get("symbols", [])}
-    frame = ak.stock_zh_a_spot_em()
-    quotes = []
-    for row in rows_from_frame(frame):
-        symbol = bare_symbol(row.get("代码", ""))
-        if symbol not in requested:
+    attempts = (
+        ("eastmoney", ak.stock_zh_a_spot_em),
+        ("tencent", ak.stock_zh_a_spot_tx),
+    )
+    failures = []
+    for source, load in attempts:
+        try:
+            rows = rows_from_frame(load())
+        except Exception as error:
+            failures.append(f"{source}: {error}")
             continue
-        quotes.append({
-            "symbol": symbol,
-            "name": row.get("名称"),
-            "currency": "CNY",
-            "asOf": iso_timestamp(datetime.now(timezone.utc)),
-            "source": "akshare",
-            "price": number(row.get("最新价")),
-            "changePercent": number(row.get("涨跌幅")),
-            "change": number(row.get("涨跌额")),
-            "open": number(row.get("今开")),
-            "high": number(row.get("最高")),
-            "low": number(row.get("最低")),
-            "previousClose": number(row.get("昨收")),
-            "volume": number(row.get("成交量")),
-            "amount": number(row.get("成交额")),
-        })
-    if not quotes:
-        raise RuntimeError("AKSHARE_EMPTY_RESPONSE: AKShare returned no matching quotes")
-    return {"quotes": quotes}
+        quotes = []
+        for row in rows:
+            if "代码" in row:
+                symbol = bare_symbol(row.get("代码", ""))
+                quote = {
+                    "name": row.get("名称"),
+                    "price": number(row.get("最新价")),
+                    "changePercent": number(row.get("涨跌幅")),
+                    "change": number(row.get("涨跌额")),
+                    "open": number(row.get("今开")),
+                    "high": number(row.get("最高")),
+                    "low": number(row.get("最低")),
+                    "previousClose": number(row.get("昨收")),
+                    "volume": number(row.get("成交量")),
+                    "amount": number(row.get("成交额")),
+                }
+            else:
+                symbol = bare_symbol(row.get("code", ""))
+                quote = {
+                    "name": row.get("name"),
+                    "price": number(row.get("zxj")),
+                    "changePercent": number(row.get("zdf")),
+                    "change": number(row.get("zd")),
+                    "volume": number(row.get("volume")),
+                }
+            if symbol not in requested:
+                continue
+            quotes.append({
+                "symbol": symbol,
+                **quote,
+                "currency": "CNY",
+                "asOf": iso_timestamp(datetime.now(timezone.utc)),
+                "source": "akshare",
+            })
+        if quotes:
+            return {"quotes": quotes}
+        failures.append(f"{source}: empty response")
+    raise RuntimeError(f"AKSHARE_QUOTES_FAILED: {'; '.join(failures)}")
 
 
 def ifind_history_http(request: dict) -> dict:
@@ -571,7 +638,8 @@ def main() -> None:
             fail("INVALID_STOCK_REQUEST", f"unsupported stock bridge request: {action}/{provider}")
     except Exception as error:  # noqa: BLE001 - bridge must return a structured child-process error.
         message = str(error)
-        code = message.split(":", 1)[0] if ":" in message else "STOCK_BRIDGE_FAILED"
+        prefix = message.split(":", 1)[0] if ":" in message else ""
+        code = prefix if re.fullmatch(r"[A-Z][A-Z0-9_]+", prefix) else "STOCK_BRIDGE_FAILED"
         fail(code, message)
 
 

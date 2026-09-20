@@ -139,6 +139,7 @@ describe('registerStockTools', () => {
     })
     expect(snapshot.isError).toBe(false)
     expect(textOf(snapshot)).toContain('贵州茅台')
+    expect(textOf(snapshot)).toContain('first_bar_at')
 
     const quotes = await ctx.tools.execute({
       signal: new AbortController().signal,
@@ -147,7 +148,8 @@ describe('registerStockTools', () => {
       arguments: { provider: 'ifind', symbols: ['600519'] },
     })
     expect(quotes.isError).toBe(false)
-    expect(textOf(quotes)).toContain('3 mainland stock quote')
+    expect(textOf(quotes)).toContain('"quotes"')
+    expect(textOf(quotes)).toContain('贵州茅台')
 
     const analysis = await ctx.tools.execute({
       signal: new AbortController().signal,
@@ -157,6 +159,8 @@ describe('registerStockTools', () => {
     })
     expect(analysis.isError).toBe(false)
     expect(textOf(analysis)).toContain('600519')
+    expect(textOf(analysis)).toContain('sma20')
+    expect(textOf(analysis)).toContain('rationale')
 
     await ctx.tools.execute({
       signal: new AbortController().signal,

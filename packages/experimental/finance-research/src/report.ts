@@ -40,6 +40,9 @@ function sectionsFor(
   const conflicts = analysis.conflicts.length === 0
     ? 'No directional conflicts across the weighted signals.'
     : `Conflicting signals: ${analysis.conflicts.join(', ')}.`
+  const sourceLimitation = snapshot.source.synthetic
+    ? '- The initial provider is deterministic fixture data and is not live market data.'
+    : `- Snapshot source: ${snapshot.source.provider}; upstream availability, latency, and data quality remain external.`
   return [
     {
       title: 'Summary',
@@ -86,7 +89,7 @@ function sectionsFor(
       title: 'Risk And Limitations',
       content: [
         `- ATR as percent of price: ${analysis.risk.atrPercent.toFixed(4)}%`,
-        '- The initial provider is deterministic fixture data and is not live market data.',
+        sourceLimitation,
         '- The report is research automation output, not investment advice.',
       ].join('\n'),
     },

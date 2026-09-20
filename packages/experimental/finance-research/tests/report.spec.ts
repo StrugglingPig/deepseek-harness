@@ -45,7 +45,9 @@ describe('finance research report', () => {
       },
     }, { symbol: 'EXT' })
     expect(report.markdown).toContain('Source: external')
+    expect(report.markdown).toContain('Snapshot source: external')
     expect(report.markdown).not.toContain('synthetic fixture')
+    expect(report.markdown).not.toContain('deterministic fixture data')
   })
 
   it('adds prediction-market fields when present', async () => {
