@@ -244,6 +244,7 @@ describe('HTTP finance market data provider', () => {
     })
     const capabilities = await provider.query({ operation: 'capabilities' })
     const listed = capabilities.data as { operation: string }[]
+    expect(listed.some(entry => entry.operation === 'raw_get')).toBe(true)
     expect(listed.some(entry => entry.operation === 'binance.spot.exchange_info')).toBe(true)
     expect(listed.some(entry => entry.operation === 'binance.usdm.funding_rate')).toBe(true)
     expect(listed.some(entry => entry.operation === 'yahoo.chart')).toBe(true)
@@ -254,6 +255,10 @@ describe('HTTP finance market data provider', () => {
     await provider.query({ operation: 'yahoo.chart', parameters: { symbol: 'AAPL', range: '1mo', interval: '1d' } })
     await provider.query({ operation: 'polymarket.clob.book', parameters: { token_id: 'token-1' } })
     await provider.query({ operation: 'polymarket.clob.midpoints', parameters: { token_ids: ['a', 'b'] } })
+    await provider.query({
+      operation: 'raw_get',
+      parameters: { base: 'binance-spot', path: '/api/v3/exchangeInfo', permissions: 'SPOT' },
+    })
     await provider.query({
       operation: 'binance.spot.ticker_24hr',
       parameters: {
@@ -267,6 +272,7 @@ describe('HTTP finance market data provider', () => {
     })
 
     expect(urls.some(url => url.includes('/api/v3/exchangeInfo'))).toBe(true)
+    expect(urls.some(url => url.includes('permissions=SPOT'))).toBe(true)
     expect(urls.some(url => url.includes('/fapi/v1/fundingRate?symbol=BTCUSDT'))).toBe(true)
     expect(urls.some(url => url.includes('/v8/finance/chart/AAPL?'))).toBe(true)
     expect(urls.some(url => url.includes('range=1mo'))).toBe(true)
@@ -290,6 +296,17 @@ describe('HTTP finance market data provider', () => {
     await expect(provider.query({ operation: 'yahoo.chart' })).rejects.toMatchObject({
       code: 'MISSING_PARAMETER',
     })
+    await expect(provider.query({ operation: 'raw_get' })).rejects.toMatchObject({
+      code: 'MISSING_PARAMETER',
+    })
+    await expect(provider.query({
+      operation: 'raw_get',
+      parameters: { base: 'unknown', path: '/api/v3/ping' },
+    })).rejects.toMatchObject({ code: 'MISSING_PARAMETER' })
+    await expect(provider.query({
+      operation: 'raw_get',
+      parameters: { base: 'binance-spot', path: 'api/v3/ping' },
+    })).rejects.toMatchObject({ code: 'MISSING_PARAMETER' })
   })
 
   it('uses ambient defaults when no options are supplied', async () => {

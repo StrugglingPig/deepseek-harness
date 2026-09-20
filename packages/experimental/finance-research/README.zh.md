@@ -67,7 +67,7 @@ English | [中文](README.md)
 { "operation": "polymarket.clob.book", "parameters": { "token_id": "<token-id>" } }
 ```
 
-工具原样返回上游 JSON，不归一化每个平台字段，因此不会丢失 Provider 特有信息。
+工具原样返回上游 JSON，不归一化每个平台字段，因此不会丢失 Provider 特有信息。`raw_get` 是目录尚未覆盖的公共 GET 路径的逃生通道：传入 `base`、绝对 `path` 和 Provider 原生查询参数。
 
 ### Supported instruments
 

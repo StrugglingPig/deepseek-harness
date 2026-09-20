@@ -3,7 +3,7 @@
 import { z as zod } from 'zod'
 import { classifyAsset } from './data.ts'
 import { QUERY_OPERATIONS } from './operations.ts'
-import type { FinanceQueryBase, FinanceQueryOperation } from './operations.ts'
+import type { FinanceQueryBase } from './operations.ts'
 import type {
   FinanceJsonValue,
   FinanceMarketDataProvider,
@@ -241,25 +241,55 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       return {
         provider: 'http',
         operation: request.operation,
-        data: Object.entries(QUERY_OPERATIONS).map(([operation, definition]) => ({
-          operation,
-          provider: definition.provider,
-          base: definition.base,
-          path: definition.path,
-          description: definition.description,
-        })),
+        data: [
+          {
+            operation: 'raw_get',
+            provider: 'http',
+            base: 'configured provider origin',
+            path: '/...',
+            description: 'Query any public GET path under a configured provider origin; pass base, path, and query parameters.',
+          },
+          ...Object.entries(QUERY_OPERATIONS).map(([operation, definition]) => ({
+            operation,
+            provider: definition.provider,
+            base: definition.base,
+            path: definition.path,
+            description: definition.description,
+          })),
+        ],
+      }
+    }
+    if (request.operation === 'raw_get') {
+      const parameters = request.parameters ?? {}
+      const base = parameters.base
+      const path = parameters.path
+      if (typeof base !== 'string' || !(base in QUERY_BASE_ORIGINS)) {
+        throw new FinanceDataError('raw_get requires a configured base', 'MISSING_PARAMETER')
+      }
+      if (typeof path !== 'string' || !path.startsWith('/')) {
+        throw new FinanceDataError('raw_get requires an absolute public path', 'MISSING_PARAMETER')
+      }
+      const rest: Record<string, FinanceJsonValue> = {}
+      for (const [key, value] of Object.entries(parameters)) {
+        if (key === 'base' || key === 'path') continue
+        rest[key] = value
+      }
+      return {
+        provider: 'http',
+        operation: request.operation,
+        data: await this.fetchJson(this.queryUrl(base as FinanceQueryBase, path, rest), signal),
       }
     }
     const operation = QUERY_OPERATIONS[request.operation]
     if (operation === undefined) throw new FinanceDataError(`unknown finance operation ${request.operation}`, 'UNKNOWN_OPERATION')
-    const url = this.queryUrl(operation, request.parameters ?? {})
+    const url = this.queryUrl(operation.base, operation.path, request.parameters ?? {})
     return { provider: operation.provider, operation: request.operation, data: await this.fetchJson(url, signal) }
   }
 
-  private queryUrl(operation: FinanceQueryOperation, parameters: Readonly<Record<string, FinanceJsonValue>>): string {
-    const origin = this.options[QUERY_BASE_ORIGINS[operation.base]] as string
-    const pathKeys = new Set([...operation.path.matchAll(/\{([^}]+)\}/g)].map(match => match[1] as string))
-    const path = operation.path.replace(/\{([^}]+)\}/g, (_match, key: string) => {
+  private queryUrl(base: FinanceQueryBase, pathTemplate: string, parameters: Readonly<Record<string, FinanceJsonValue>>): string {
+    const origin = this.options[QUERY_BASE_ORIGINS[base]] as string
+    const pathKeys = new Set([...pathTemplate.matchAll(/\{([^}]+)\}/g)].map(match => match[1] as string))
+    const path = pathTemplate.replace(/\{([^}]+)\}/g, (_match, key: string) => {
       const value = parameters[key]
       if (value === undefined) throw new FinanceDataError(`missing path parameter ${key}`, 'MISSING_PARAMETER')
       return encodeURIComponent(queryValue(value))

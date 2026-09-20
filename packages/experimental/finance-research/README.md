@@ -67,7 +67,7 @@ Examples:
 { "operation": "polymarket.clob.book", "parameters": { "token_id": "<token-id>" } }
 ```
 
-The tool returns upstream JSON unchanged. It does not normalize every platform field, which keeps provider-specific information available.
+The tool returns upstream JSON unchanged. It does not normalize every platform field, which keeps provider-specific information available. `raw_get` is the escape hatch for a public GET path that the catalog does not yet name: pass `base`, an absolute `path`, and provider-native query parameters.
 
 ### Supported instruments
 
