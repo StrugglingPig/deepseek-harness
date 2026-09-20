@@ -9,7 +9,7 @@ English | [中文](README.md)
 
 ## 概述
 
-`dsh-experimental-finance-research` 为金融研究会话提供一条确定性的“数据到报告”路径。它从 fixture Provider 加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，并构建结构化 Markdown 报告。三个工具面向模型；计算和报告代码是插件内部的普通 TypeScript。
+`dsh-experimental-finance-research` 为金融研究会话提供一条确定性的“数据到报告”路径。它从确定性 fixture Provider 或公共 HTTP Provider 加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，并构建结构化 Markdown 报告。三个工具面向模型；计算和报告代码是插件内部的普通 TypeScript。
 
 ## 目录
 
@@ -31,11 +31,29 @@ English | [中文](README.md)
 - name: '@deepseek-ai/dsh-experimental-finance-research'
 ```
 
-默认 application 使用 `FixtureFinanceMarketDataProvider`。部署可以调用 `registerFinanceTools(ctx, provider)` 替换为其他 `FinanceMarketDataProvider`；工具 Schema 和报告结构保持不变。
+默认 application 使用 `FixtureFinanceMarketDataProvider`。设置 `provider: http` 可通过 `HttpFinanceMarketDataProvider` 使用 Yahoo Finance、Binance 和 Polymarket；部署也可以调用 `registerFinanceTools(ctx, provider)` 替换为其他 `FinanceMarketDataProvider`。工具 Schema 和报告结构保持不变。
+
+```yaml
+- name: '@deepseek-ai/dsh-experimental-finance-research'
+  config:
+    provider: http
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `provider` | `fixture` | `fixture` 使用确定性本地数据；`http` 使用 Yahoo、Binance 和 Polymarket |
+| `timeoutMs` | `15000` | 单次请求超时 |
+| `barLimit` | `80` | 请求的最大实时历史 K 线数 |
+| `yahooBaseUrl` | `https://query1.finance.yahoo.com` | Yahoo Finance origin |
+| `binanceBaseUrl` | `https://api.binance.com` | Binance REST origin |
+| `polymarketGammaBaseUrl` | `https://gamma-api.polymarket.com` | Polymarket Gamma origin |
+| `polymarketClobBaseUrl` | `https://clob.polymarket.com` | Polymarket CLOB origin |
+
+生成的 [configuration catalog](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-finance-research) 是完整字段参考。
 
 ### Supported instruments
 
-fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币符号，以及 `PREDICTION:FED-CUT` 等预测符号。未知的非预测符号按股票处理，因此可以用任意 ticker 跑通研究路径。
+fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币符号，以及 `PREDICTION:FED-CUT` 等预测符号。HTTP Provider 将非预测、非 `BTC`/`ETH` 的符号视为 Yahoo 股票 ticker，使用 Binance 处理 `BTC` 和 `ETH`，并用 `PREDICTION:` 前缀后的 slug 解析 Polymarket 市场。
 
 ### What each tool returns
 
@@ -86,8 +104,9 @@ fixture Provider 理解 `AAPL` 等股票符号、`BTC` 和 `ETH` 等加密货币
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Fixture data only** — 初始 Provider 是确定性合成数据；它不是实时市场数据，不得作为投资信息。
-- **No provider registry package yet** — `registerFinanceTools` 接受替换 Provider，但本切片不随附真实适配器。
+- **Default data is synthetic** — 默认 Provider 是确定性合成数据；实时数据需要 `provider: http`。
+- **Live provider depends on public endpoints** — Yahoo Finance、Binance 和 Polymarket 的可用性、限流、条款和字段变化不受本包控制。
+- **Supported live crypto symbols are explicit** — HTTP Provider 映射 `BTC` 和 `ETH`；增加其他币种需要扩展 Provider 元数据。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。
 
 <a id="dev-note"></a>

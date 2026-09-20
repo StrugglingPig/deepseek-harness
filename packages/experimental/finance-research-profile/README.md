@@ -40,7 +40,7 @@ dsh plugin --profile web add @deepseek-ai/dsh-experimental-agent-team-web-profil
 dsh plugin --profile web add @deepseek-ai/dsh-experimental-finance-research-profile
 ```
 
-The finance layer adds only the `finance-research` row. A Team-aware example preset and research skill live under [apps/cli/config/examples/finance-research](../../../apps/cli/config/examples/finance-research/README.md); copy that directory to `$DSH_HOME/.agent-presets/finance-research` to select it.
+The finance layer adds only the `finance-research` row. Apply the [live-provider patch](../../../apps/cli/config/examples/finance-research/live.patch.yml) after it to switch the row to `provider: http`. A Team-aware example preset and research skill live under [apps/cli/config/examples/finance-research](../../../apps/cli/config/examples/finance-research/README.md); copy that directory to `$DSH_HOME/.agent-presets/finance-research` to select it.
 
 -----
 

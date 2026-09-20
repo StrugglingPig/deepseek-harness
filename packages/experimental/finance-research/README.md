@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from a fixture provider, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. The three tools are model-facing; the calculation and report code is ordinary TypeScript inside the plugin.
+`dsh-experimental-finance-research` gives a finance research session a deterministic data-to-report path. It loads normalized equity, crypto, and prediction-market snapshots from either a deterministic fixture provider or public HTTP providers, computes technical indicators and a weighted multi-indicator summary, and builds a structured Markdown report. The three tools are model-facing; the calculation and report code is ordinary TypeScript inside the plugin.
 
 ## Table of Contents
 
@@ -31,11 +31,29 @@ Mount this package in a profile or agent composition that has `ctx.tools`. The p
 - name: '@deepseek-ai/dsh-experimental-finance-research'
 ```
 
-The default application uses `FixtureFinanceMarketDataProvider`. A deployment can call `registerFinanceTools(ctx, provider)` with another `FinanceMarketDataProvider`; the tool schemas and report remain unchanged.
+The default application uses `FixtureFinanceMarketDataProvider`. Set `provider: http` to use Yahoo Finance, Binance, and Polymarket through `HttpFinanceMarketDataProvider`; a deployment can also call `registerFinanceTools(ctx, provider)` with another `FinanceMarketDataProvider`. The tool schemas and report remain unchanged.
+
+```yaml
+- name: '@deepseek-ai/dsh-experimental-finance-research'
+  config:
+    provider: http
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `provider` | `fixture` | `fixture` keeps deterministic local data; `http` uses Yahoo, Binance, and Polymarket |
+| `timeoutMs` | `15000` | Per-request timeout |
+| `barLimit` | `80` | Maximum live history bars requested |
+| `yahooBaseUrl` | `https://query1.finance.yahoo.com` | Yahoo Finance origin |
+| `binanceBaseUrl` | `https://api.binance.com` | Binance REST origin |
+| `polymarketGammaBaseUrl` | `https://gamma-api.polymarket.com` | Polymarket Gamma origin |
+| `polymarketClobBaseUrl` | `https://clob.polymarket.com` | Polymarket CLOB origin |
+
+The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-finance-research) is the exhaustive field reference.
 
 ### Supported instruments
 
-The fixture provider understands equity symbols such as `AAPL`, crypto symbols `BTC` and `ETH`, and prediction symbols such as `PREDICTION:FED-CUT`. Unknown non-prediction symbols are treated as equities so the research path can be exercised with arbitrary tickers.
+The fixture provider understands equity symbols such as `AAPL`, crypto symbols `BTC` and `ETH`, and prediction symbols such as `PREDICTION:FED-CUT`. The HTTP provider treats non-prediction, non-BTC/ETH symbols as Yahoo equity tickers, uses Binance for `BTC` and `ETH`, and resolves Polymarket slugs after the `PREDICTION:` prefix.
 
 ### What each tool returns
 
@@ -86,8 +104,9 @@ Prefix-stable while the three tool definitions and their visibility are unchange
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Fixture data only** — the initial provider is deterministic synthetic data; it is not live market data and must not be treated as investment information.
-- **No provider registry package yet** — `registerFinanceTools` accepts a replacement provider, but no live adapter ships in this slice.
+- **Default data is synthetic** — the default provider is deterministic synthetic data; live data requires `provider: http`.
+- **Live provider depends on public endpoints** — Yahoo Finance, Binance, and Polymarket availability, rate limits, terms, and field changes are outside this package's control.
+- **Supported live crypto symbols are explicit** — the HTTP provider maps `BTC` and `ETH`; adding another coin requires extending the provider metadata.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 
 <a id="dev-note"></a>

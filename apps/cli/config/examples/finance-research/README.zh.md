@@ -24,3 +24,13 @@ cp -R apps/cli/config/examples/finance-research "$DSH_HOME/.agent-presets/financ
 Preset 不挂载 `tool-subagent`、`tool-subagent-fork` 或全局 continuable-child controls。直接委派使用 host profile 提供的 Agent Team 工具；Workflow 仍可用于脚本化研究。
 
 金融工具本身来自 `@deepseek-ai/dsh-experimental-finance-research-profile` 插入的 `finance-research` 行。
+
+## Live data
+
+当 Profile 应使用 Yahoo Finance、Binance 和 Polymarket 而不是确定性 fixture 时，应用 live provider patch：
+
+```sh
+dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
+```
+
+Patch 会把插入的 `finance-research` 行设置为 `provider: http`。它需要能够访问这些公共 Provider 端点。

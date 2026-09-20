@@ -31,6 +31,17 @@ describe('finance research preset example', () => {
     expect(ids).toContain('present')
   })
 
+  it('ships a live-provider patch that selects the HTTP provider', () => {
+    const parsed = yaml.load(
+      readFileSync(resolve(example, 'live.patch.yml'), 'utf8'),
+      { schema: entryListSchema },
+    )
+    expect(parsed).toEqual([{
+      id: 'finance-research',
+      config: { provider: 'http' },
+    }])
+  })
+
   it('ships the finance research skill', () => {
     const skill = readFileSync(
       resolve(example, 'skills/finance-research/SKILL.md'),

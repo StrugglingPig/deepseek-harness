@@ -40,7 +40,7 @@ dsh plugin --profile web add @deepseek-ai/dsh-experimental-agent-team-web-profil
 dsh plugin --profile web add @deepseek-ai/dsh-experimental-finance-research-profile
 ```
 
-金融层只新增 `finance-research` 行。Team-aware 示例 preset 和研究 Skill 位于 [apps/cli/config/examples/finance-research](../../../apps/cli/config/examples/finance-research/README.zh.md)；将该目录复制到 `$DSH_HOME/.agent-presets/finance-research` 后即可选择。
+金融层只新增 `finance-research` 行。在其后应用 [live-provider patch](../../../apps/cli/config/examples/finance-research/live.patch.yml)，即可把该行切换为 `provider: http`。Team-aware 示例 preset 和研究 Skill 位于 [apps/cli/config/examples/finance-research](../../../apps/cli/config/examples/finance-research/README.zh.md)；将该目录复制到 `$DSH_HOME/.agent-presets/finance-research` 后即可选择。
 
 -----
 

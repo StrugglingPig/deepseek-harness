@@ -691,6 +691,34 @@ Depends on: [`McpClient`](../packages/mcp/mcp-client/src/index.ts)
 
 Source: [`packages/experimental/computer-use-cua-driver-mcp/src/index.ts:20`](../packages/experimental/computer-use-cua-driver-mcp/src/index.ts)
 
+<a id="deepseek-aidsh-experimental-finance-research"></a>
+
+## `@deepseek-ai/dsh-experimental-finance-research`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Deployment selection for the finance market-data provider. */
+export interface Config {
+  /** `fixture` keeps the deterministic local provider; `http` enables public live endpoints. */
+  readonly provider?: 'fixture' | 'http'
+  /** HTTP request timeout in milliseconds. */
+  readonly timeoutMs?: number
+  /** Maximum live history bars requested. */
+  readonly barLimit?: number
+  /** Yahoo Finance origin. */
+  readonly yahooBaseUrl?: string
+  /** Binance REST origin. */
+  readonly binanceBaseUrl?: string
+  /** Polymarket Gamma API origin. */
+  readonly polymarketGammaBaseUrl?: string
+  /** Polymarket CLOB API origin. */
+  readonly polymarketClobBaseUrl?: string
+}
+```
+
+Source: [`packages/experimental/finance-research/src/index.ts:34`](../packages/experimental/finance-research/src/index.ts)
+
 <a id="deepseek-aidsh-experimental-inspector"></a>
 
 ## `@deepseek-ai/dsh-experimental-inspector`
@@ -3835,7 +3863,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-experimental-auto-review` — requires `llm` · `permissionPresets` · `sessions` · `tools` ([`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts))
 - `@deepseek-ai/dsh-experimental-client-ui-agent-team` ([`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts))
 - `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` — requires `computerUse` · `tools` · `systemPrompt` ([`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts))
-- `@deepseek-ai/dsh-experimental-finance-research` — requires `tools` ([`packages/experimental/finance-research/src/index.ts`](../packages/experimental/finance-research/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
 - `@deepseek-ai/dsh-fs-ssh` — requires `ssh` · `sandboxPolicy` ([`packages/ssh/fs-ssh/src/index.ts`](../packages/ssh/fs-ssh/src/index.ts))
 - `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))

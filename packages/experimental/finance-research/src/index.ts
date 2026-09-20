@@ -1,8 +1,10 @@
 /** Model-facing finance research tools over a replaceable market-data provider. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { fixtureProvider } from './data.ts'
+import { createHttpFinanceMarketDataProvider } from './http.ts'
 import { buildIndicatorAnalysis } from './indicators.ts'
 import { buildResearchReport } from './report.ts'
 import type {
@@ -18,9 +20,44 @@ export {
   priceBandDirection, rsiDirection, trendDirection, volumeDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
+export {
+  createHttpFinanceMarketDataProvider,
+  FinanceDataError,
+  HttpFinanceMarketDataProvider,
+} from './http.ts'
+export type { HttpFinanceMarketDataProviderOptions } from './http.ts'
 
 export const name = 'experimental-finance-research'
 export const inject = ['tools']
+
+/** Deployment selection for the finance market-data provider. */
+export interface Config {
+  /** `fixture` keeps the deterministic local provider; `http` enables public live endpoints. */
+  readonly provider?: 'fixture' | 'http'
+  /** HTTP request timeout in milliseconds. */
+  readonly timeoutMs?: number
+  /** Maximum live history bars requested. */
+  readonly barLimit?: number
+  /** Yahoo Finance origin. */
+  readonly yahooBaseUrl?: string
+  /** Binance REST origin. */
+  readonly binanceBaseUrl?: string
+  /** Polymarket Gamma API origin. */
+  readonly polymarketGammaBaseUrl?: string
+  /** Polymarket CLOB API origin. */
+  readonly polymarketClobBaseUrl?: string
+}
+
+/** Schemastery configuration for the finance research plugin. */
+export const Config: z<Config> = z.object({
+  provider: z.union(['fixture', 'http'] as const).default('fixture'),
+  timeoutMs: z.number().min(1).default(15_000),
+  barLimit: z.number().step(1).min(50).default(80),
+  yahooBaseUrl: z.string().default('https://query1.finance.yahoo.com'),
+  binanceBaseUrl: z.string().default('https://api.binance.com'),
+  polymarketGammaBaseUrl: z.string().default('https://gamma-api.polymarket.com'),
+  polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
+})
 
 function snapshotValue(snapshot: MarketSnapshot) {
   const prediction = snapshot.prediction
@@ -280,7 +317,22 @@ export function registerFinanceTools(ctx: Context, provider: FinanceMarketDataPr
   }))
 }
 
-/** Default plugin application using the deterministic fixture provider. */
-export function apply(ctx: Context): void {
-  registerFinanceTools(ctx)
+/**
+ * Register finance research tools using the configured provider.
+ * @param ctx - Registrant context carrying the tool registry.
+ * @param config - Resolved provider and HTTP settings.
+ */
+export function apply(ctx: Context, config: Config): void {
+  const resolved = config as Required<Config>
+  const provider = resolved.provider === 'http'
+    ? createHttpFinanceMarketDataProvider({
+      timeoutMs: resolved.timeoutMs,
+      barLimit: resolved.barLimit,
+      yahooBaseUrl: resolved.yahooBaseUrl,
+      binanceBaseUrl: resolved.binanceBaseUrl,
+      polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
+      polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
+    })
+    : fixtureProvider
+  registerFinanceTools(ctx, provider)
 }

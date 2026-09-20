@@ -1,0 +1,5 @@
+# Opt-in live finance provider patch. Apply after the finance-research profile
+# bundle has inserted the row; the row keeps every omitted field at its default.
+- id: finance-research
+  config:
+    provider: http

@@ -20,13 +20,14 @@ afterEach(async () => {
   root = undefined
 })
 
-async function boot(): Promise<Context> {
+async function boot(configLines: readonly string[] = []): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-finance-research-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
     "- name: '@deepseek-ai/dsh-system-prompt'",
     "- name: '@deepseek-ai/dsh-tools'",
     "- name: '@deepseek-ai/dsh-experimental-finance-research'",
+    ...configLines.length > 0 ? ['  config:', ...configLines] : [],
     '',
   ].join('\n'))
   const ctx = new Context()
@@ -107,6 +108,11 @@ describe('finance research real Loader composition', () => {
     expect(report.isError).toBe(false)
     expect(textOf(report)).toContain('#')
   }, 30_000)
+
+  it('selects the HTTP provider from configuration without making a request', async () => {
+    const ctx = await boot(['    provider: http'])
+    expect(ctx.tools.schemas()).toHaveLength(3)
+  })
 
   it('turns an aborted execution into an error result', async () => {
     const ctx = await boot()

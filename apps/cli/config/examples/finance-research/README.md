@@ -24,3 +24,13 @@ cp -R apps/cli/config/examples/finance-research "$DSH_HOME/.agent-presets/financ
 The preset does not mount `tool-subagent`, `tool-subagent-fork`, or the global continuable-child controls. Direct delegation uses the Agent Team tools from the host profile; Workflow remains available for scripted research.
 
 The finance tools themselves come from the `finance-research` row inserted by `@deepseek-ai/dsh-experimental-finance-research-profile`.
+
+## Live data
+
+Apply the live-provider patch when the profile should use Yahoo Finance, Binance, and Polymarket instead of the deterministic fixture:
+
+```sh
+dsh web --patch apps/cli/config/examples/finance-research/live.patch.yml
+```
+
+The patch sets `provider: http` on the inserted `finance-research` row. It requires outbound network access to the public provider endpoints.
