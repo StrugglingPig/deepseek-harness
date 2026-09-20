@@ -6,12 +6,15 @@ describe('finance research report', () => {
   it('builds an equity report with defaults', async () => {
     const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' })
     expect(report.symbol).toBe('AAPL')
+    expect(report.reportType).toBe('equity-deep-dive')
     expect(report.sections.map(section => section.title)).toEqual([
-      'Summary', 'Research Question', 'Market Snapshot', 'Technical Indicators',
-      'Multi-Indicator Synthesis', 'Methodology Coverage', 'Investor Lenses', 'Strategy Gaps', 'Risk And Limitations',
+      'Summary', 'Research Question', 'Market Snapshot', 'Price Action', 'Technical Indicators',
+      'Multi-Indicator Synthesis', 'Methodology Coverage', 'Valuation Framework', 'Financial Quality',
+      'Competitive Position', 'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
     ])
-    expect(report.markdown).toContain('# Apple Inc. (AAPL) research report')
-    expect(report.html).toContain('<title>Apple Inc. (AAPL) research report</title>')
+    expect(report.markdown).toContain('# Apple Inc. (AAPL) · Equity Deep dive')
+    expect(report.html).toContain('<title>Apple Inc. (AAPL) · Equity Deep dive</title>')
+    expect(report.html).toContain('data-report-type="equity-deep-dive"')
     expect(report.html).toContain('id="price-chart"')
     expect(report.markdown).toContain('synthetic fixture')
     expect(report.evidence[0]?.url).toBe('fixture://AAPL')
@@ -84,9 +87,10 @@ describe('finance research report', () => {
   })
   it('renders the report in the requested Chinese copy', async () => {
     const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'zh')
-    expect(report.title).toBe('Apple Inc. (AAPL) 研究报告')
+    expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
-      '摘要', '研究问题', '行情快照', '技术指标', '多指标综合', '方法论覆盖', '投资大师视角', '策略缺口', '风险与限制',
+      '摘要', '研究问题', '行情快照', '价格行为', '技术指标', '多指标综合', '方法论覆盖',
+      '估值框架', '财务质量', '竞争格局', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')
     expect(report.markdown).toContain('综合评分：')
@@ -114,7 +118,7 @@ describe('finance research report', () => {
         }
       },
     }, { symbol: '600519' })
-    expect(report.title).toBe('600519 research report')
+    expect(report.title).toBe('600519 · Equity Deep dive')
     expect(report.markdown).toContain('bias for 600519.')
     expect(report.markdown).not.toContain('600519 (600519)')
   })

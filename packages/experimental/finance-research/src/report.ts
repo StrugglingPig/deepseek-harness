@@ -1,9 +1,10 @@
 /** Structured Markdown and interactive HTML reports built from deterministic market analysis. */
 
 import { buildIndicatorAnalysis } from './indicators.ts'
-import { buildMethodologyAnalysis } from './methodology.ts'
-import { REPORT_COPY, formatCopy, type ReportCopy } from './report-copy.ts'
+import { buildMethodologyAnalysis, type MethodologyAnalysis } from './methodology.ts'
+import { REPORT_COPY, formatCopy, type ReportBlockCopy, type ReportCategoryCopy, type ReportCopy } from './report-copy.ts'
 import type { ReportLanguage } from './report-language.ts'
+import { REPORT_TYPES, defaultReportType, reportTypeById, type ReportSectionId, type ReportTypeDefinition } from './report-types.ts'
 import type {
   FinanceMarketDataProvider,
   IndicatorAnalysis,
@@ -18,6 +19,313 @@ function word(record: Readonly<Record<string, string | undefined>>, value: strin
   return record[value] ?? value
 }
 
+/** Round a percent-like value for report display. */
+function percent(value: number): string {
+  return `${value.toFixed(2)}%`
+}
+
+interface SectionContext {
+  readonly snapshot: MarketSnapshot
+  readonly analysis: IndicatorAnalysis
+  readonly methodology: MethodologyAnalysis
+  readonly request: ResearchReportRequest
+  readonly copy: ReportCopy
+  readonly category: ReportCategoryCopy
+  readonly type: ReportTypeDefinition
+}
+
+/** Input-demanding block: inputs the snapshot lacks, plus the questions it would answer. */
+function inputBlock(context: SectionContext, id: ReportSectionId, extras: readonly string[] = []): ResearchReportSection {
+  const copy = context.copy
+  const block = copy.blocks[id] as ReportBlockCopy
+  return {
+    title: copy.sections[sectionKey(id)],
+    content: [
+      `- ${copy.labels.blockMissing}`,
+      ...extras.map(item => `- ${item}`),
+      `- ${copy.labels.requiresInputs}${block.requires.join(', ')}`,
+      ...block.checks.map(item => `- ${item}`),
+    ].join('\n'),
+  }
+}
+
+/** Copy keys of the composed section blocks. */
+const sectionIdKeys: Record<ReportSectionId, keyof ReportCopy['sections']> = {
+  summary: 'summary',
+  'research-question': 'researchQuestion',
+  'market-snapshot': 'marketSnapshot',
+  'price-action': 'priceAction',
+  'technical-indicators': 'technicalIndicators',
+  synthesis: 'synthesis',
+  'methodology-coverage': 'methodologyCoverage',
+  'investor-lenses': 'investorLenses',
+  'valuation-framework': 'valuationFramework',
+  'financial-quality': 'financialQuality',
+  'earnings-review': 'earningsReview',
+  'event-context': 'eventContext',
+  'industry-landscape': 'industryLandscape',
+  'competitive-position': 'competitivePosition',
+  'macro-drivers': 'macroDrivers',
+  'rates-credit': 'ratesCredit',
+  'commodity-balance': 'commodityBalance',
+  'fx-drivers': 'fxDrivers',
+  'fund-flows': 'fundFlows',
+  'onchain-tokenomics': 'onchainTokenomics',
+  allocation: 'allocation',
+  'scenario-analysis': 'scenarioAnalysis',
+  catalysts: 'catalysts',
+  'monitoring-plan': 'monitoringPlan',
+  'data-requirements': 'dataRequirements',
+  'strategy-gaps': 'strategyGaps',
+  'risk-and-limitations': 'riskAndLimitations',
+}
+
+/** Map a section id onto its copy key. */
+function sectionKey(id: ReportSectionId): keyof ReportCopy['sections'] {
+  return sectionIdKeys[id]
+}
+
+/** Monitoring cadence each form implies. */
+const FORM_CADENCE: Record<ReportTypeDefinition['form'], string> = {
+  flash: 'event-driven, within one session of the trigger',
+  daily: 'every trading day',
+  weekly: 'weekly, with event-driven updates',
+  monthly: 'monthly, with event-driven updates',
+  'deep-dive': 'quarterly review plus event-driven updates',
+  thematic: 'monthly, with catalyst-driven updates',
+  event: 'event-driven, one review after the event settles',
+  earnings: 'quarterly, on each reporting date',
+  allocation: 'weekly for positioning, monthly for allocation',
+  data: 'monthly, on each data release',
+}
+
+/** Render one section block from the deterministic inputs available here. */
+function renderSection(id: ReportSectionId, context: SectionContext): ResearchReportSection {
+  const { snapshot, analysis, methodology, request, copy, category, type } = context
+  const direction = (value: string): string => word(copy.directions, value)
+  const status = (value: string): string => word(copy.statuses, value)
+  const instrumentLabel = snapshot.instrument.name === snapshot.instrument.symbol
+    ? snapshot.instrument.symbol
+    : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
+  switch (id) {
+    case 'summary': {
+      const aligned = analysis.signals.length - analysis.conflicts.length
+      return {
+        title: copy.sections.summary,
+        content: formatCopy(copy.templates.summary, {
+          direction: direction(analysis.composite.direction),
+          label: instrumentLabel,
+          aligned,
+        }),
+      }
+    }
+    case 'research-question': {
+      const question = request.question ?? copy.labels.defaultQuestion
+      const horizon = request.horizon ?? copy.labels.defaultHorizon
+      return {
+        title: copy.sections.researchQuestion,
+        content: [
+          question,
+          '',
+          `${copy.labels.horizon}${horizon}`,
+          `${copy.labels.focus}${category.focus.join('; ')}`,
+        ].join('\n'),
+      }
+    }
+    case 'market-snapshot':
+      return {
+        title: copy.sections.marketSnapshot,
+        content: [
+          `- ${copy.labels.asOf}${snapshot.asOf}`,
+          `- ${copy.labels.price}${snapshot.quote.price} ${snapshot.instrument.currency}`,
+          `- ${copy.labels.change}${percent(snapshot.quote.changePercent)}`,
+          `- ${copy.labels.bars}${snapshot.bars.length}`,
+          `- ${copy.labels.source}${snapshot.source.provider}${snapshot.source.synthetic ? copy.labels.syntheticSuffix : ''}`,
+        ].join('\n'),
+      }
+    case 'price-action': {
+      const window = snapshot.bars.slice(-60)
+      const closes = window.map(bar => bar.close)
+      const high = Math.max(...window.map(bar => bar.high))
+      const low = Math.min(...window.map(bar => bar.low))
+      const close = snapshot.quote.price
+      const span = high - low
+      const position = span === 0 ? 50 : (close - low) / span * 100
+      const drawdown = (close - high) / Math.max(high, Number.EPSILON) * 100
+      const recent = window.slice(-5)
+      const recentVolume = recent.reduce((sum, bar) => sum + bar.volume, 0) / Math.max(1, recent.length)
+      const meanVolume = window.reduce((sum, bar) => sum + bar.volume, 0) / Math.max(1, window.length)
+      const reference = (window.at(-20) as { close: number }).close
+      const twenty = (close - reference) / Math.max(Math.abs(reference), Number.EPSILON) * 100
+      return {
+        title: copy.sections.priceAction,
+        content: [
+          `- ${copy.labels.returnWindow}${percent(twenty)}`,
+          `- ${copy.labels.rangePosition}${percent(position)} (${low} - ${high})`,
+          `- ${copy.labels.drawdown}${percent(drawdown)}`,
+          `- ${copy.labels.volumeTrend}${(recentVolume / Math.max(meanVolume, Number.EPSILON)).toFixed(2)}x`,
+          `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
+          `- ${copy.labels.bars}${closes.length}`,
+        ].join('\n'),
+      }
+    }
+    case 'technical-indicators':
+      return {
+        title: copy.sections.technicalIndicators,
+        content: [
+          `- SMA 20 / 50: ${analysis.indicators.sma20} / ${analysis.indicators.sma50}`,
+          `- EMA 12 / 26: ${analysis.indicators.ema12} / ${analysis.indicators.ema26}`,
+          `- RSI 14: ${analysis.indicators.rsi14}`,
+          `- MACD / signal / histogram: ${analysis.indicators.macd} / ${analysis.indicators.macdSignal} / ${analysis.indicators.macdHistogram}`,
+          `- ATR 14: ${analysis.indicators.atr14}`,
+          `- Bollinger bands: ${analysis.indicators.bollingerLower} / ${analysis.indicators.bollingerMiddle} / ${analysis.indicators.bollingerUpper}`,
+          `- OBV / 20-bar average: ${analysis.indicators.obv} / ${analysis.indicators.obvSma20}`,
+        ].join('\n'),
+      }
+    case 'synthesis': {
+      const signals = analysis.signals
+        .map(signal => formatCopy(copy.templates.signal, {
+          name: word(copy.signals, signal.name),
+          direction: direction(signal.direction),
+          weight: signal.weight,
+          value: signal.value,
+        }))
+        .join('\n')
+      const conflicts = analysis.conflicts.length === 0
+        ? copy.labels.noConflicts
+        : `${copy.labels.conflicts}${analysis.conflicts.map(item => word(copy.signals, item)).join(', ')}.`
+      return {
+        title: copy.sections.synthesis,
+        content: [
+          signals,
+          '',
+          `${copy.labels.compositeScore}${analysis.composite.score}`,
+          `${copy.labels.confidence}${analysis.composite.confidence}%`,
+          conflicts,
+        ].join('\n'),
+      }
+    }
+    case 'methodology-coverage':
+      return {
+        title: copy.sections.methodologyCoverage,
+        content: methodology.readings
+          .filter(reading => reading.status !== 'requires-input')
+          .map(reading => formatCopy(copy.templates.reading, {
+            name: reading.name,
+            direction: direction(reading.direction),
+            confidence: reading.confidence,
+            status: status(reading.status),
+            note: reading.note,
+          }))
+          .join('\n'),
+      }
+    case 'investor-lenses':
+      return {
+        title: copy.sections.investorLenses,
+        content: methodology.investors.map(investor => [
+          formatCopy(copy.templates.investor, {
+            name: investor.name,
+            school: investor.school,
+            stance: direction(investor.stance),
+          }),
+          ...investor.evidence.map(item => `  - ${item}`),
+          formatCopy(copy.templates.investorRisk, { risk: investor.risk }),
+        ].join('\n')).join('\n'),
+      }
+    case 'scenario-analysis': {
+      const atr = analysis.indicators.atr14
+      const close = snapshot.quote.price
+      const bull = close + atr * 2
+      const bear = close - atr * 2
+      return {
+        title: copy.sections.scenarioAnalysis,
+        content: [
+          `- ${copy.labels.scenarioBull}${bull.toFixed(2)} (${percent((bull - close) / Math.max(close, Number.EPSILON) * 100)})`,
+          `- ${copy.labels.scenarioBase}${close.toFixed(2)}`,
+          `- ${copy.labels.scenarioBear}${bear.toFixed(2)} (${percent((bear - close) / Math.max(close, Number.EPSILON) * 100)})`,
+          `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
+        ].join('\n'),
+      }
+    }
+    case 'allocation': {
+      const atrPercent = analysis.risk.atrPercent
+      const size = Math.min(100, 1 / Math.max(atrPercent, 0.0001) * 100)
+      return {
+        title: copy.sections.allocation,
+        content: [
+          `- ${copy.labels.riskBudget}1%`,
+          `- ${copy.labels.atrStop}${percent(atrPercent)}`,
+          `- ${copy.labels.positionSize}${percent(size)}`,
+          `- ${copy.labels.blockMissing}`,
+        ].join('\n'),
+      }
+    }
+    case 'catalysts':
+      return {
+        title: copy.sections.catalysts,
+        content: [
+          ...category.catalysts.map(item => `- ${item}`),
+          `- ${copy.labels.blockMissing}`,
+        ].join('\n'),
+      }
+    case 'monitoring-plan':
+      return {
+        title: copy.sections.monitoringPlan,
+        content: [
+          `- ${copy.labels.monitoringCadence}${FORM_CADENCE[type.form]}`,
+          `- ${copy.labels.focus}${category.focus.join('; ')}`,
+          `- ${copy.labels.requiresInputs}${category.requirements.join(', ')}`,
+        ].join('\n'),
+      }
+    case 'data-requirements':
+      return {
+        title: copy.sections.dataRequirements,
+        content: [
+          `- ${copy.labels.requiresInputs}${category.requirements.join(', ')}`,
+          `- ${copy.labels.focus}${category.focus.join('; ')}`,
+        ].join('\n'),
+      }
+    case 'event-context': {
+      const latest = snapshot.bars.at(-1) as { readonly close: number; readonly volume: number }
+      const previous = snapshot.bars.at(-2) as { readonly close: number }
+      const change = (latest.close - previous.close) / Math.max(Math.abs(previous.close), Number.EPSILON) * 100
+      return inputBlock(context, id, [
+        `${copy.labels.change}${percent(change)}`,
+        `${copy.labels.volume}${latest.volume}`,
+      ])
+    }
+    case 'strategy-gaps':
+      return {
+        title: copy.sections.strategyGaps,
+        content: methodology.catalog
+          .filter(entry => entry.status === 'requires-input' || entry.status === 'not-data-backed')
+          .map(entry => formatCopy(copy.templates.gap, {
+            name: entry.name,
+            category: word(copy.categories, entry.category),
+            status: status(entry.status),
+            requirements: entry.dataRequirements.map(item => copy.requirements[item] ?? item).join(', '),
+          }))
+          .join('\n'),
+      }
+    case 'risk-and-limitations': {
+      const sourceLimitation = snapshot.source.synthetic
+        ? `- ${copy.labels.fixtureLimitation}`
+        : `- ${formatCopy(copy.labels.snapshotLimitation, { provider: snapshot.source.provider })}`
+      return {
+        title: copy.sections.riskAndLimitations,
+        content: [
+          `- ${copy.labels.atrPercent}${analysis.risk.atrPercent.toFixed(4)}%`,
+          sourceLimitation,
+          `- ${copy.labels.notAdvice}`,
+        ].join('\n'),
+      }
+    }
+    default:
+      return inputBlock(context, id)
+  }
+}
+
+/** Prediction-market facts, rendered between synthesis and the category blocks. */
 function predictionSection(snapshot: MarketSnapshot, copy: ReportCopy): ResearchReportSection[] {
   if (snapshot.prediction === undefined) return []
   const prediction = snapshot.prediction
@@ -35,129 +343,32 @@ function predictionSection(snapshot: MarketSnapshot, copy: ReportCopy): Research
   }]
 }
 
+/** Compose the ordered sections of one report type. */
 function sectionsFor(
   snapshot: MarketSnapshot,
   analysis: IndicatorAnalysis,
   request: ResearchReportRequest,
   language: ReportLanguage,
+  type: ReportTypeDefinition,
 ): ResearchReportSection[] {
   const copy = REPORT_COPY[language]
-  const direction = (value: string): string => word(copy.directions, value)
-  const status = (value: string): string => word(copy.statuses, value)
-  const category = (value: string): string => word(copy.categories, value)
-  const requirement = (value: string): string => copy.requirements[value] ?? value
-  const question = request.question ?? copy.labels.defaultQuestion
-  const horizon = request.horizon ?? copy.labels.defaultHorizon
-  const instrumentLabel = snapshot.instrument.name === snapshot.instrument.symbol
-    ? snapshot.instrument.symbol
-    : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
-  const signals = analysis.signals
-    .map(signal => formatCopy(copy.templates.signal, {
-      name: word(copy.signals, signal.name),
-      direction: direction(signal.direction),
-      weight: signal.weight,
-      value: signal.value,
-    }))
-    .join('\n')
-  const conflicts = analysis.conflicts.length === 0
-    ? copy.labels.noConflicts
-    : `${copy.labels.conflicts}${analysis.conflicts.map(item => word(copy.signals, item)).join(', ')}.`
-  const sourceLimitation = snapshot.source.synthetic
-    ? `- ${copy.labels.fixtureLimitation}`
-    : `- ${formatCopy(copy.labels.snapshotLimitation, { provider: snapshot.source.provider })}`
-  const methodology = buildMethodologyAnalysis(snapshot, language)
-  const aligned = analysis.signals.length - analysis.conflicts.length
+  const context: SectionContext = {
+    snapshot,
+    analysis,
+    methodology: buildMethodologyAnalysis(snapshot, language),
+    request,
+    copy,
+    category: copy.reportCategories[type.category] as ReportCategoryCopy,
+    type,
+  }
+  const sections = type.sections.map(id => renderSection(id, context))
+  const prediction = predictionSection(snapshot, copy)
+  if (prediction.length === 0) return sections
+  const synthesisIndex = type.sections.indexOf('synthesis')
   return [
-    {
-      title: copy.sections.summary,
-      content: formatCopy(copy.templates.summary, {
-        direction: direction(analysis.composite.direction),
-        label: instrumentLabel,
-        aligned,
-      }),
-    },
-    {
-      title: copy.sections.researchQuestion,
-      content: `${question}\n\n${copy.labels.horizon}${horizon}`,
-    },
-    {
-      title: copy.sections.marketSnapshot,
-      content: [
-        `- ${copy.labels.asOf}${snapshot.asOf}`,
-        `- ${copy.labels.price}${snapshot.quote.price} ${snapshot.instrument.currency}`,
-        `- ${copy.labels.change}${snapshot.quote.changePercent.toFixed(2)}%`,
-        `- ${copy.labels.bars}${snapshot.bars.length}`,
-        `- ${copy.labels.source}${snapshot.source.provider}${snapshot.source.synthetic ? copy.labels.syntheticSuffix : ''}`,
-      ].join('\n'),
-    },
-    {
-      title: copy.sections.technicalIndicators,
-      content: [
-        `- SMA 20 / 50: ${analysis.indicators.sma20} / ${analysis.indicators.sma50}`,
-        `- EMA 12 / 26: ${analysis.indicators.ema12} / ${analysis.indicators.ema26}`,
-        `- RSI 14: ${analysis.indicators.rsi14}`,
-        `- MACD / signal / histogram: ${analysis.indicators.macd} / ${analysis.indicators.macdSignal} / ${analysis.indicators.macdHistogram}`,
-        `- ATR 14: ${analysis.indicators.atr14}`,
-        `- Bollinger bands: ${analysis.indicators.bollingerLower} / ${analysis.indicators.bollingerMiddle} / ${analysis.indicators.bollingerUpper}`,
-        `- OBV / 20-bar average: ${analysis.indicators.obv} / ${analysis.indicators.obvSma20}`,
-      ].join('\n'),
-    },
-    {
-      title: copy.sections.synthesis,
-      content: [
-        signals,
-        '',
-        `${copy.labels.compositeScore}${analysis.composite.score}`,
-        `${copy.labels.confidence}${analysis.composite.confidence}%`,
-        conflicts,
-      ].join('\n'),
-    },
-    ...predictionSection(snapshot, copy),
-    {
-      title: copy.sections.methodologyCoverage,
-      content: methodology.readings
-        .filter(reading => reading.status !== 'requires-input')
-        .map(reading => formatCopy(copy.templates.reading, {
-          name: reading.name,
-          direction: direction(reading.direction),
-          confidence: reading.confidence,
-          status: status(reading.status),
-          note: reading.note,
-        }))
-        .join('\n'),
-    },
-    {
-      title: copy.sections.investorLenses,
-      content: methodology.investors.map(investor => [
-        formatCopy(copy.templates.investor, {
-          name: investor.name,
-          school: investor.school,
-          stance: direction(investor.stance),
-        }),
-        ...investor.evidence.map(item => `  - ${item}`),
-        formatCopy(copy.templates.investorRisk, { risk: investor.risk }),
-      ].join('\n')).join('\n'),
-    },
-    {
-      title: copy.sections.strategyGaps,
-      content: methodology.catalog
-        .filter(entry => entry.status === 'requires-input' || entry.status === 'not-data-backed')
-        .map(entry => formatCopy(copy.templates.gap, {
-          name: entry.name,
-          category: category(entry.category),
-          status: status(entry.status),
-          requirements: entry.dataRequirements.map(requirement).join(', '),
-        }))
-        .join('\n'),
-    },
-    {
-      title: copy.sections.riskAndLimitations,
-      content: [
-        `- ${copy.labels.atrPercent}${analysis.risk.atrPercent.toFixed(4)}%`,
-        sourceLimitation,
-        `- ${copy.labels.notAdvice}`,
-      ].join('\n'),
-    },
+    ...sections.slice(0, synthesisIndex + 1),
+    ...prediction,
+    ...sections.slice(synthesisIndex + 1),
   ]
 }
 
@@ -182,6 +393,7 @@ function reportHtml(
   analysis: IndicatorAnalysis,
   sections: readonly ResearchReportSection[],
   copy: ReportCopy,
+  type: ReportTypeDefinition,
 ): string {
   const data = safeJson({
     symbol: snapshot.instrument.symbol,
@@ -189,6 +401,7 @@ function reportHtml(
     currency: snapshot.instrument.currency,
     asOf: snapshot.asOf,
     source: snapshot.source.provider,
+    reportType: type.id,
     bars: snapshot.bars.map(bar => ({
       time: bar.timestamp, close: bar.close, open: bar.open, high: bar.high, low: bar.low, volume: bar.volume,
     })),
@@ -206,6 +419,7 @@ function reportHtml(
     asOf: snapshot.asOf,
     provider: snapshot.source.provider,
   })
+  const typeName = `${(copy.reportCategories[type.category] as ReportCategoryCopy).name} ${copy.reportForms[type.form]}`
   const pill = formatCopy(copy.templates.htmlPill, {
     direction: word(copy.directions, analysis.composite.direction),
     confidence: analysis.composite.confidence,
@@ -235,9 +449,9 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
 @media(max-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.nav{position:static;flex-direction:row;flex-wrap:wrap}.hero{display:block}}
 </style>
 </head>
-<body>
+<body data-report-type="${escapeHtml(type.id)}">
 <main>
-  <div class="hero"><div><div class="eyebrow">${escapeHtml(copy.html.eyebrow)}</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(meta)}</div></div><div class="pill">${escapeHtml(pill)}</div></div>
+  <div class="hero"><div><div class="eyebrow">${escapeHtml(copy.html.eyebrow)} · ${escapeHtml(typeName)}</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(meta)}</div></div><div class="pill">${escapeHtml(pill)}</div></div>
   <div class="cards">
     <div class="card"><span>${escapeHtml(copy.html.cardPrice)}</span><strong>${String(snapshot.quote.price)}</strong></div>
     <div class="card"><span>${escapeHtml(copy.html.cardChange)}</span><strong class="${snapshot.quote.changePercent >= 0 ? 'positive' : 'negative'}">${snapshot.quote.changePercent.toFixed(2)}%</strong></div>
@@ -295,9 +509,20 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
 }
 
 /**
+ * Resolve the report type for one request.
+ * @param request - Report request carrying an optional type id.
+ * @param snapshot - Loaded snapshot whose instrument family selects the default.
+ * @returns The requested type, or the family default when the id is absent or unknown.
+ */
+export function resolveReportType(request: ResearchReportRequest, snapshot: MarketSnapshot): ReportTypeDefinition {
+  const requested = request.reportType === undefined ? undefined : reportTypeById(request.reportType)
+  return requested ?? defaultReportType(snapshot.instrument.assetClass)
+}
+
+/**
  * Build one deterministic report through a market-data provider.
  * @param provider - Market-data provider used to load the report snapshot.
- * @param request - Symbol, optional question, and optional horizon.
+ * @param request - Symbol, optional question, horizon, and report type.
  * @param signal - Optional cancellation forwarded to the provider.
  * @param language - Report language; defaults to English.
  * @returns The structured report with Markdown and interactive HTML renderings.
@@ -311,11 +536,16 @@ export async function buildResearchReport(
   const copy = REPORT_COPY[language]
   const snapshot = await provider.load(request.symbol, signal)
   const analysis = buildIndicatorAnalysis(snapshot)
-  const sections = sectionsFor(snapshot, analysis, request, language)
+  const type = resolveReportType(request, snapshot)
+  const sections = sectionsFor(snapshot, analysis, request, language, type)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
-  const title = `${label} ${copy.titleSuffix}`
+  const title = formatCopy(copy.templates.reportTitle, {
+    label,
+    category: (copy.reportCategories[type.category] as ReportCategoryCopy).name,
+    form: copy.reportForms[type.form] as string,
+  })
   const markdown = `# ${title}\n\n${sections
     .map(section => `## ${section.title}\n\n${section.content}`)
     .join('\n\n')}\n`
@@ -323,8 +553,9 @@ export async function buildResearchReport(
     symbol: snapshot.instrument.symbol,
     asOf: snapshot.asOf,
     title,
+    reportType: type.id,
     markdown,
-    html: reportHtml(title, snapshot, analysis, sections, copy),
+    html: reportHtml(title, snapshot, analysis, sections, copy, type),
     sections,
     evidence: [{
       source: snapshot.source.provider,
@@ -333,3 +564,6 @@ export async function buildResearchReport(
     }],
   }
 }
+
+/** Report types available to callers. */
+export { REPORT_TYPES }

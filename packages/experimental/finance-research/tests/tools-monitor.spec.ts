@@ -21,7 +21,7 @@ describe('finance research report language default', () => {
 
     expect(result.isError).toBe(false)
     const text = result.content.filter(block => block.type === 'text').map(block => block.text).join('')
-    expect(text).toContain('Apple Inc. (AAPL) research report')
+    expect(text).toContain('Apple Inc. (AAPL) · Equity Deep dive')
     expect(text).toContain('## Investor Lenses')
     await ctx.fiber.dispose()
   })

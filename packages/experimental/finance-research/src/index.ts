@@ -30,6 +30,8 @@ import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECO
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
+import { REPORT_COPY, type ReportCategoryCopy } from './report-copy.ts'
+import { REPORT_TYPES } from './report-types.ts'
 import { resolveReportLanguage, systemReportLanguageTag, type ReportLanguage } from './report-language.ts'
 import { exportResearchReport } from './export.ts'
 import type {
@@ -405,6 +407,7 @@ export function registerFinanceTools(
       symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
       question: { type: 'string', description: 'Research question to include in the report.' },
       horizon: { type: 'string', description: 'Requested research horizon.' },
+      report_type: { type: 'string', description: 'Report type id from finance_report_types, such as equity-deep-dive; defaults to the instrument family deep dive.' },
     },
     output: {
       schema: {
@@ -414,6 +417,7 @@ export function registerFinanceTools(
           symbol: { type: 'string', required: true },
           as_of: { type: 'string', required: true },
           title: { type: 'string', required: true },
+          report_type: { type: 'string', required: true },
           markdown: { type: 'string', required: true },
           html: { type: 'string', required: true },
           sections: {
@@ -450,11 +454,13 @@ export function registerFinanceTools(
         symbol: args.symbol,
         ...args.question === undefined ? {} : { question: args.question },
         ...args.horizon === undefined ? {} : { horizon: args.horizon },
+        ...args.report_type === undefined ? {} : { reportType: args.report_type },
       }, exec.signal, reportLanguage())
       return {
         symbol: report.symbol,
         as_of: report.asOf,
         title: report.title,
+        report_type: report.reportType,
         markdown: report.markdown,
         html: report.html,
         sections: report.sections.map(section => ({ title: section.title, content: section.content })),
@@ -467,6 +473,59 @@ export function registerFinanceTools(
     },
   }))
 
+  ctx.tools.register(defineTool({
+    name: 'finance_report_types',
+    description: 'List the finance report types this package renders, with category, form, section plan, research focus, and required inputs.',
+    parameters: {
+      category: { type: 'string', description: 'Optional category filter such as equity, crypto, or macro.' },
+      form: { type: 'string', description: 'Optional form filter such as flash, weekly, or deep-dive.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          types: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                category: { type: 'string', required: true },
+                form: { type: 'string', required: true },
+                sections: { type: 'array', required: true, items: { type: 'string' } },
+                focus: { type: 'array', required: true, items: { type: 'string' } },
+                data_requirements: { type: 'array', required: true, items: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    execute(args) {
+      return Promise.resolve({
+        types: REPORT_TYPES
+          .filter(type => args.category === undefined || type.category === args.category)
+          .filter(type => args.form === undefined || type.form === args.form)
+          .map((type) => {
+            const category = REPORT_COPY.en.reportCategories[type.category] as ReportCategoryCopy
+            const sections: string[] = [...type.sections]
+            return {
+              id: type.id,
+              category: type.category,
+              form: type.form,
+              sections,
+              focus: [...category.focus],
+              data_requirements: [...category.requirements],
+            }
+          }),
+      })
+    },
+  }))
+
   ctx.inject(['fs'], (fsCtx) => {
     ctx.tools.register(defineTool({
       name: 'finance_report_export',
@@ -475,6 +534,7 @@ export function registerFinanceTools(
         symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
         question: { type: 'string', description: 'Research question to include in the report.' },
         horizon: { type: 'string', description: 'Requested research horizon.' },
+        report_type: { type: 'string', description: 'Report type id from finance_report_types, such as equity-deep-dive; defaults to the instrument family deep dive.' },
         output_dir: { type: 'string', description: 'Workspace-relative output directory.', default: '.artifacts/finance-reports' },
         basename: { type: 'string', description: 'Optional file stem.' },
       },
@@ -486,6 +546,7 @@ export function registerFinanceTools(
             symbol: { type: 'string', required: true },
             as_of: { type: 'string', required: true },
             title: { type: 'string', required: true },
+            report_type: { type: 'string', required: true },
             markdown_path: { type: 'string', required: true },
             html_path: { type: 'string', required: true },
           },
@@ -497,6 +558,7 @@ export function registerFinanceTools(
           symbol: args.symbol,
           ...args.question === undefined ? {} : { question: args.question },
           ...args.horizon === undefined ? {} : { horizon: args.horizon },
+          ...args.report_type === undefined ? {} : { reportType: args.report_type },
         }, exec.signal, reportLanguage())
         const files = await exportResearchReport(
           fsCtx.fs,
@@ -509,6 +571,7 @@ export function registerFinanceTools(
           symbol: report.symbol,
           as_of: report.asOf,
           title: report.title,
+          report_type: report.reportType,
           markdown_path: files.markdown,
           html_path: files.html,
         }

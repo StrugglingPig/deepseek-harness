@@ -5,25 +5,47 @@ import type { MethodologyCategory } from './methodology.ts'
 
 /** Section titles owned by the report writer. */
 export type ReportSectionKey =
-  | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'technicalIndicators' | 'synthesis'
-  | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'strategyGaps' | 'riskAndLimitations'
+  | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'priceAction' | 'technicalIndicators' | 'synthesis'
+  | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'valuationFramework' | 'financialQuality'
+  | 'earningsReview' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
+  | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
+  | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
 
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
   | 'asOf' | 'price' | 'change' | 'bars' | 'source' | 'syntheticSuffix' | 'horizon' | 'compositeScore'
   | 'confidence' | 'noConflicts' | 'conflicts' | 'impliedProbability' | 'bidAsk' | 'spread' | 'volume'
   | 'openInterest' | 'resolution' | 'rules' | 'atrPercent' | 'fixtureLimitation' | 'snapshotLimitation'
-  | 'notAdvice' | 'defaultQuestion' | 'defaultHorizon'
+  | 'notAdvice' | 'defaultQuestion' | 'defaultHorizon' | 'returnWindow' | 'rangePosition' | 'drawdown'
+  | 'volumeTrend' | 'scenarioBull' | 'scenarioBase' | 'scenarioBear' | 'riskBudget' | 'atrStop'
+  | 'positionSize' | 'monitoringCadence' | 'requiresInputs' | 'focus' | 'blockMissing'
 
 /** Interpolated line templates owned by the report writer. */
 export type ReportTemplateKey =
-  | 'summary' | 'signal' | 'reading' | 'investor' | 'investorRisk' | 'gap' | 'htmlMeta' | 'htmlPill'
-  | 'htmlRange' | 'htmlTooltip'
+  | 'summary' | 'signal' | 'reading' | 'investor' | 'investorRisk' | 'gap' | 'reportTitle'
+  | 'htmlMeta' | 'htmlPill' | 'htmlRange' | 'htmlTooltip'
 
 /** Chrome labels of the interactive HTML report. */
 export type ReportHtmlKey =
   | 'eyebrow' | 'cardPrice' | 'cardChange' | 'cardComposite' | 'cardAtr' | 'chartTitle' | 'chartAria'
   | 'rangeAll' | 'navAria' | 'footer'
+
+/** Category copy rendered in report headers, focus lines, and catalysts. */
+export interface ReportCategoryCopy {
+  readonly name: string
+  /** Research questions this category centers on. */
+  readonly focus: readonly string[]
+  /** Inputs the category needs beyond a price history. */
+  readonly requirements: readonly string[]
+  /** Expected catalyst families for the category. */
+  readonly catalysts: readonly string[]
+}
+
+/** One input-demanding section block: what it needs and what it would check. */
+export interface ReportBlockCopy {
+  readonly requires: readonly string[]
+  readonly checks: readonly string[]
+}
 
 /** Per-lens copy rendered in the investor lens section. */
 export interface LensCopy {
@@ -56,6 +78,12 @@ export interface ReportCopy {
   readonly catalogNames: Readonly<Record<string, string>>
   /** Localized data requirements keyed by the canonical requirement; absent entries keep the canonical text. */
   readonly requirements: Readonly<Record<string, string>>
+  /** Report category copy keyed by category id. */
+  readonly reportCategories: Readonly<Record<string, ReportCategoryCopy>>
+  /** Report form display names keyed by form id. */
+  readonly reportForms: Readonly<Record<string, string>>
+  /** Input-demanding section blocks keyed by section id. */
+  readonly blocks: Readonly<Record<string, ReportBlockCopy>>
 }
 
 const EN: ReportCopy = {
@@ -65,11 +93,29 @@ const EN: ReportCopy = {
     summary: 'Summary',
     researchQuestion: 'Research Question',
     marketSnapshot: 'Market Snapshot',
+    priceAction: 'Price Action',
     technicalIndicators: 'Technical Indicators',
     synthesis: 'Multi-Indicator Synthesis',
     predictionMarket: 'Prediction Market',
     methodologyCoverage: 'Methodology Coverage',
     investorLenses: 'Investor Lenses',
+    valuationFramework: 'Valuation Framework',
+    financialQuality: 'Financial Quality',
+    earningsReview: 'Earnings Review',
+    eventContext: 'Event Context',
+    industryLandscape: 'Industry Landscape',
+    competitivePosition: 'Competitive Position',
+    macroDrivers: 'Macro Drivers',
+    ratesCredit: 'Rates And Credit',
+    commodityBalance: 'Supply And Demand Balance',
+    fxDrivers: 'FX Drivers',
+    fundFlows: 'Fund Flows And Positioning',
+    onchainTokenomics: 'On-chain And Tokenomics',
+    allocation: 'Allocation And Risk Budget',
+    scenarioAnalysis: 'Scenario Analysis',
+    catalysts: 'Catalysts',
+    monitoringPlan: 'Monitoring Plan',
+    dataRequirements: 'Data Requirements',
     strategyGaps: 'Strategy Gaps',
     riskAndLimitations: 'Risk And Limitations',
   },
@@ -98,6 +144,20 @@ const EN: ReportCopy = {
     notAdvice: 'The report is research automation output, not investment advice.',
     defaultQuestion: 'Assess the current research setup.',
     defaultHorizon: 'swing',
+    returnWindow: 'Window return: ',
+    rangePosition: 'Range position: ',
+    drawdown: 'Drawdown from window high: ',
+    volumeTrend: 'Volume vs 20-bar mean: ',
+    scenarioBull: 'Bull case (+2 ATR): ',
+    scenarioBase: 'Base case (spot): ',
+    scenarioBear: 'Bear case (-2 ATR): ',
+    riskBudget: 'Risk budget example (1% of equity): ',
+    atrStop: 'ATR stop distance: ',
+    positionSize: 'Indicative position size: ',
+    monitoringCadence: 'Cadence: ',
+    requiresInputs: 'Required inputs: ',
+    focus: 'Research focus: ',
+    blockMissing: 'This snapshot cannot supply this section yet.',
   },
   templates: {
     summary: '{direction} bias for {label}. {direction} composite with {aligned} aligned signals.',
@@ -106,6 +166,7 @@ const EN: ReportCopy = {
     investor: '- {name} ({school}): {stance}.',
     investorRisk: '  - Risk: {risk}',
     gap: '- {name} ({category}): {status}; requires {requirements}',
+    reportTitle: '{label} · {category} {form}',
     htmlMeta: '{symbol} · {currency} · As of {asOf} · Source {provider}',
     htmlPill: '{direction} · {confidence}% confidence',
     htmlRange: '{count} bars',
@@ -165,6 +226,42 @@ const EN: ReportCopy = {
   categories: {},
   catalogNames: {},
   requirements: {},
+  reportCategories: {
+    macro: { name: 'Macro', focus: ['growth, inflation, and policy direction', 'rates, liquidity, and transmission', 'cross-asset implications'], requirements: ['national accounts', 'inflation series', 'policy rates and balance sheets'], catalysts: ['policy meetings and rate decisions', 'inflation and labour prints', 'fiscal and geopolitical events'] },
+    industry: { name: 'Industry', focus: ['market size and demand drivers', 'value chain and supply-demand balance', 'competition, policy, and substitution'], requirements: ['industry size and growth series', 'value-chain participants', 'policy and capacity data'], catalysts: ['demand data and channel checks', 'capacity and pricing announcements', 'policy and subsidy changes'] },
+    equity: { name: 'Equity', focus: ['earnings power and quality', 'valuation versus intrinsic value', 'catalysts, ownership, and risk'], requirements: ['financial statements', 'earnings estimates and guidance', 'peer and valuation multiples'], catalysts: ['earnings and guidance', 'capital actions and ownership', 'product, pricing, and regulatory events'] },
+    fund: { name: 'Fund and ETF', focus: ['strategy, exposure, and holdings', 'tracking, liquidity, and cost', 'flows and performance attribution'], requirements: ['holdings and weights', 'flows and premium-discount', 'benchmark and fee schedule'], catalysts: ['rebalance and index events', 'flow and premium shifts', 'fee and mandate changes'] },
+    'fixed-income': { name: 'Rates and Credit', focus: ['duration, curve, and rate path', 'credit spread and default risk', 'carry, roll, and liquidity'], requirements: ['yield curves', 'issuer financials and covenants', 'credit spreads and ratings'], catalysts: ['central-bank decisions', 'supply and auction calendars', 'rating actions and defaults'] },
+    'commodity-fx': { name: 'Commodity and FX', focus: ['supply-demand balance and inventories', 'cost curve and marginal producer', 'rates, terms of trade, and currency drivers'], requirements: ['inventories and supply-demand balances', 'cost curves and futures term structure', 'rate differentials and balance of payments'], catalysts: ['inventory and production reports', 'OPEC and policy decisions', 'rate decisions and intervention'] },
+    crypto: { name: 'Crypto', focus: ['network, tokenomics, and adoption', 'liquidity, flows, and market structure', 'regulation, security, and regime shifts'], requirements: ['on-chain metrics', 'token unlock and supply schedule', 'exchange and ETF flows'], catalysts: ['protocol upgrades and unlocks', 'ETF and exchange flows', 'regulation and enforcement'] },
+    strategy: { name: 'Strategy', focus: ['asset allocation and risk budget', 'style, sector, and factor rotation', 'positioning, valuation, and catalysts'], requirements: ['index valuation and earnings', 'fund flows and positioning', 'macro regime series'], catalysts: ['policy and macro regime shifts', 'positioning and flow extremes', 'seasonality and index events'] },
+  },
+  reportForms: {
+    flash: 'Flash note',
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    'deep-dive': 'Deep dive',
+    thematic: 'Thematic',
+    event: 'Event review',
+    earnings: 'Earnings review',
+    allocation: 'Allocation',
+    data: 'Data report',
+  },
+  blocks: {
+    'valuation-framework': { requires: ['financial statements', 'earnings estimates', 'peer multiples', 'discount rate'], checks: ['Which multiple is defensible for this business model?', 'What growth and margin assumptions does the price imply?', 'Where does it trade versus its own history and peers?'] },
+    'financial-quality': { requires: ['income statement', 'balance sheet', 'cash-flow statement'], checks: ['Are margins and returns on capital durable?', 'Is cash conversion consistent with reported earnings?', 'How much leverage funds the returns?'] },
+    'earnings-review': { requires: ['reported actuals', 'consensus estimates', 'segment breakdown', 'guidance'], checks: ['Which line items beat or missed?', 'Is the beat driven by volume, price, mix, or one-offs?', 'What changed in guidance and backlog?'] },
+    'event-context': { requires: ['event timeline', 'announcement text', 'pre-event expectation'], checks: ['What changed versus the prior state?', 'How did price and volume react on the event bar?', 'Which assets transmit the impact?'] },
+    'industry-landscape': { requires: ['industry size and growth', 'capacity and utilization', 'policy and regulation'], checks: ['What drives demand over the next 12 months?', 'Where is capacity tight or oversupplied?', 'Which policy or technology shift changes the structure?'] },
+    'competitive-position': { requires: ['peer set', 'market share and unit economics', 'cost position'], checks: ['Who holds pricing power and why?', 'What is the cost or switching-cost moat?', 'Which competitor can compress returns?'] },
+    'macro-drivers': { requires: ['GDP and activity series', 'inflation series', 'policy rate path'], checks: ['Which driver dominates the current regime?', 'What is priced into rates and the curve?', 'Which sectors carry the transmission risk?'] },
+    'rates-credit': { requires: ['yield curve', 'credit spreads', 'issuer financials'], checks: ['Where is duration risk concentrated?', 'How much compensation does the spread offer?', 'Which refinancing wall matters?'] },
+    'commodity-balance': { requires: ['inventories', 'supply-demand balance', 'cost curve'], checks: ['Is the market in surplus or deficit?', 'What is the marginal cost of supply?', 'How does the curve price storage and scarcity?'] },
+    'fx-drivers': { requires: ['rate differentials', 'balance of payments', 'positioning'], checks: ['Which leg drives the pair?', 'Is the move carry, terms of trade, or risk sentiment?', 'What policy shift would break the trend?'] },
+    'fund-flows': { requires: ['fund holdings', 'flows and premium-discount', 'benchmark and fees'], checks: ['What exposure does the fund actually carry?', 'How do flows interact with the price trend?', 'What tracking or liquidity cost applies?'] },
+    'onchain-tokenomics': { requires: ['on-chain activity metrics', 'token unlock schedule', 'exchange and ETF flows'], checks: ['Is network usage growing with price?', 'What supply pressure comes from unlocks?', 'Which venue or issuer concentrates flow?'] },
+  },
 }
 
 const ZH: ReportCopy = {
@@ -174,11 +271,29 @@ const ZH: ReportCopy = {
     summary: '摘要',
     researchQuestion: '研究问题',
     marketSnapshot: '行情快照',
+    priceAction: '价格行为',
     technicalIndicators: '技术指标',
     synthesis: '多指标综合',
     predictionMarket: '预测市场',
     methodologyCoverage: '方法论覆盖',
     investorLenses: '投资大师视角',
+    valuationFramework: '估值框架',
+    financialQuality: '财务质量',
+    earningsReview: '业绩点评',
+    eventContext: '事件背景',
+    industryLandscape: '行业格局',
+    competitivePosition: '竞争格局',
+    macroDrivers: '宏观驱动',
+    ratesCredit: '利率与信用',
+    commodityBalance: '供需平衡',
+    fxDrivers: '汇率驱动',
+    fundFlows: '资金与持仓',
+    onchainTokenomics: '链上与代币经济',
+    allocation: '配置与风险预算',
+    scenarioAnalysis: '情景分析',
+    catalysts: '催化剂',
+    monitoringPlan: '跟踪计划',
+    dataRequirements: '数据需求',
     strategyGaps: '策略缺口',
     riskAndLimitations: '风险与限制',
   },
@@ -207,6 +322,20 @@ const ZH: ReportCopy = {
     notAdvice: '本报告是研究自动化输出，不构成投资建议。',
     defaultQuestion: '评估当前研究环境。',
     defaultHorizon: '波段',
+    returnWindow: '区间收益：',
+    rangePosition: '区间位置：',
+    drawdown: '距区间高点回撤：',
+    volumeTrend: '成交量对 20 根均值：',
+    scenarioBull: '乐观情景（+2 ATR）：',
+    scenarioBase: '基准情景（现价）：',
+    scenarioBear: '悲观情景（-2 ATR）：',
+    riskBudget: '风险预算示例（权益 1%）：',
+    atrStop: 'ATR 止损距离：',
+    positionSize: '参考仓位：',
+    monitoringCadence: '跟踪频率：',
+    requiresInputs: '所需输入：',
+    focus: '研究重点：',
+    blockMissing: '当前快照尚无法提供本节内容。',
   },
   templates: {
     summary: '{label} 呈{direction}。{aligned} 个信号与综合方向一致。',
@@ -215,6 +344,7 @@ const ZH: ReportCopy = {
     investor: '- {name}（{school}）：{stance}。',
     investorRisk: '  - 风险：{risk}',
     gap: '- {name}（{category}）：{status}；需要 {requirements}',
+    reportTitle: '{label} · {category}{form}',
     htmlMeta: '{symbol} · {currency} · 截至 {asOf} · 来源 {provider}',
     htmlPill: '{direction} · 置信度 {confidence}%',
     htmlRange: '{count} 根',
@@ -355,6 +485,42 @@ const ZH: ReportCopy = {
     'order-flow': '订单流',
     execution: 'VWAP / TWAP 执行',
     'order-book': '订单簿失衡',
+  },
+  reportCategories: {
+    macro: { name: '宏观', focus: ['增长、通胀与政策方向', '利率、流动性与传导', '跨资产含义'], requirements: ['国民经济核算', '通胀序列', '政策利率与资产负债表'], catalysts: ['政策会议与利率决议', '通胀与就业数据', '财政与地缘事件'] },
+    industry: { name: '行业', focus: ['市场规模与需求驱动', '产业链与供需平衡', '竞争、政策与替代'], requirements: ['行业规模与增速', '产业链参与者', '政策与产能数据'], catalysts: ['需求数据与渠道调研', '产能与定价公告', '政策与补贴变化'] },
+    equity: { name: '股票', focus: ['盈利能力与质量', '估值与内在价值', '催化剂、股东结构与风险'], requirements: ['财务报表', '盈利预测与指引', '同业与估值倍数'], catalysts: ['业绩与指引', '资本运作与股东变化', '产品、定价与监管事件'] },
+    fund: { name: '基金与 ETF', focus: ['策略、暴露与持仓', '跟踪、流动性与成本', '资金流与业绩归因'], requirements: ['持仓与权重', '资金流与折溢价', '基准与费率'], catalysts: ['调仓与指数事件', '资金流与折溢价变化', '费率与投资范围变更'] },
+    'fixed-income': { name: '债券与信用', focus: ['久期、曲线与利率路径', '信用利差与违约风险', 'Carry、骑乘与流动性'], requirements: ['收益率曲线', '发行人财务与条款', '信用利差与评级'], catalysts: ['央行决议', '供给与招标日程', '评级行动与违约'] },
+    'commodity-fx': { name: '商品与外汇', focus: ['供需平衡与库存', '成本曲线与边际产能', '利率、贸易条件与汇率驱动'], requirements: ['库存与供需平衡表', '成本曲线与期限结构', '利差与国际收支'], catalysts: ['库存与产量报告', 'OPEC 与政策决议', '利率决议与干预'] },
+    crypto: { name: '加密资产', focus: ['网络、代币经济与采用', '流动性、资金流与市场结构', '监管、安全与范式变化'], requirements: ['链上指标', '解锁与供应计划', '交易所与 ETF 资金流'], catalysts: ['协议升级与解锁', 'ETF 与交易所资金流', '监管与执法'] },
+    strategy: { name: '策略与专题', focus: ['资产配置与风险预算', '风格、行业与因子轮动', '仓位、估值与催化剂'], requirements: ['指数估值与盈利', '资金流与仓位', '宏观状态序列'], catalysts: ['政策与宏观状态切换', '仓位与资金流极值', '季节性与指数事件'] },
+  },
+  reportForms: {
+    flash: '快评',
+    daily: '日报',
+    weekly: '周报',
+    monthly: '月报',
+    'deep-dive': '深度报告',
+    thematic: '专题报告',
+    event: '事件点评',
+    earnings: '财报点评',
+    allocation: '配置报告',
+    data: '数据报告',
+  },
+  blocks: {
+    'valuation-framework': { requires: ['财务报表', '盈利预测', '同业估值', '折现率'], checks: ['哪种估值倍数适合该商业模式？', '当前价格隐含了怎样的增长与利润率？', '相对自身历史与同业处于什么位置？'] },
+    'financial-quality': { requires: ['利润表', '资产负债表', '现金流量表'], checks: ['利润率与资本回报是否可持续？', '现金转化是否与报表利润一致？', '回报由多高的杠杆支撑？'] },
+    'earnings-review': { requires: ['实际业绩', '市场一致预期', '分部数据', '管理层指引'], checks: ['哪些科目超预期或低于预期？', '超预期来自销量、价格、结构还是一次性因素？', '指引与在手订单有何变化？'] },
+    'event-context': { requires: ['事件时间线', '公告原文', '事件前预期'], checks: ['相对事件前状态发生了什么变化？', '事件当根 K 线的价格与成交量如何反应？', '影响通过哪些资产传导？'] },
+    'industry-landscape': { requires: ['行业规模与增速', '产能与利用率', '政策与监管'], checks: ['未来 12 个月的需求驱动是什么？', '产能偏紧还是过剩？', '哪项政策或技术变化改变行业结构？'] },
+    'competitive-position': { requires: ['可比公司', '市场份额与单位经济', '成本地位'], checks: ['谁掌握定价权，为什么？', '成本或转换成本护城河有多深？', '哪个竞争对手可能压缩回报？'] },
+    'macro-drivers': { requires: ['GDP 与活动指标', '通胀序列', '政策利率路径'], checks: ['当前状态下哪个驱动占主导？', '利率与曲线已计入什么？', '哪些板块承担传导风险？'] },
+    'rates-credit': { requires: ['收益率曲线', '信用利差', '发行人财务'], checks: ['久期风险集中在哪一段？', '利差提供的补偿是否充分？', '哪个再融资高峰更关键？'] },
+    'commodity-balance': { requires: ['库存', '供需平衡表', '成本曲线'], checks: ['市场处于过剩还是缺口？', '边际供给成本在哪里？', '期限结构如何反映库存与稀缺？'] },
+    'fx-drivers': { requires: ['利差', '国际收支', '仓位'], checks: ['哪一条腿主导该货币对？', '驱动来自 carry、贸易条件还是风险偏好？', '什么政策变化会打破趋势？'] },
+    'fund-flows': { requires: ['基金持仓', '资金流与折溢价', '基准与费率'], checks: ['基金实际承担了什么暴露？', '资金流与价格趋势如何相互影响？', '跟踪误差或流动性成本是多少？'] },
+    'onchain-tokenomics': { requires: ['链上活跃度指标', '代币解锁计划', '交易所与 ETF 资金流'], checks: ['网络使用量是否与价格同步增长？', '解锁带来多大的供应压力？', '资金流集中在哪些交易所或发行方？'] },
   },
   requirements: {
     'daily OHLCV': '日线 OHLCV',

@@ -25,7 +25,7 @@ English | [中文](README.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-在具备 `ctx.tools` 的 Profile 或 Agent 组合中挂载本包。包会注册标准化工具 `finance_market_snapshot`、`finance_technical_analysis`、`finance_research_report`、`finance_report_export`、`finance_methodology_analysis`、`finance_strategy_catalog`、`finance_private_account` 和 `finance_monitor_plan`；当对应 Provider seam 可用时，还会注册 `finance_provider_describe`、`finance_provider_request`、`finance_coinmarketcap_quotes`、`finance_coinmarketcap_ohlcv`、`finance_realtime_stream` 和 A 股工具。可以在 Workflow 报告流水线或 Agent Team 研究会话中使用；工具不依赖任何一种编排机制。
+在具备 `ctx.tools` 的 Profile 或 Agent 组合中挂载本包。包会注册标准化工具 `finance_market_snapshot`、`finance_technical_analysis`、`finance_research_report`、`finance_report_types`、`finance_report_export`、`finance_methodology_analysis`、`finance_strategy_catalog`、`finance_private_account` 和 `finance_monitor_plan`；当对应 Provider seam 可用时，还会注册 `finance_provider_describe`、`finance_provider_request`、`finance_coinmarketcap_quotes`、`finance_coinmarketcap_ohlcv`、`finance_realtime_stream` 和 A 股工具。可以在 Workflow 报告流水线或 Agent Team 研究会话中使用；工具不依赖任何一种编排机制。
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-finance-research'
@@ -77,9 +77,16 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 
 工具原样返回上游 status 和 JSON。标准化 `load()` 只是技术指标和报告的便捷适配层，不限制通用 Provider 能力。
 
+### 报告类型与模板
+
+报告由两个维度组合而成：研究**分类**与报告**形态**。八个分类覆盖宏观、行业、股票、基金与 ETF、债券与信用、商品与外汇、加密资产、策略与专题；十种形态覆盖快评、日报、周报、月报、深度报告、专题报告、事件点评、财报点评、配置报告和数据报告。当前提供 33 个分类/形态组合，每个组合有自己的章节计划、研究重点和数据需求；调用 `finance_report_types` 可以列出，并把 id 作为 `report_type` 传给 `finance_research_report`、`finance_report_export` 或对应的 A 股工具。省略 `report_type` 时选择该标的家族的深度报告。
+
+每个计划由章节区块组成。当前快照能回答的区块输出确定性数字（摘要、价格行为、技术指标、多指标综合、方法论覆盖、投资大师视角、情景分析、配置与风险预算、跟踪计划）；缺少输入的区块改为列出所需输入和它会回答的问题，而不是编造内容。定制模板时修改 `src/report-types.ts` 中该分类的区块列表，以及 `src/report-copy.ts` 中的文案。
+
+
 ### What each tool returns
 
-`finance_market_snapshot` 返回统一标的、报价、K 线数量、Provider、synthetic 标记，以及存在时的预测市场字段。`finance_technical_analysis` 返回 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、五个加权信号、冲突和综合评分。`finance_methodology_analysis` 返回有数据支撑的方法论读数、执行状态、投资大师透镜和综合提示。`finance_strategy_catalog` 返回每个策略的类别、逻辑、量化适配度、数据要求和执行状态。`finance_research_report` 返回结构化章节、Markdown 和交互式 HTML。`finance_report_export` 在 `ctx.fs` 可用时写入 Markdown 和 HTML 文件；A 股报告与导出工具提供同样的文件对。
+`finance_market_snapshot` 返回统一标的、报价、K 线数量、Provider、synthetic 标记，以及存在时的预测市场字段。`finance_technical_analysis` 返回 SMA、EMA、RSI、MACD、ATR、Bollinger Bands、OBV、五个加权信号、冲突和综合评分。`finance_methodology_analysis` 返回有数据支撑的方法论读数、执行状态、投资大师透镜和综合提示。`finance_strategy_catalog` 返回每个策略的类别、逻辑、量化适配度、数据要求和执行状态。`finance_report_types` 返回报告类型目录，包含分类、形态、章节计划、研究重点和数据需求。`finance_research_report` 返回解析后的报告类型、结构化章节、Markdown 和交互式 HTML。`finance_report_export` 在 `ctx.fs` 可用时写入 Markdown 和 HTML 文件；A 股报告与导出工具提供同样的文件对。
 
 -----
 
@@ -112,7 +119,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 
 #### What the model sees
 
-模型最多看到十八个生成的工具 Schema；其规范形态遵循 [tool catalog package map](../../../docs/tool-catalog.zh.md#tool-package-map)，而本实验包在 `src/index.ts` 中声明精确 Schema。`finance_market_snapshot`、`finance_technical_analysis`、`finance_research_report`、`finance_methodology_analysis`、`finance_strategy_catalog` 和 `finance_report_export` 覆盖标准化研究与交付；`finance_provider_describe` 与 `finance_provider_request` 暴露 Provider base 和通用传输；`finance_private_account` 返回标准化只读 Binance 余额、持仓和可选未成交订单；`finance_coinmarketcap_quotes` 和 `finance_coinmarketcap_ohlcv` 暴露标准化 CoinMarketCap 行情数据；`finance_realtime_stream` 返回有界 Binance 或 CoinMarketCap WebSocket 事件；`finance_stock_snapshot`、`finance_stock_quote`、`finance_stock_technical_analysis`、`finance_stock_methodology_analysis`、`finance_stock_research_report` 和 `finance_stock_report_export` 覆盖 AKShare 与 iFinD A 股数据；`finance_monitor_plan` 返回调度参数。结果使用紧凑 canonical JSON 渲染，报告结果除外，它包含完整 Markdown 和交互式 HTML。
+模型最多看到十九个生成的工具 Schema；其规范形态遵循 [tool catalog package map](../../../docs/tool-catalog.zh.md#tool-package-map)，而本实验包在 `src/index.ts` 中声明精确 Schema。`finance_market_snapshot`、`finance_technical_analysis`、`finance_research_report`、`finance_methodology_analysis`、`finance_strategy_catalog` 和 `finance_report_export` 覆盖标准化研究与交付；`finance_provider_describe` 与 `finance_provider_request` 暴露 Provider base 和通用传输；`finance_private_account` 返回标准化只读 Binance 余额、持仓和可选未成交订单；`finance_coinmarketcap_quotes` 和 `finance_coinmarketcap_ohlcv` 暴露标准化 CoinMarketCap 行情数据；`finance_realtime_stream` 返回有界 Binance 或 CoinMarketCap WebSocket 事件；`finance_stock_snapshot`、`finance_stock_quote`、`finance_stock_technical_analysis`、`finance_stock_methodology_analysis`、`finance_stock_research_report` 和 `finance_stock_report_export` 覆盖 AKShare 与 iFinD A 股数据；`finance_monitor_plan` 返回调度参数。结果使用紧凑 canonical JSON 渲染，报告结果除外，它包含完整 Markdown 和交互式 HTML。
 
 #### Token effect
 

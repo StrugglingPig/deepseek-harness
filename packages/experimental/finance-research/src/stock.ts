@@ -594,6 +594,7 @@ export function registerStockTools(
       adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
       question: { type: 'string', description: 'Research question to include in the report.' },
       horizon: { type: 'string', description: 'Requested research horizon.' },
+      report_type: { type: 'string', description: 'Report type id from finance_report_types; A-share research defaults to equity-deep-dive.' },
     },
     output: {
       schema: {
@@ -603,6 +604,7 @@ export function registerStockTools(
           symbol: { type: 'string', required: true },
           as_of: { type: 'string', required: true },
           title: { type: 'string', required: true },
+          report_type: { type: 'string', required: true },
           markdown: { type: 'string', required: true },
           html: { type: 'string', required: true },
           sections: {
@@ -650,11 +652,13 @@ export function registerStockTools(
         symbol: args.symbol,
         ...args.question === undefined ? {} : { question: args.question },
         ...args.horizon === undefined ? {} : { horizon: args.horizon },
+        ...args.report_type === undefined ? {} : { reportType: args.report_type },
       }, exec.signal, reportLanguage())
       return {
         symbol: report.symbol,
         as_of: report.asOf,
         title: report.title,
+        report_type: report.reportType,
         markdown: report.markdown,
         html: report.html,
         sections: report.sections.map(section => ({ title: section.title, content: section.content })),
@@ -755,6 +759,7 @@ export function registerStockTools(
         adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
         question: { type: 'string', description: 'Research question to include in the report.' },
         horizon: { type: 'string', description: 'Requested research horizon.' },
+        report_type: { type: 'string', description: 'Report type id from finance_report_types; A-share research defaults to equity-deep-dive.' },
         output_dir: { type: 'string', description: 'Workspace-relative output directory.', default: '.artifacts/finance-reports' },
         basename: { type: 'string', description: 'Optional file stem.' },
       },
@@ -766,6 +771,7 @@ export function registerStockTools(
             symbol: { type: 'string', required: true },
             as_of: { type: 'string', required: true },
             title: { type: 'string', required: true },
+            report_type: { type: 'string', required: true },
             markdown_path: { type: 'string', required: true },
             html_path: { type: 'string', required: true },
           },
@@ -787,6 +793,7 @@ export function registerStockTools(
           symbol: args.symbol,
           ...args.question === undefined ? {} : { question: args.question },
           ...args.horizon === undefined ? {} : { horizon: args.horizon },
+          ...args.report_type === undefined ? {} : { reportType: args.report_type },
         }, exec.signal, reportLanguage())
         const files = await exportResearchReport(
           fsCtx.fs,
@@ -799,6 +806,7 @@ export function registerStockTools(
           symbol: report.symbol,
           as_of: report.asOf,
           title: report.title,
+          report_type: report.reportType,
           markdown_path: files.markdown,
           html_path: files.html,
         }

@@ -14,7 +14,7 @@ This skill governs a finance research session. The finance research tools own de
 3. Call `finance_technical_analysis` for SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, signals, conflicts, and the composite score.
 4. Call `finance_methodology_analysis` for non-A-share instruments and `finance_stock_methodology_analysis` for A-shares to get data-backed methodology readings and investor lenses. Call `finance_strategy_catalog` when the user asks which strategy families are available or which inputs are missing.
 5. Use `web_search` and `web_fetch` for current news, filings, macro data, or prediction-market rules when the snapshot does not carry them.
-6. Call `finance_research_report` to build Markdown and interactive HTML. Use `finance_report_export` to write both files when `ctx.fs` is available.
+6. Call `finance_report_types` to choose the report type for the request: recurring coverage uses daily, weekly, or monthly; a one-off analysis uses deep-dive or thematic; a company or macro event uses event; a reporting date uses earnings; allocation questions use allocation. Then call `finance_research_report` with that `report_type` to build Markdown and interactive HTML, and `finance_report_export` to write both files when `ctx.fs` is available.
 7. Re-check every claim against tool results and source metadata before synthesis.
 
 The report writer owns the report language: it follows the user's selected locale, then the host system locale, and falls back to English. Write your own commentary, answers, and summaries in that same language, and never translate or duplicate the generated section headings.

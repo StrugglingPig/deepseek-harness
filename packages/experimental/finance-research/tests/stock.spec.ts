@@ -194,7 +194,7 @@ describe('registerStockTools', () => {
       signal: new AbortController().signal,
       callId: 'stock-report-configured' as never,
       name: 'finance_stock_research_report',
-      arguments: { provider: 'akshare', symbol: '600519', start_date: '2026-01-01', end_date: '2026-09-20', adjust: 'qfq', question: 'What matters?', horizon: '1w' },
+      arguments: { provider: 'akshare', symbol: '600519', start_date: '2026-01-01', end_date: '2026-09-20', adjust: 'qfq', question: 'What matters?', horizon: '1w', report_type: 'equity-event' },
     })
     expect(configuredReport.isError).toBe(false)
     const stockMethodology = await ctx.tools.execute({
@@ -216,7 +216,7 @@ describe('registerStockTools', () => {
       signal: new AbortController().signal,
       callId: 'stock-export' as never,
       name: 'finance_stock_report_export',
-      arguments: { provider: 'akshare', symbol: '600519', output_dir: 'reports', basename: 'moutai' },
+      arguments: { provider: 'akshare', symbol: '600519', output_dir: 'reports', basename: 'moutai', report_type: 'equity-earnings' },
     })
     expect(exported.isError).toBe(false)
     expect(writes.has('reports/moutai.md')).toBe(true)

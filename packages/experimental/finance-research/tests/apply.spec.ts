@@ -245,7 +245,7 @@ describe('finance apply', () => {
         arguments: { symbol: 'AAPL' },
       })
       const report = textOfReport(result)
-      expect(report).toContain('研究报告')
+      expect(report).toContain('股票深度报告')
       return report
     })
     await published.fiber.dispose()
@@ -267,7 +267,7 @@ describe('finance apply', () => {
         arguments: { symbol: 'AAPL' },
       })
       const report = textOfReport(result)
-      expect(report).toContain('研究报告')
+      expect(report).toContain('股票深度报告')
       return report
     })
     await localized.fiber.dispose()
@@ -289,7 +289,7 @@ describe('finance apply', () => {
         arguments: { symbol: 'AAPL' },
       })
       const report = textOfReport(result)
-      expect(report).toContain('研究报告')
+      expect(report).toContain('股票深度报告')
       return report
     })
     await explicit.fiber.dispose()

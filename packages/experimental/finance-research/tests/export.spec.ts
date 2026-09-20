@@ -11,6 +11,7 @@ function report(title = 'Test report'): ResearchReport {
     title,
     markdown: '# Test report\n',
     html: '<!doctype html><title>Test report</title>',
+    reportType: 'equity-deep-dive',
     sections: [],
     evidence: [],
   }

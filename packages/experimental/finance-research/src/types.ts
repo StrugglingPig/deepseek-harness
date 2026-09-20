@@ -409,6 +409,8 @@ export interface ResearchReport {
   readonly markdown: string
   /** Self-contained interactive HTML rendering of this report. */
   readonly html: string
+  /** Report type id that produced this report. */
+  readonly reportType: string
   readonly sections: readonly ResearchReportSection[]
   readonly evidence: readonly {
     readonly source: string
@@ -422,4 +424,6 @@ export interface ResearchReportRequest {
   readonly symbol: string
   readonly question?: string
   readonly horizon?: string
+  /** Report type id such as equity-deep-dive; absent selects the family default. */
+  readonly reportType?: string
 }
