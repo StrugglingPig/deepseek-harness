@@ -13,7 +13,8 @@ import { FinanceDashboardController } from './controller.ts'
 import { en, NS, zh, type FinanceDashboardLocaleKey } from './locales.ts'
 
 export type { FinanceDashboardProps } from './FinanceDashboard.tsx'
-export type { DashboardInterval, FinanceDashboardFace, FinanceDashboardState } from './controller.ts'
+export type { FinanceDashboardFace, FinanceDashboardState } from './controller.ts'
+export type { DashboardAsset, DashboardInterval, DashboardMarketResponse, DashboardQuote } from './market-data.ts'
 export type { FinanceDashboardLocaleKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -42,8 +43,8 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'finance-dashboard: dictionaries')
   const t = ctx.locale.bind(NS)
   const scope = ctx.settingsScope.bind<{
-    readonly binanceBaseUrl?: string
-    readonly binanceWebSocketBaseUrl?: string
+    readonly enableAkshare?: boolean
+    readonly enableIfind?: boolean
   }>({ namespace: FINANCE_NS })
   const controller = new FinanceDashboardController(scope)
   ctx.effect(() => () => { controller.dispose() }, 'finance-dashboard: controller')

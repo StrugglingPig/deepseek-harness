@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-20",
+  "timezone": "Asia/Shanghai",
+  "branch": "codex/finance-research-agent",
+  "status": "passed",
+  "phases": {
+    "1A": [
+      "multi-asset dashboard",
+      "lightweight-charts",
+      "host market route"
+    ],
+    "1B": [
+      "markdown report",
+      "interactive html report",
+      "workspace export"
+    ],
+    "2A": [
+      "methodology readings",
+      "explicit data gaps"
+    ],
+    "2B": [
+      "ten investor lenses",
+      "disagreement-preserving synthesis"
+    ],
+    "2C": [
+      "50-entry strategy catalog",
+      "quant suitability and input status"
+    ]
+  },
+  "verified": [
+    "Binance crypto dashboard",
+    "AKShare A-share dashboard",
+    "Yahoo US-equity dashboard",
+    "official model stock report export",
+    "interactive HTML open and render",
+    "stock methodology analysis",
+    "strategy catalog trend query",
+    "workflow e2e",
+    "agent team e2e",
+    "build",
+    "typecheck",
+    "doc quick",
+    "tool catalog",
+    "config catalog",
+    "175 targeted tests",
+    "171 selected coverage tests at 100 percent"
+  ],
+  "artifacts": {
+    "markdown": ".artifacts/finance-reports/moutai-final.md",
+    "html": ".artifacts/finance-reports/moutai-final.html"
+  },
+  "limitations": [
+    "Elliott, Wyckoff, statistical arbitrage, PCA, ML, RL, order-book, and market-making require additional data or models",
+    "CoinMarketCap OHLCV is plan-limited",
+    "CoinMarketCap WebSocket is blocked by the current network path",
+    "iFinD credentials and dependency are not configured"
+  ]
+}

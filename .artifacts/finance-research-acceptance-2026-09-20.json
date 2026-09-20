@@ -2,7 +2,7 @@
   "date": "2026-09-20",
   "timezone": "Asia/Shanghai",
   "branch": "codex/finance-research-agent",
-  "baseCommit": "9983a20692fb8c63cd10d3980b8c906fdb1aa5d0",
+  "baseCommit": "recorded in git history",
   "status": "passed_with_external_blockers",
   "passed": [
     "web_finance_dashboard_live_binance",
@@ -45,5 +45,5 @@
     "webAgentReport": "web-agent-600519-report.md",
     "liveProviderSummary": "finance-agent-live-providers.json"
   },
-  "fixCommit": "6736a17bd6"
+  "fixCommit": "recorded in git history"
 }

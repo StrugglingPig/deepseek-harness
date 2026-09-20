@@ -1,24 +1,31 @@
-/** Finance dashboard controller owning REST snapshots and the live Binance stream. */
+/** Finance dashboard controller owning Host market snapshots and refresh lifecycle. */
 
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { parseKlines, priceChangePercent, toBinanceSymbol, type DashboardBar } from './market-data.ts'
+import {
+  defaultSymbol,
+  intervalsFor,
+  parseDashboardMarket,
+  type DashboardAsset,
+  type DashboardBar,
+  type DashboardInterval,
+  type DashboardQuote,
+} from './market-data.ts'
 
-const DEFAULT_BASE_URL = 'https://api.binance.com'
-const DEFAULT_WS_URL = 'wss://stream.binance.com:9443'
-const DEFAULT_LIMIT = 120
-
-/** Supported dashboard chart intervals. */
-export type DashboardInterval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
+const DEFAULT_LIMIT = 240
+const DEFAULT_POLL_MS = 15_000
 
 /** Snapshot rendered by the finance dashboard. */
 export interface FinanceDashboardState {
   readonly status: 'idle' | 'loading' | 'ready' | 'error'
+  readonly asset: DashboardAsset
   readonly symbol: string
   readonly interval: DashboardInterval
   readonly bars: readonly DashboardBar[]
-  readonly latestPrice: number | undefined
-  readonly changePercent: number | undefined
+  readonly quote: DashboardQuote | undefined
+  readonly name: string | undefined
+  readonly source: string | undefined
+  readonly asOf: string | undefined
   readonly streamStatus: 'disconnected' | 'connecting' | 'live' | 'error'
   readonly error: string | undefined
 }
@@ -27,13 +34,18 @@ export interface FinanceDashboardState {
 export interface FinanceDashboardActions {
   /** Start the initial load once. */
   ensure(): void
-  /** Reload REST history and reconnect the stream. */
+  /** Reload Host history immediately. */
   refresh(): void
   /**
    * Change the requested symbol.
    * @param symbol - User-entered symbol.
    */
   setSymbol(symbol: string): void
+  /**
+   * Change the selected asset family.
+   * @param asset - Crypto, A-share, or US equity.
+   */
+  setAsset(asset: DashboardAsset): void
   /**
    * Change the chart interval.
    * @param interval - Selected chart interval.
@@ -53,181 +65,137 @@ export interface FinanceDashboardSettingsScope {
   getSnapshot(): {
     readonly value:
       | {
-        readonly binanceBaseUrl?: string
-        readonly binanceWebSocketBaseUrl?: string
+        readonly enableAkshare?: boolean
+        readonly enableIfind?: boolean
       }
       | undefined
   }
   subscribe(listener: () => void): () => void
 }
 
-/** Minimal browser WebSocket surface owned by the dashboard. */
-export interface FinanceDashboardSocket {
-  onopen: ((event: Event) => void) | null
-  onmessage: ((event: MessageEvent) => void) | null
-  onerror: ((event: Event) => void) | null
-  onclose: ((event: CloseEvent) => void) | null
-  close(): void
-}
-
 /** Options for deterministic dashboard tests and embeddings. */
 export interface FinanceDashboardControllerOptions {
   readonly fetch?: typeof globalThis.fetch
-  readonly createSocket?: (url: string) => FinanceDashboardSocket
-  readonly reconnectMs?: number
+  readonly pollMs?: number
 }
 
 interface ResolvedOptions {
   readonly fetch: typeof globalThis.fetch
-  readonly createSocket?: (url: string) => FinanceDashboardSocket
-  readonly reconnectMs: number
-}
-
-function defaultCreateSocket(url: string): FinanceDashboardSocket {
-  return new WebSocket(url)
+  readonly pollMs: number
 }
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/** Owns one dashboard's REST request, stream, and reconnect lifecycle. */
+/** Owns one dashboard's Host request, polling, and refresh lifecycle. */
 export class FinanceDashboardController {
   private readonly store: SnapshotStore<FinanceDashboardState>
   private readonly options: ResolvedOptions
-  private socket: FinanceDashboardSocket | undefined
-  private reconnectTimer: ReturnType<typeof setTimeout> | undefined
+  private timer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
+  private requestId = 0
   private readonly unsubscribe: () => void
 
   /**
    * @param scope - Bound finance settings namespace.
-   * @param options - Fetch, WebSocket, and reconnect overrides.
+   * @param options - Fetch and polling overrides.
    */
   constructor(
-    private readonly scope: FinanceDashboardSettingsScope,
+    scope: FinanceDashboardSettingsScope,
     options: FinanceDashboardControllerOptions = {},
   ) {
     this.options = {
       fetch: options.fetch ?? globalThis.fetch,
-      ...options.createSocket === undefined ? {} : { createSocket: options.createSocket },
-      reconnectMs: options.reconnectMs ?? 3_000,
+      pollMs: options.pollMs ?? DEFAULT_POLL_MS,
     }
     this.store = createSnapshotStore({
       status: 'idle',
-      symbol: 'BTC',
+      asset: 'crypto',
+      symbol: defaultSymbol('crypto'),
       interval: '1m',
       bars: [],
-      latestPrice: undefined,
-      changePercent: undefined,
+      quote: undefined,
+      name: undefined,
+      source: undefined,
+      asOf: undefined,
       streamStatus: 'disconnected',
       error: undefined,
     })
-    this.unsubscribe = scope.subscribe(() => { this.closeSocket() })
-  }
-
-  private settings() {
-    const value = this.scope.getSnapshot().value
-    return {
-      baseUrl: value?.binanceBaseUrl ?? DEFAULT_BASE_URL,
-      wsUrl: value?.binanceWebSocketBaseUrl ?? DEFAULT_WS_URL,
-    }
+    this.unsubscribe = scope.subscribe(() => { this.refresh() })
   }
 
   private update(patch: Partial<FinanceDashboardState>): void {
     this.store.set({ ...this.store.getSnapshot(), ...patch })
   }
 
-  private closeSocket(): void {
-    if (this.reconnectTimer !== undefined) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = undefined
-    }
-    this.socket?.close()
-    this.socket = undefined
-  }
-
-  private connect(): void {
-    if (this.disposed) return
-    this.closeSocket()
-    const state = this.store.getSnapshot()
-    const createSocket = this.options.createSocket ?? defaultCreateSocket
-    const socket = createSocket(`${this.settings().wsUrl}/ws/${toBinanceSymbol(state.symbol).toLowerCase()}@kline_${state.interval}`)
-    this.socket = socket
-    this.update({ streamStatus: 'connecting' })
-    socket.onopen = () => { this.update({ streamStatus: 'live' }) }
-    socket.onerror = () => { this.update({ streamStatus: 'error' }) }
-    socket.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(String(event.data)) as {
-          k?: { t?: unknown; o?: unknown; h?: unknown; l?: unknown; c?: unknown; v?: unknown }
-        }
-        const k = payload.k
-        const values = [k?.t, k?.o, k?.h, k?.l, k?.c, k?.v].map(Number)
-        if (values.some(value => !Number.isFinite(value))) return
-        const bar: DashboardBar = {
-          time: values[0] as number,
-          open: values[1] as number,
-          high: values[2] as number,
-          low: values[3] as number,
-          close: values[4] as number,
-          volume: values[5] as number,
-        }
-        const current = this.store.getSnapshot()
-        const bars = current.bars.at(-1)?.time === bar.time
-          ? [...current.bars.slice(0, -1), bar]
-          : [...current.bars, bar]
-        this.update({
-          bars,
-          latestPrice: bar.close,
-          changePercent: priceChangePercent(bars),
-        })
-      } catch {
-        this.update({ streamStatus: 'error' })
-      }
-    }
-    socket.onclose = () => {
-      if (this.socket !== socket || this.disposed) return
-      this.socket = undefined
-      this.update({ streamStatus: 'disconnected' })
-      if (this.options.reconnectMs > 0) {
-        this.reconnectTimer = setTimeout(() => { this.connect() }, this.options.reconnectMs)
-      }
+  private clearTimer(): void {
+    if (this.timer !== undefined) {
+      clearTimeout(this.timer)
+      this.timer = undefined
     }
   }
 
-  private async load(): Promise<void> {
-    if (this.disposed) return
-    this.update({ status: 'loading', error: undefined })
-    const state = this.store.getSnapshot()
-    const query = `symbol=${encodeURIComponent(toBinanceSymbol(state.symbol))}&interval=${encodeURIComponent(state.interval)}&limit=${String(DEFAULT_LIMIT)}`
+  private schedule(): void {
+    this.clearTimer()
+    if (this.disposed || this.options.pollMs <= 0) return
+    this.timer = setTimeout(() => { this.refresh() }, this.options.pollMs)
+  }
+
+  /**
+   * Fetch one market snapshot from the Host dashboard route.
+   * @param state - Current dashboard state.
+   * @returns Nothing after the state has been updated.
+   */
+  private async load(state: FinanceDashboardState): Promise<void> {
+    const request = this.options.fetch
+    const requestId = ++this.requestId
+    this.update({ status: 'loading', streamStatus: 'connecting', error: undefined })
+    const query = new URLSearchParams({
+      asset: state.asset,
+      symbol: state.symbol,
+      interval: state.interval,
+      limit: String(DEFAULT_LIMIT),
+    })
     try {
-      const request = this.options.fetch
-      const response = await request(`${this.settings().baseUrl}/api/v3/klines?${query}`)
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const bars = parseKlines(await response.json())
-      if (bars.length === 0) throw new Error('no market data')
+      const response = await request(`/api/finance-dashboard/market?${query.toString()}`, {
+        headers: { accept: 'application/json' },
+      })
+      if (!response.ok) throw new Error(`HTTP ${String(response.status)}`)
+      const parsed = parseDashboardMarket(await response.json())
+      if (parsed === undefined) throw new Error('dashboard response was invalid')
+      if (requestId !== this.requestId || this.disposed) return
       this.update({
         status: 'ready',
-        bars,
-        latestPrice: bars.at(-1)?.close,
-        changePercent: priceChangePercent(bars),
+        streamStatus: 'live',
+        asset: parsed.asset,
+        symbol: parsed.symbol,
+        interval: parsed.interval,
+        bars: parsed.bars,
+        quote: parsed.quote,
+        name: parsed.name,
+        source: parsed.source,
+        asOf: parsed.asOf,
         error: undefined,
       })
-      this.connect()
-    } catch (error: unknown) {
-      this.update({ status: 'error', error: errorText(error) })
+    } catch (error) {
+      if (requestId !== this.requestId || this.disposed) return
+      this.update({ status: 'error', streamStatus: 'error', error: errorText(error) })
+    } finally {
+      if (requestId === this.requestId && !this.disposed) this.schedule()
     }
   }
 
   /** Start the initial load once. */
   ensure(): void {
-    if (this.store.getSnapshot().status === 'idle') void this.load()
+    const state = this.store.getSnapshot()
+    if (state.status === 'idle') void this.load(state)
   }
 
-  /** Reload REST history and reconnect the stream. */
+  /** Reload Host history and reset the polling deadline. */
   refresh(): void {
-    void this.load()
+    this.clearTimer()
+    void this.load(this.store.getSnapshot())
   }
 
   /**
@@ -238,7 +206,19 @@ export class FinanceDashboardController {
     const normalized = symbol.trim().toUpperCase()
     if (normalized.length === 0) return
     this.update({ symbol: normalized })
-    void this.load()
+    this.refresh()
+  }
+
+  /**
+   * Change the selected asset family.
+   * @param asset - Crypto, A-share, or US equity.
+   */
+  setAsset(asset: DashboardAsset): void {
+    const state = this.store.getSnapshot()
+    const intervals = intervalsFor(asset)
+    const interval = intervals.includes(state.interval) ? state.interval : intervals[0] as DashboardInterval
+    this.update({ asset, symbol: defaultSymbol(asset), interval })
+    this.refresh()
   }
 
   /**
@@ -247,28 +227,25 @@ export class FinanceDashboardController {
    */
   setInterval(interval: DashboardInterval): void {
     this.update({ interval })
-    void this.load()
+    this.refresh()
   }
 
-  /**
-   * Build the component face and start the initial lazy load.
-   * @returns Dashboard actions and snapshot hooks.
-   */
+  /** Build the public browser face. */
   inject(): FinanceDashboardFace {
-    this.ensure()
     return {
       ensure: () => { this.ensure() },
       refresh: () => { this.refresh() },
       setSymbol: (symbol) => { this.setSymbol(symbol) },
+      setAsset: (asset) => { this.setAsset(asset) },
       setInterval: (interval) => { this.setInterval(interval) },
       hooks: { dashboard: this.store },
     }
   }
 
-  /** Release the live stream and settings subscription. */
+  /** Stop polling and detach the settings subscription. */
   dispose(): void {
     this.disposed = true
-    this.closeSocket()
+    this.clearTimer()
     this.unsubscribe()
   }
 }

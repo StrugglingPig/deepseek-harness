@@ -1,5 +1,5 @@
 ---
-description: "Experimental finance research tools: normalized fixture snapshots, deterministic technical indicators, multi-indicator synthesis, and Markdown reports for Agent Team and Workflow research sessions."
+description: "Experimental finance research tools: multi-asset market data, deterministic technical and methodology analysis, investor lenses, and Markdown/HTML reports for Agent Team and Workflow research sessions."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-finance-research` gives a finance research session a data-to-report path over deterministic fixture data or live public HTTP and WebSocket providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical indicators and a weighted multi-indicator summary, builds a structured Markdown report, exposes generic provider requests, adds read-only normalized Binance private-account reads, reads CoinMarketCap quotes and OHLCV, loads mainland A-share history and quotes through AKShare, the Tonghuashun iFinD HTTP API, or the local iFinDPy SDK, and collects bounded real-time Binance or CoinMarketCap stream events. A deterministic monitor planner returns `schedule_create` arguments for pre-market, after-hours, and BTC 24/7 checks.
+`dsh-experimental-finance-research` gives a finance research session a data-to-report path over fixture or live market providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical and methodology analysis, evaluates investor lenses, builds Markdown and interactive HTML reports, exposes generic provider requests, reads Binance private accounts and CoinMarketCap quotes, loads A-share data through AKShare or iFinD, collects bounded WebSocket events, and plans pre-market, after-hours, and BTC 24/7 monitoring.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, `finance_realtime_stream`, and the mainland stock tools when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
+Mount this package in a profile or agent composition that has `ctx.tools`. The package registers the normalized tools `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_report_export`, `finance_methodology_analysis`, `finance_strategy_catalog`, `finance_private_account`, and `finance_monitor_plan`, plus `finance_provider_describe`, `finance_provider_request`, `finance_coinmarketcap_quotes`, `finance_coinmarketcap_ohlcv`, `finance_realtime_stream`, and the mainland stock tools when their provider seams are available. Use it in a Workflow report pipeline or an Agent Team research session; the tools do not depend on either orchestration mechanism.
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-finance-research'
@@ -73,7 +73,7 @@ The tool returns the upstream status and JSON value unchanged. Normalized `load(
 
 ### What each tool returns
 
-`finance_market_snapshot` returns the normalized instrument, quote, bar count, provider, synthetic flag, and prediction-market fields when present. `finance_technical_analysis` returns SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, five weighted signals, conflicts, and a composite score. `finance_research_report` returns structured sections plus a Markdown report whose first line is the report title. `finance_provider_describe` returns configured origins and auth mode. `finance_provider_request` returns the upstream status and JSON value.
+`finance_market_snapshot` returns the normalized instrument, quote, bar count, provider, synthetic flag, and prediction-market fields when present. `finance_technical_analysis` returns SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, five weighted signals, conflicts, and a composite score. `finance_methodology_analysis` returns data-backed methodology readings, execution status, investor lenses, and a synthesis prompt. `finance_strategy_catalog` returns category, logic, quant suitability, data requirements, and execution status for each tracked strategy. `finance_research_report` returns structured sections plus Markdown and interactive HTML. `finance_report_export` writes the Markdown and HTML files when `ctx.fs` is available. The mainland stock report and export tools provide the same pair for A-share research.
 
 -----
 
@@ -106,7 +106,7 @@ The package separates data, credentials, transport, analysis, report constructio
 
 #### What the model sees
 
-The model sees up to thirteen generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, and `finance_research_report` cover normalized research; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_coinmarketcap_quotes` and `finance_coinmarketcap_ohlcv` expose normalized CoinMarketCap market data; `finance_realtime_stream` returns a bounded Binance or CoinMarketCap WebSocket event batch; `finance_stock_snapshot`, `finance_stock_quote`, and `finance_stock_technical_analysis` cover AKShare and iFinD mainland stock data; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except the report result, which contains the complete Markdown report.
+The model sees up to eighteen generated tool schemas; their canonical shape follows the [tool catalog package map](../../../docs/tool-catalog.md#tool-package-map), while this experimental package declares the exact schemas in `src/index.ts`. `finance_market_snapshot`, `finance_technical_analysis`, `finance_research_report`, `finance_methodology_analysis`, `finance_strategy_catalog`, and `finance_report_export` cover normalized research and delivery; `finance_provider_describe` and `finance_provider_request` expose configured provider bases and transport; `finance_private_account` returns normalized read-only Binance balances, positions, and optional open orders; `finance_coinmarketcap_quotes` and `finance_coinmarketcap_ohlcv` expose normalized CoinMarketCap market data; `finance_realtime_stream` returns a bounded Binance or CoinMarketCap WebSocket event batch; `finance_stock_snapshot`, `finance_stock_quote`, `finance_stock_technical_analysis`, `finance_stock_methodology_analysis`, `finance_stock_research_report`, and `finance_stock_report_export` cover AKShare and iFinD mainland stock data; `finance_monitor_plan` returns scheduler arguments. Results are compact canonical JSON renderings, except reports, which contain complete Markdown and interactive HTML.
 
 #### Token effect
 
@@ -128,7 +128,8 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
 - **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
 - **Stock data depends on provider access** — AKShare requires the Python package `akshare`. iFinD HTTP uses an authorized account refresh token; iFinD local uses the vendor `iFinDPy` SDK and account credentials. Missing dependencies, credentials, permissions, or data quotas fail explicitly.
-- **The Web dashboard is a separate plugin** — live charts are browser-side and read public Binance Spot data; private account data remains Host-only.
+- **The Web dashboard is a separate plugin** — the dashboard reads the Host market route and can render crypto, A-share, and US-equity charts through `lightweight-charts`; private account data remains Host-only.
+- **Methodology coverage is explicit** — deterministic methods run only when their required data is present; wave counts, Wyckoff, cross-sectional factors, statistical arbitrage, machine learning, and microstructure methods remain catalog entries requiring additional inputs or models.
 - **Shared tool surface** — every Agent Team member and Workflow child in the same composition sees the same finance tools; the package does not provide per-role tool isolation.
 
 <a id="dev-note"></a>

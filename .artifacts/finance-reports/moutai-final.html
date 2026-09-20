@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>600519 research report</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--accent:#2563eb;--up:#16a34a;--down:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--border:#334155}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 18px 60px}.hero{display:flex;justify-content:space-between;gap:20px;align-items:start}.eyebrow{color:var(--accent);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+h1{margin:6px 0;font-size:34px;line-height:1.15}.meta{color:var(--muted)}.pill{border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--card)}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0}.card{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card)}
+.card span{display:block;color:var(--muted);font-size:12px}.card strong{display:block;margin-top:5px;font-size:20px}
+.chart-card{border:1px solid var(--border);border-radius:16px;padding:12px;background:var(--card);margin:18px 0}.chart-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+button{border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:transparent;color:inherit;cursor:pointer}button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-events:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;margin-top:20px}.nav{display:flex;flex-direction:column;gap:7px;position:sticky;top:18px;align-self:start}.nav button{text-align:left}
+.section{border:1px solid var(--border);border-radius:14px;padding:18px;background:var(--card);margin-bottom:14px}.section h2{margin:0 0 10px;font-size:18px}.section pre{margin:0;white-space:pre-wrap;font-family:inherit;color:inherit}
+.positive{color:var(--up)}.negative{color:var(--down)}.hidden{display:none}.source{color:var(--muted);font-size:12px}
+@media(max-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.nav{position:static;flex-direction:row;flex-wrap:wrap}.hero{display:block}}
+</style>
+</head>
+<body>
+<main>
+  <div class="hero"><div><div class="eyebrow">DeepSeek Harness · Finance Research</div><h1>600519 research report</h1><div class="meta">600519 · CNY · As of 2026-09-18T00:00:00.000Z · Source akshare</div></div><div class="pill">bearish · 70% confidence</div></div>
+  <div class="cards">
+    <div class="card"><span>Price</span><strong>1257.12</strong></div>
+    <div class="card"><span>Change</span><strong class="negative">-0.78%</strong></div>
+    <div class="card"><span>Composite</span><strong>-0.7</strong></div>
+    <div class="card"><span>ATR</span><strong>1.46%</strong></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-toolbar"><strong>Interactive price chart</strong><button type="button" data-range="60">60 bars</button><button type="button" data-range="120">120 bars</button><button type="button" data-range="all">All</button></div>
+    <canvas id="price-chart" aria-label="Interactive price chart"></canvas>
+  </div>
+  <div class="layout"><nav class="nav" aria-label="Report sections"><button type="button" data-target="0">Summary</button><button type="button" data-target="1">Research Question</button><button type="button" data-target="2">Market Snapshot</button><button type="button" data-target="3">Technical Indicators</button><button type="button" data-target="4">Multi-Indicator Synthesis</button><button type="button" data-target="5">Methodology Coverage</button><button type="button" data-target="6">Investor Lenses</button><button type="button" data-target="7">Strategy Gaps</button><button type="button" data-target="8">Risk And Limitations</button></nav><div>
+    <article class="section" data-section="0">
+      <h2>Summary</h2>
+      <pre>bearish bias for 600519. bearish composite with 5 aligned signals.</pre>
+    </article>
+    <article class="section" data-section="1">
+      <h2>Research Question</h2>
+      <pre>评估中期技术面与风险
+
+Horizon: 1-3个月</pre>
+    </article>
+    <article class="section" data-section="2">
+      <h2>Market Snapshot</h2>
+      <pre>- As-of: 2026-09-18T00:00:00.000Z
+- Price: 1257.12 CNY
+- Change: -0.78%
+- Bars: 97
+- Source: akshare</pre>
+    </article>
+    <article class="section" data-section="3">
+      <h2>Technical Indicators</h2>
+      <pre>- SMA 20 / 50: 1291.7954999999997 / 1300.162
+- EMA 12 / 26: 1279.2483132831942 / 1289.2093550452898
+- RSI 14: 33.82173382173379
+- MACD / signal / histogram: -9.961041762095647 / -4.760864452230846 / -5.2001773098648005
+- ATR 14: 18.30857142857144
+- Bollinger bands: 1254.7584280449976 / 1291.7954999999997 / 1328.8325719550019
+- OBV / 20-bar average: -46927030 / -39461202.7</pre>
+    </article>
+    <article class="section" data-section="4">
+      <h2>Multi-Indicator Synthesis</h2>
+      <pre>- trend: bearish (weight 0.3, value -8.366500000000315)
+- momentum: neutral (weight 0.2, value 33.82173382173379)
+- macd: bearish (weight 0.25, value -5.2001773098648005)
+- mean-reversion: neutral (weight 0.1, value 1291.7954999999997)
+- participation: bearish (weight 0.15, value -7465827.299999997)
+
+Composite score: -0.7
+Confidence: 70%
+No directional conflicts across the weighted signals.</pre>
+    </article>
+    <article class="section" data-section="5">
+      <h2>Methodology Coverage</h2>
+      <pre>- Moving-average trend: bearish, 75% confidence, status available. EMA12 1279.2483132831942 vs EMA26 1289.2093550452898
+- Donchian channel: neutral, 70% confidence, status available. 20-day range 1254–1338.86
+- ADX trend: bearish, 27% confidence, status available. ADX 26.55
+- SuperTrend: bearish, 65% confidence, status partial. ATR-band trend direction
+- ROC: bearish, 70% confidence, status available. 20-bar rate of change
+- MACD: bearish, 70% confidence, status available. MACD histogram direction
+- RSI: bearish, 60% confidence, status available. RSI14 33.82173382173379
+- RSI mean reversion: neutral, 55% confidence, status available. RSI extreme state
+- Bollinger mean reversion: neutral, 55% confidence, status available. Bollinger z-score
+- KDJ: bearish, 55% confidence, status available. K/D cross and level
+- Volume-price relation: bearish, 55% confidence, status available. Volume 2489087 vs 20-period mean 2496415.05
+- OBV: bearish, 60% confidence, status available. OBV vs 20-bar average
+- VWAP: bearish, 45% confidence, status partial. Rolling 20-bar VWAP proxy
+- Volume Profile: bearish, 45% confidence, status partial. OHLCV bucket profile, not intraday footprint
+- Chan Theory: bearish, 35% confidence, status partial. Simplified structure proxy; full Chan segmentation requires dedicated analysis
+- Dow Theory: neutral, 55% confidence, status partial. Confirmed swing structure
+- Price Action: bearish, 45% confidence, status partial. SMA/price structure proxy
+- Volatility Breakout: neutral, 55% confidence, status available. Latest range versus ATR
+- Cycle analysis: bearish, 30% confidence, status partial. Autocorrelation cycle proxy
+- Elliott Wave: insufficient-data, 10% confidence, status not-data-backed. Wave counts require validated labeling; no automatic count is claimed
+- Wyckoff: insufficient-data, 10% confidence, status not-data-backed. Accumulation/distribution requires footprint and event context</pre>
+    </article>
+    <article class="section" data-section="6">
+      <h2>Investor Lenses</h2>
+      <pre>- Warren Buffett (Value and quality): insufficient-data.
+  - Risk: Quality and valuation inputs are absent from the current snapshot.
+- Benjamin Graham (Deep value): insufficient-data.
+  - Risk: Fundamental and balance-sheet inputs are absent.
+- Charlie Munger (Quality compounding): insufficient-data.
+  - Risk: Business quality is not represented by price and volume alone.
+- Peter Lynch (Growth at a reasonable price): insufficient-data.
+  - Risk: Growth and earnings estimates are absent.
+- George Soros (Reflexivity and macro): cautious.
+  - Moving-average trend: bearish (75%)
+  - MACD: bearish (70%)
+  - Risk: Macro positioning and reflexivity inputs are absent.
+- Ray Dalio (Macro and risk balance): cautious.
+  - ADX trend: bearish (27%)
+  - Volatility Breakout: neutral (55%)
+  - Risk: Macro regime and portfolio data are absent.
+- Jim Simons (Quantitative signals): cautious.
+  - RSI: bearish (60%)
+  - Bollinger mean reversion: neutral (55%)
+  - Risk: No backtest, cost model, or out-of-sample validation is present.
+- Jesse Livermore (Trend following): cautious.
+  - Donchian channel: neutral (70%)
+  - ADX trend: bearish (27%)
+  - SuperTrend: bearish (65%)
+  - Risk: Position sizing and execution assumptions are absent.
+- Howard Marks (Cycle and risk): cautious.
+  - Volatility Breakout: neutral (55%)
+  - Cycle analysis: bearish (30%)
+  - Risk: Cycle position cannot be established from one asset alone.
+- Nassim Taleb (Tail risk and convexity): cautious.
+  - Volatility Breakout: neutral (55%)
+  - Cycle analysis: bearish (30%)
+  - Risk: Tail distribution and option data are absent.</pre>
+    </article>
+    <article class="section" data-section="7">
+      <h2>Strategy Gaps</h2>
+      <pre>- Relative strength (momentum): requires-input; requires benchmark series, peer universe
+- Grid (mean-reversion): requires-input; requires range bounds, grid step, capital budget
+- Pairs trading (statistical-arbitrage): requires-input; requires paired asset history
+- Wyckoff (market-structure): not-data-backed; requires volume footprint, event context
+- Elliott Wave (wave-cycle): not-data-backed; requires validated wave labeling
+- Opening Range Breakout (breakout): requires-input; requires intraday bars, session definition
+- Market Neutral (statistical-arbitrage): requires-input; requires multi-asset universe, hedge ratio
+- PCA arbitrage (statistical-arbitrage): requires-input; requires cross-sectional panel
+- Value factor (factor): requires-input; requires fundamental data
+- Momentum factor (factor): requires-input; requires asset universe
+- Quality factor (factor): requires-input; requires financial statements
+- Low-volatility factor (factor): requires-input; requires cross-sectional history
+- Size factor (factor): requires-input; requires market-cap universe
+- Multi-factor (factor): requires-input; requires fundamental and price panel
+- DCF (fundamental): requires-input; requires cash-flow forecasts, discount rate
+- Financial quality (fundamental): requires-input; requires financial statements
+- Industry rotation (fundamental): requires-input; requires macro and industry data
+- Earnings strategy (event-driven): requires-input; requires estimates, events
+- Dividend and buyback (event-driven): requires-input; requires corporate actions
+- Merger arbitrage (event-driven): requires-input; requires deal terms, probability
+- Index rebalance (event-driven): requires-input; requires index events
+- Random Forest (machine-learning): requires-input; requires features, labels, validation
+- XGBoost / LightGBM (machine-learning): requires-input; requires features, labels, validation
+- LSTM / Transformer (machine-learning): requires-input; requires long sequence history, validation
+- Reinforcement learning (machine-learning): requires-input; requires simulator, reward design
+- Market making (microstructure): requires-input; requires order book, queue data, latency
+- Order Flow (microstructure): requires-input; requires tick and order-flow data
+- VWAP / TWAP execution (microstructure): requires-input; requires order size, market impact model
+- Order-book imbalance (microstructure): requires-input; requires level-2 order book</pre>
+    </article>
+    <article class="section" data-section="8">
+      <h2>Risk And Limitations</h2>
+      <pre>- ATR as percent of price: 1.4564%
+- Snapshot source: akshare; upstream availability, latency, and data quality remain external.
+- The report is research automation output, not investment advice.</pre>
+    </article></div></div>
+  <p class="source">Generated by DeepSeek Harness finance research. This is research automation output, not investment advice.</p>
+</main>
+<div class="tooltip" id="chart-tooltip"></div>
+<script id="report-data" type="application/json">{"symbol":"600519","name":"600519","currency":"CNY","asOf":"2026-09-18T00:00:00.000Z","source":"akshare","bars":[{"time":"2026-05-06T00:00:00.000Z","close":1343.21,"open":1333.54,"high":1347.12,"low":1328.61,"volume":4780604},{"time":"2026-05-07T00:00:00.000Z","close":1339.35,"open":1343.21,"high":1355.91,"low":1338.33,"volume":4046147},{"time":"2026-05-08T00:00:00.000Z","close":1341.25,"open":1339.95,"high":1350.8,"low":1338.33,"volume":3336853},{"time":"2026-05-11T00:00:00.000Z","close":1329.86,"open":1341.15,"high":1341.15,"low":1329.53,"volume":5713510},{"time":"2026-05-12T00:00:00.000Z","close":1323.23,"open":1330.51,"high":1332.05,"low":1319.28,"volume":5083743},{"time":"2026-05-13T00:00:00.000Z","close":1313.01,"open":1323.18,"high":1327.19,"low":1307.06,"volume":5696787},{"time":"2026-05-14T00:00:00.000Z","close":1311.14,"open":1307.06,"high":1337.41,"low":1304.31,"volume":5524434},{"time":"2026-05-15T00:00:00.000Z","close":1302.13,"open":1304.28,"high":1308.32,"low":1296.43,"volume":5818365},{"time":"2026-05-18T00:00:00.000Z","close":1292.41,"open":1305.11,"high":1311.64,"low":1289.1,"volume":4966097},{"time":"2026-05-19T00:00:00.000Z","close":1293.68,"open":1291.34,"high":1299.24,"low":1287.53,"volume":4325464},{"time":"2026-05-20T00:00:00.000Z","close":1284.6,"open":1290.46,"high":1302.17,"low":1283.62,"volume":4748733},{"time":"2026-05-21T00:00:00.000Z","close":1280.69,"open":1282.62,"high":1292.92,"low":1280.69,"volume":3886838},{"time":"2026-05-22T00:00:00.000Z","close":1260.37,"open":1280.64,"high":1281.58,"low":1260.29,"volume":4915714},{"time":"2026-05-25T00:00:00.000Z","close":1256.15,"open":1257.24,"high":1274.62,"low":1247.48,"volume":4635276},{"time":"2026-05-26T00:00:00.000Z","close":1243.94,"open":1255.63,"high":1260.07,"low":1240.65,"volume":4593162},{"time":"2026-05-27T00:00:00.000Z","close":1272.87,"open":1238.7,"high":1288.5,"low":1221.2,"volume":8272791},{"time":"2026-05-28T00:00:00.000Z","close":1246.48,"open":1260.17,"high":1273.85,"low":1241.61,"volume":4588998},{"time":"2026-05-29T00:00:00.000Z","close":1295.34,"open":1241.22,"high":1298.27,"low":1240.64,"volume":7647805},{"time":"2026-06-01T00:00:00.000Z","close":1279.32,"open":1296.32,"high":1296.32,"low":1271.22,"volume":4384460},{"time":"2026-06-02T00:00:00.000Z","close":1277,"open":1275.8,"high":1295.69,"low":1270.92,"volume":3636185},{"time":"2026-06-03T00:00:00.000Z","close":1252.27,"open":1273.85,"high":1273.85,"low":1246.5,"volume":5247652},{"time":"2026-06-04T00:00:00.000Z","close":1238.68,"open":1249.42,"high":1259.19,"low":1237.4,"volume":3350617},{"time":"2026-06-05T00:00:00.000Z","close":1243.43,"open":1248.45,"high":1253.34,"low":1238.43,"volume":3130397},{"time":"2026-06-08T00:00:00.000Z","close":1233.78,"open":1242.59,"high":1248.45,"low":1230.87,"volume":3082836},{"time":"2026-06-09T00:00:00.000Z","close":1226.96,"open":1233.79,"high":1233.8,"low":1223.59,"volume":2786012},{"time":"2026-06-10T00:00:00.000Z","close":1246.38,"open":1223.13,"high":1252.36,"low":1221.3,"volume":3924414},{"time":"2026-06-11T00:00:00.000Z","close":1249.43,"open":1242.71,"high":1253.22,"low":1237.62,"volume":2535198},{"time":"2026-06-12T00:00:00.000Z","close":1262.04,"open":1241.79,"high":1265.06,"low":1235.76,"volume":5049478},{"time":"2026-06-15T00:00:00.000Z","close":1241.71,"open":1262.81,"high":1262.81,"low":1240.73,"volume":4158556},{"time":"2026-06-16T00:00:00.000Z","close":1226.64,"open":1237.72,"high":1238.57,"low":1225.98,"volume":3496974},{"time":"2026-06-17T00:00:00.000Z","close":1211.33,"open":1228.91,"high":1230.64,"low":1209.92,"volume":4480330},{"time":"2026-06-18T00:00:00.000Z","close":1186.91,"open":1206.45,"high":1210.23,"low":1183.22,"volume":5747173},{"time":"2026-06-22T00:00:00.000Z","close":1212.71,"open":1186.23,"high":1223.83,"low":1177.14,"volume":5825131},{"time":"2026-06-23T00:00:00.000Z","close":1194.19,"open":1210.35,"high":1234.78,"low":1188.86,"volume":5800405},{"time":"2026-06-24T00:00:00.000Z","close":1179.76,"open":1194.38,"high":1213.16,"low":1179.59,"volume":4533528},{"time":"2026-06-25T00:00:00.000Z","close":1184.08,"open":1179.09,"high":1198.63,"low":1172.26,"volume":4844649},{"time":"2026-06-26T00:00:00.000Z","close":1168.63,"open":1199,"high":1199,"low":1168.1,"volume":5006647},{"time":"2026-06-29T00:00:00.000Z","close":1194.96,"open":1169,"high":1215,"low":1151.01,"volume":6687812},{"time":"2026-06-30T00:00:00.000Z","close":1185.49,"open":1187,"high":1195.67,"low":1176,"volume":3960779},{"time":"2026-07-01T00:00:00.000Z","close":1193.01,"open":1180.1,"high":1196.8,"low":1166.33,"volume":4247381},{"time":"2026-07-02T00:00:00.000Z","close":1203,"open":1193.01,"high":1215.52,"low":1190.51,"volume":5087015},{"time":"2026-07-03T00:00:00.000Z","close":1194.45,"open":1205.24,"high":1210.14,"low":1185,"volume":3426755},{"time":"2026-07-06T00:00:00.000Z","close":1206.91,"open":1186,"high":1215,"low":1180,"volume":4097001},{"time":"2026-07-07T00:00:00.000Z","close":1188.8,"open":1200,"high":1202,"low":1188.11,"volume":2736500},{"time":"2026-07-08T00:00:00.000Z","close":1199.3,"open":1188.77,"high":1200.98,"low":1177,"volume":2577602},{"time":"2026-07-09T00:00:00.000Z","close":1182.19,"open":1191,"high":1191.99,"low":1178,"volume":3409634},{"time":"2026-07-10T00:00:00.000Z","close":1204.98,"open":1182.2,"high":1204.98,"low":1170.28,"volume":5221255},{"time":"2026-07-13T00:00:00.000Z","close":1210.99,"open":1197.12,"high":1215,"low":1190.19,"volume":4198257},{"time":"2026-07-14T00:00:00.000Z","close":1214.88,"open":1208.99,"high":1226.87,"low":1205,"volume":4352726},{"time":"2026-07-15T00:00:00.000Z","close":1251.06,"open":1203.66,"high":1256.6,"low":1198.66,"volume":7194371},{"time":"2026-07-16T00:00:00.000Z","close":1258.99,"open":1252,"high":1267.97,"low":1245.05,"volume":4761114},{"time":"2026-07-17T00:00:00.000Z","close":1253,"open":1269.01,"high":1269.33,"low":1238.98,"volume":5841730},{"time":"2026-07-20T00:00:00.000Z","close":1327.5,"open":1270,"high":1329,"low":1266,"volume":10615115},{"time":"2026-07-21T00:00:00.000Z","close":1308,"open":1338.98,"high":1344.7,"low":1296.87,"volume":7714770},{"time":"2026-07-22T00:00:00.000Z","close":1305,"open":1300,"high":1308,"low":1283.24,"volume":6518140},{"time":"2026-07-23T00:00:00.000Z","close":1292.01,"open":1299.8,"high":1303,"low":1285.43,"volume":3391769},{"time":"2026-07-24T00:00:00.000Z","close":1297.41,"open":1305,"high":1309.21,"low":1286.2,"volume":3569892},{"time":"2026-07-27T00:00:00.000Z","close":1289.5,"open":1308,"high":1308,"low":1279.58,"volume":3199044},{"time":"2026-07-28T00:00:00.000Z","close":1320,"open":1299,"high":1320,"low":1289.52,"volume":5313457},{"time":"2026-07-29T00:00:00.000Z","close":1321,"open":1333.83,"high":1343.48,"low":1312.06,"volume":6232985},{"time":"2026-07-30T00:00:00.000Z","close":1361.76,"open":1323,"high":1362,"low":1322,"volume":7187261},{"time":"2026-07-31T00:00:00.000Z","close":1350.6,"open":1330.03,"high":1355.72,"low":1325.77,"volume":5512752},{"time":"2026-08-03T00:00:00.000Z","close":1358.98,"open":1350.6,"high":1363.35,"low":1346,"volume":3614686},{"time":"2026-08-04T00:00:00.000Z","close":1328.36,"open":1350.06,"high":1350.94,"low":1328.36,"volume":3745031},{"time":"2026-08-05T00:00:00.000Z","close":1306.45,"open":1328.36,"high":1333.8,"low":1303.5,"volume":4268859},{"time":"2026-08-06T00:00:00.000Z","close":1308.55,"open":1310,"high":1314.4,"low":1300.01,"volume":2546328},{"time":"2026-08-07T00:00:00.000Z","close":1309.22,"open":1308.66,"high":1315.28,"low":1301,"volume":2497581},{"time":"2026-08-10T00:00:00.000Z","close":1348.86,"open":1325,"high":1359.97,"low":1318.08,"volume":6268572},{"time":"2026-08-11T00:00:00.000Z","close":1346.5,"open":1348,"high":1352.65,"low":1338,"volume":2707300},{"time":"2026-08-12T00:00:00.000Z","close":1343,"open":1346.5,"high":1356.88,"low":1332.51,"volume":3505960},{"time":"2026-08-13T00:00:00.000Z","close":1355.29,"open":1338,"high":1359.6,"low":1337,"volume":3235348},{"time":"2026-08-14T00:00:00.000Z","close":1341.99,"open":1355,"high":1359,"low":1338.14,"volume":2985315},{"time":"2026-08-17T00:00:00.000Z","close":1293.09,"open":1295,"high":1301,"low":1280.34,"volume":7842956},{"time":"2026-08-18T00:00:00.000Z","close":1297.99,"open":1291,"high":1302.9,"low":1285.17,"volume":3872283},{"time":"2026-08-19T00:00:00.000Z","close":1307.88,"open":1300,"high":1308.88,"low":1290.5,"volume":3754751},{"time":"2026-08-20T00:00:00.000Z","close":1291.5,"open":1299.8,"high":1306.88,"low":1291,"volume":2533166},{"time":"2026-08-21T00:00:00.000Z","close":1272.83,"open":1291.5,"high":1291.5,"low":1272.01,"volume":3347231},{"time":"2026-08-24T00:00:00.000Z","close":1304.66,"open":1271.01,"high":1313.8,"low":1270.33,"volume":4843957},{"time":"2026-08-25T00:00:00.000Z","close":1304,"open":1311.89,"high":1317,"low":1301.11,"volume":2111118},{"time":"2026-08-26T00:00:00.000Z","close":1302.8,"open":1300,"high":1314.45,"low":1295,"volume":2173083},{"time":"2026-08-27T00:00:00.000Z","close":1292.3,"open":1304,"high":1305,"low":1288,"volume":2476747},{"time":"2026-08-28T00:00:00.000Z","close":1297.4,"open":1289,"high":1297.89,"low":1288,"volume":1612611},{"time":"2026-08-31T00:00:00.000Z","close":1299.52,"open":1297.99,"high":1305,"low":1286,"volume":2324759},{"time":"2026-09-01T00:00:00.000Z","close":1299.56,"open":1295,"high":1307.99,"low":1286.1,"volume":3266402},{"time":"2026-09-02T00:00:00.000Z","close":1297.5,"open":1302.8,"high":1303,"low":1291.2,"volume":2030845},{"time":"2026-09-03T00:00:00.000Z","close":1298.88,"open":1297.5,"high":1305,"low":1293.02,"volume":1774765},{"time":"2026-09-04T00:00:00.000Z","close":1330,"open":1295.88,"high":1338.86,"low":1295.6,"volume":4541564},{"time":"2026-09-07T00:00:00.000Z","close":1316.01,"open":1324,"high":1333.6,"low":1312.66,"volume":2524962},{"time":"2026-09-08T00:00:00.000Z","close":1309.3,"open":1318,"high":1323,"low":1309.05,"volume":1753404},{"time":"2026-09-09T00:00:00.000Z","close":1290.88,"open":1305.01,"high":1309.3,"low":1286.68,"volume":3222611},{"time":"2026-09-10T00:00:00.000Z","close":1285.13,"open":1291,"high":1294.99,"low":1282,"volume":1890022},{"time":"2026-09-11T00:00:00.000Z","close":1275.16,"open":1285.15,"high":1286.15,"low":1263.01,"volume":3480142},{"time":"2026-09-14T00:00:00.000Z","close":1277.96,"open":1277.27,"high":1285.53,"low":1270.36,"volume":1657146},{"time":"2026-09-15T00:00:00.000Z","close":1272.75,"open":1281,"high":1284.5,"low":1271.28,"volume":1376172},{"time":"2026-09-16T00:00:00.000Z","close":1258,"open":1273.93,"high":1274.98,"low":1254.1,"volume":2623524},{"time":"2026-09-17T00:00:00.000Z","close":1266.98,"open":1257.98,"high":1267.6,"low":1254,"volume":1755380},{"time":"2026-09-18T00:00:00.000Z","close":1257.12,"open":1262.99,"high":1265.88,"low":1256.1,"volume":2489087}]}</script>
+<script>
+(() => {
+  const payload = JSON.parse(document.getElementById('report-data').textContent);
+  const canvas = document.getElementById('price-chart');
+  const tooltip = document.getElementById('chart-tooltip');
+  const buttons = [...document.querySelectorAll('[data-range]')];
+  const sections = [...document.querySelectorAll('.section')];
+  const navButtons = [...document.querySelectorAll('[data-target]')];
+  const context = canvas.getContext('2d');
+  let bars = payload.bars;
+  let points = [];
+  const resize = () => { const ratio = window.devicePixelRatio || 1; canvas.width = canvas.clientWidth * ratio; canvas.height = canvas.clientHeight * ratio; context.setTransform(ratio,0,0,ratio,0,0); draw(); };
+  const draw = () => {
+    if (!context || bars.length === 0) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight, padding = 26;
+    context.clearRect(0,0,width,height);
+    const min = Math.min(...bars.map(bar => bar.low)), max = Math.max(...bars.map(bar => bar.high)), range = max - min || 1;
+    const x = index => padding + index / Math.max(1, bars.length - 1) * (width - padding * 2);
+    const y = value => padding + (max - value) / range * (height - padding * 2);
+    context.strokeStyle = 'rgba(148,163,184,.25)'; context.lineWidth = 1;
+    for (let i=0;i<=4;i++){ const gy=padding+i/4*(height-padding*2); context.beginPath(); context.moveTo(padding,gy); context.lineTo(width-padding,gy); context.stroke(); }
+    const gradient=context.createLinearGradient(0,0,0,height); gradient.addColorStop(0,'rgba(37,99,235,.25)'); gradient.addColorStop(1,'rgba(37,99,235,0)');
+    context.beginPath(); bars.forEach((bar,i)=>{ const px=x(i), py=y(bar.close); if(i===0) context.moveTo(px,py); else context.lineTo(px,py); });
+    context.lineTo(x(bars.length-1),height-padding); context.lineTo(x(0),height-padding); context.closePath(); context.fillStyle=gradient; context.fill();
+    context.beginPath(); bars.forEach((bar,i)=>{ const px=x(i), py=y(bar.close); if(i===0) context.moveTo(px,py); else context.lineTo(px,py); }); context.strokeStyle='#2563eb'; context.lineWidth=2; context.stroke();
+    points = bars.map((bar,i)=>({ x:x(i), y:y(bar.close), bar }));
+  };
+  const show = index => { const point=points[index]; if(!point) return; tooltip.style.display='block'; tooltip.style.left=Math.min(window.innerWidth-190,point.x+12)+'px'; tooltip.style.top=Math.max(8,point.y-12)+'px'; tooltip.innerHTML='<strong>'+point.bar.time+'</strong><br>Close '+point.bar.close+'<br>Volume '+point.bar.volume; };
+  canvas.addEventListener('mousemove', event => { const rect=canvas.getBoundingClientRect(), px=event.clientX-rect.left; let best=0; for(let i=1;i<points.length;i++) if(Math.abs(points[i].x-px)<Math.abs(points[best].x-px)) best=i; show(best); });
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display='none'; });
+  buttons.forEach(button => button.addEventListener('click', () => { const range=button.dataset.range; bars=range==='all'?payload.bars:payload.bars.slice(-Number(range)); draw(); }));
+  navButtons.forEach(button => button.addEventListener('click', () => { const target=Number(button.dataset.target); sections.forEach((section,index)=>section.classList.toggle('hidden',index!==target)); }));
+  window.addEventListener('resize', resize); resize();
+})();
+</script>
+</body>
+</html>

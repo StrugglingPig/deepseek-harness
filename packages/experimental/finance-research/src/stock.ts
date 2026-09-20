@@ -9,11 +9,15 @@ import { z as zod } from 'zod'
 import type { FinanceCredentialResolver } from './auth.ts'
 import { FinanceDataError } from './error.ts'
 import { buildIndicatorAnalysis } from './indicators.ts'
+import { buildMethodologyAnalysis } from './methodology.ts'
+import { exportResearchReport } from './export.ts'
+import { buildResearchReport } from './report.ts'
 import type {
   FinanceStockDataProvider,
   FinanceStockHistoryRequest,
   FinanceStockQuote,
   FinanceStockQuoteRequest,
+  FinanceMarketDataProvider,
   FinanceStockSnapshot,
   MarketBar,
 } from './types.ts'
@@ -572,4 +576,227 @@ export function registerStockTools(ctx: Context, provider: FinanceStockDataProvi
       }
     },
   }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_stock_research_report',
+    description: 'Generate a complete Markdown and interactive HTML research report for a mainland A-share symbol through AKShare or Tonghuashun iFinD.',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
+      provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
+      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
+      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
+      adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
+      question: { type: 'string', description: 'Research question to include in the report.' },
+      horizon: { type: 'string', description: 'Requested research horizon.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          symbol: { type: 'string', required: true },
+          as_of: { type: 'string', required: true },
+          title: { type: 'string', required: true },
+          markdown: { type: 'string', required: true },
+          html: { type: 'string', required: true },
+          sections: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                title: { type: 'string', required: true },
+                content: { type: 'string', required: true },
+              },
+            },
+          },
+          evidence: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                source: { type: 'string', required: true },
+                as_of: { type: 'string', required: true },
+                url: { type: 'string', required: true },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: value.markdown }],
+    },
+    async execute(args, exec) {
+      const snapshot = await provider.loadStockSnapshot({
+        provider: args.provider,
+        symbol: args.symbol,
+        ...args.start_date === undefined ? {} : { startDate: args.start_date },
+        ...args.end_date === undefined ? {} : { endDate: args.end_date },
+        ...args.adjust === undefined ? {} : { adjust: args.adjust },
+      }, exec.signal)
+      const stockMarketProvider: FinanceMarketDataProvider = {
+        id: 'stock-python',
+        load: async () => snapshot,
+      }
+      const report = await buildResearchReport(stockMarketProvider, {
+        symbol: args.symbol,
+        ...args.question === undefined ? {} : { question: args.question },
+        ...args.horizon === undefined ? {} : { horizon: args.horizon },
+      }, exec.signal)
+      return {
+        symbol: report.symbol,
+        as_of: report.asOf,
+        title: report.title,
+        markdown: report.markdown,
+        html: report.html,
+        sections: report.sections.map(section => ({ title: section.title, content: section.content })),
+        evidence: report.evidence.map(item => ({ source: item.source, as_of: item.asOf, url: item.url })),
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_stock_methodology_analysis',
+    description: 'Run deterministic methodology readings and investor lenses for a mainland A-share symbol through AKShare or Tonghuashun iFinD.',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
+      provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
+      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
+      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
+      adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          symbol: { type: 'string', required: true },
+          as_of: { type: 'string', required: true },
+          readings: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                name: { type: 'string', required: true },
+                category: { type: 'string', required: true },
+                status: { type: 'string', required: true },
+                direction: { type: 'string', required: true },
+                confidence: { type: 'integer', required: true },
+                value: { type: 'number' },
+                note: { type: 'string', required: true },
+              },
+            },
+          },
+          investors: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                name: { type: 'string', required: true },
+                school: { type: 'string', required: true },
+                stance: { type: 'string', required: true },
+                evidence: { type: 'array', required: true, items: { type: 'string' } },
+                questions: { type: 'array', required: true, items: { type: 'string' } },
+                risk: { type: 'string', required: true },
+              },
+            },
+          },
+          synthesis_prompt: { type: 'string', required: true },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args, exec) {
+      const snapshot = await provider.loadStockSnapshot({
+        provider: args.provider,
+        symbol: args.symbol,
+        ...args.start_date === undefined ? {} : { startDate: args.start_date },
+        ...args.end_date === undefined ? {} : { endDate: args.end_date },
+        ...args.adjust === undefined ? {} : { adjust: args.adjust },
+      }, exec.signal)
+      const methodology = buildMethodologyAnalysis(snapshot)
+      return {
+        symbol: snapshot.instrument.symbol,
+        as_of: snapshot.asOf,
+        readings: methodology.readings.map(reading => ({ ...reading })),
+        investors: methodology.investors.map(investor => ({
+          ...investor,
+          evidence: [...investor.evidence],
+          questions: [...investor.questions],
+        })),
+        synthesis_prompt: methodology.synthesisPrompt,
+      }
+    },
+  }))
+
+  ctx.inject(['fs'], (fsCtx) => {
+    ctx.tools.register(defineTool({
+      name: 'finance_stock_report_export',
+      description: 'Generate a mainland A-share research report and persist Markdown and self-contained interactive HTML files in the workspace.',
+      parameters: {
+        symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
+        provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
+        start_date: { type: 'string', description: 'Inclusive ISO start date.' },
+        end_date: { type: 'string', description: 'Inclusive ISO end date.' },
+        adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
+        question: { type: 'string', description: 'Research question to include in the report.' },
+        horizon: { type: 'string', description: 'Requested research horizon.' },
+        output_dir: { type: 'string', description: 'Workspace-relative output directory.', default: '.artifacts/finance-reports' },
+        basename: { type: 'string', description: 'Optional file stem.' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            symbol: { type: 'string', required: true },
+            as_of: { type: 'string', required: true },
+            title: { type: 'string', required: true },
+            markdown_path: { type: 'string', required: true },
+            html_path: { type: 'string', required: true },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: `Stock report exported:\n- Markdown: ${value.markdown_path}\n- HTML: ${value.html_path}` }],
+      },
+      async execute(args, exec) {
+        const snapshot = await provider.loadStockSnapshot({
+          provider: args.provider,
+          symbol: args.symbol,
+          ...args.start_date === undefined ? {} : { startDate: args.start_date },
+          ...args.end_date === undefined ? {} : { endDate: args.end_date },
+          ...args.adjust === undefined ? {} : { adjust: args.adjust },
+        }, exec.signal)
+        const report = await buildResearchReport({
+          id: 'stock-python',
+          load: async () => snapshot,
+        }, {
+          symbol: args.symbol,
+          ...args.question === undefined ? {} : { question: args.question },
+          ...args.horizon === undefined ? {} : { horizon: args.horizon },
+        }, exec.signal)
+        const files = await exportResearchReport(
+          fsCtx.fs,
+          report,
+          args.output_dir ?? '.artifacts/finance-reports',
+          args.basename,
+          exec.signal,
+        )
+        return {
+          symbol: report.symbol,
+          as_of: report.asOf,
+          title: report.title,
+          markdown_path: files.markdown,
+          html_path: files.html,
+        }
+      },
+    }))
+  })
 }

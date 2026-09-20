@@ -27,6 +27,9 @@ import {
 import { buildIndicatorAnalysis } from './indicators.ts'
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
+import { buildMethodologyAnalysis } from './methodology.ts'
+import { registerFinanceDashboardRoutes } from './dashboard.ts'
+import { exportResearchReport } from './export.ts'
 import type {
   FinanceMarketDataProvider,
   FinanceMarketStreamProvider,
@@ -41,6 +44,10 @@ export {
   priceBandDirection, rsiDirection, trendDirection, volumeDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
+export { buildMethodologyAnalysis } from './methodology.ts'
+export type { InvestorLens, MethodologyAnalysis, MethodologyCatalogEntry, MethodologyCategory, MethodologyDirection, MethodologyReading, MethodologyStatus } from './methodology.ts'
+export { loadDashboardMarket, parseDashboardRequest, registerFinanceDashboardRoutes } from './dashboard.ts'
+export type { DashboardAsset, DashboardBar, DashboardInterval, DashboardMarketResponse, DashboardQuote } from './dashboard.ts'
 export {
   BINANCE_API_KEY_REF,
   BINANCE_API_SECRET_REF,
@@ -382,7 +389,7 @@ export function registerFinanceTools(
 
   ctx.tools.register(defineTool({
     name: 'finance_research_report',
-    description: 'Generate a structured Markdown research report from deterministic market analysis.',
+    description: 'Generate a structured Markdown and interactive HTML research report from deterministic market analysis.',
     parameters: {
       symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
       question: { type: 'string', description: 'Research question to include in the report.' },
@@ -397,6 +404,7 @@ export function registerFinanceTools(
           as_of: { type: 'string', required: true },
           title: { type: 'string', required: true },
           markdown: { type: 'string', required: true },
+          html: { type: 'string', required: true },
           sections: {
             type: 'array',
             required: true,
@@ -437,6 +445,7 @@ export function registerFinanceTools(
         as_of: report.asOf,
         title: report.title,
         markdown: report.markdown,
+        html: report.html,
         sections: report.sections.map(section => ({ title: section.title, content: section.content })),
         evidence: report.evidence.map(item => ({
           source: item.source,
@@ -444,6 +453,181 @@ export function registerFinanceTools(
           url: item.url,
         })),
       }
+    },
+  }))
+
+  ctx.inject(['fs'], (fsCtx) => {
+    ctx.tools.register(defineTool({
+      name: 'finance_report_export',
+      description: 'Generate a finance research report and persist both Markdown and self-contained interactive HTML files in the workspace.',
+      parameters: {
+        symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
+        question: { type: 'string', description: 'Research question to include in the report.' },
+        horizon: { type: 'string', description: 'Requested research horizon.' },
+        output_dir: { type: 'string', description: 'Workspace-relative output directory.', default: '.artifacts/finance-reports' },
+        basename: { type: 'string', description: 'Optional file stem.' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            symbol: { type: 'string', required: true },
+            as_of: { type: 'string', required: true },
+            title: { type: 'string', required: true },
+            markdown_path: { type: 'string', required: true },
+            html_path: { type: 'string', required: true },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: `Report exported:\n- Markdown: ${value.markdown_path}\n- HTML: ${value.html_path}` }],
+      },
+      async execute(args, exec) {
+        const report = await buildResearchReport(provider, {
+          symbol: args.symbol,
+          ...args.question === undefined ? {} : { question: args.question },
+          ...args.horizon === undefined ? {} : { horizon: args.horizon },
+        }, exec.signal)
+        const files = await exportResearchReport(
+          fsCtx.fs,
+          report,
+          args.output_dir ?? '.artifacts/finance-reports',
+          args.basename,
+          exec.signal,
+        )
+        return {
+          symbol: report.symbol,
+          as_of: report.asOf,
+          title: report.title,
+          markdown_path: files.markdown,
+          html_path: files.html,
+        }
+      },
+    }))
+  })
+
+  ctx.tools.register(defineTool({
+    name: 'finance_methodology_analysis',
+    description: 'Run deterministic methodology readings and investor lenses over a symbol. It separates available evidence from strategies that require additional inputs.',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Ticker, coin, or PREDICTION:<market> symbol.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          symbol: { type: 'string', required: true },
+          as_of: { type: 'string', required: true },
+          readings: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                name: { type: 'string', required: true },
+                category: { type: 'string', required: true },
+                status: { type: 'string', required: true },
+                direction: { type: 'string', required: true },
+                confidence: { type: 'integer', required: true },
+                value: { type: 'number' },
+                note: { type: 'string', required: true },
+              },
+            },
+          },
+          investors: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                name: { type: 'string', required: true },
+                school: { type: 'string', required: true },
+                stance: { type: 'string', required: true },
+                evidence: { type: 'array', required: true, items: { type: 'string' } },
+                questions: { type: 'array', required: true, items: { type: 'string' } },
+                risk: { type: 'string', required: true },
+              },
+            },
+          },
+          synthesis_prompt: { type: 'string', required: true },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args, exec) {
+      const snapshot = await provider.load(args.symbol, exec.signal)
+      const methodology = buildMethodologyAnalysis(snapshot)
+      return {
+        symbol: snapshot.instrument.symbol,
+        as_of: snapshot.asOf,
+        readings: [...methodology.readings],
+        investors: methodology.investors.map(investor => ({
+          id: investor.id,
+          name: investor.name,
+          school: investor.school,
+          stance: investor.stance,
+          evidence: [...investor.evidence],
+          questions: [...investor.questions],
+          risk: investor.risk,
+        })),
+        synthesis_prompt: methodology.synthesisPrompt,
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_strategy_catalog',
+    description: 'Return the investment methodology catalog with category, logic, quant suitability, data requirements, and execution status.',
+    parameters: {
+      category: { type: 'string', description: 'Optional methodology category filter.' },
+      status: { type: 'string', description: 'Optional execution status filter.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          entries: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                name: { type: 'string', required: true },
+                category: { type: 'string', required: true },
+                logic: { type: 'string', required: true },
+                quant_rating: { type: 'integer', required: true },
+                status: { type: 'string', required: true },
+                data_requirements: { type: 'array', required: true, items: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args) {
+      const snapshot = await fixtureProvider.load('AAPL')
+      const catalog = buildMethodologyAnalysis(snapshot).catalog
+      const entries = catalog
+        .filter(entry => args.category === undefined || entry.category === args.category)
+        .filter(entry => args.status === undefined || entry.status === args.status)
+        .map(entry => ({
+          id: entry.id,
+          name: entry.name,
+          category: entry.category,
+          logic: entry.logic,
+          quant_rating: entry.quantRating,
+          status: entry.status,
+          data_requirements: [...entry.dataRequirements],
+        }))
+      return { entries }
     },
   }))
 
@@ -1066,6 +1250,7 @@ export function apply(ctx: Context, config: Config): void {
     marketStreamTimeoutMs: resolved.marketStreamTimeoutMs,
     marketStreamMaxEvents: resolved.marketStreamMaxEvents,
   }
+  let stockProvider: SubprocessFinanceStockDataProvider | undefined
   let resolveCredential: FinanceCredentialResolver = () => Promise.resolve(undefined)
   const authorize = composeRequestAuthorizers(
     createBinanceRequestAuthorizer({
@@ -1098,12 +1283,13 @@ export function apply(ctx: Context, config: Config): void {
       }),
       resolveCredential: ref => resolveCredential(ref),
     })
-    registerStockTools(ctx, new SubprocessFinanceStockDataProvider(bridge, {
+    stockProvider = new SubprocessFinanceStockDataProvider(bridge, {
       enabled: provider => provider === 'akshare'
         ? currentSettings.enableAkshare
         : currentSettings.enableIfind,
       ifindTransport: () => currentSettings.ifindTransport,
-    }))
+    })
+    registerStockTools(ctx, stockProvider)
   })
 
   ctx.inject(['settings'], (settingsCtx) => {
@@ -1118,5 +1304,12 @@ export function apply(ctx: Context, config: Config): void {
       const hit = await credentialCtx.credentials.resolve(credentialRef(ref))
       return hit?.value
     }
+  })
+  registerFinanceDashboardRoutes(ctx, {
+    market: provider,
+    stock: () => stockProvider,
+    enabledStock: provider => provider === 'akshare'
+      ? currentSettings.enableAkshare
+      : currentSettings.enableIfind,
   })
 }

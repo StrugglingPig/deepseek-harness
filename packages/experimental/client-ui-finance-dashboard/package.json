@@ -72,5 +72,8 @@
     "lib/index.js",
     "lib/client.js",
     "lib/types/**/*.d.ts"
-  ]
+  ],
+  "dependencies": {
+    "lightweight-charts": "^5.2.1"
+  }
 }

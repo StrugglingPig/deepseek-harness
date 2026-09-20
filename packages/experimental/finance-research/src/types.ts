@@ -407,6 +407,8 @@ export interface ResearchReport {
   readonly asOf: string
   readonly title: string
   readonly markdown: string
+  /** Self-contained interactive HTML rendering of this report. */
+  readonly html: string
   readonly sections: readonly ResearchReportSection[]
   readonly evidence: readonly {
     readonly source: string

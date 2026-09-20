@@ -169,4 +169,74 @@ describe('registerStockTools', () => {
       arguments: { provider: 'akshare', symbol: '600519' },
     })
   })
+  it('exports stock research reports as Markdown and HTML', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    const writes = new Map<string, string>()
+    ctx.provide('fs', {
+      resolve: async (path: string) => ({ targetKey: path, displayPath: path }),
+      writeText: async (target: { displayPath: string }, content: string) => {
+        writes.set(target.displayPath, content)
+        return { operation: 'create', version: 'v', after: content }
+      },
+    } as never)
+    registerStockTools(ctx, new SubprocessFinanceStockDataProvider(bridge()))
+    const report = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-report' as never,
+      name: 'finance_stock_research_report',
+      arguments: { provider: 'akshare', symbol: '600519' },
+    })
+    expect(report.isError).toBe(false)
+    expect(textOf(report)).toContain('Investor Lenses')
+    const configuredReport = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-report-configured' as never,
+      name: 'finance_stock_research_report',
+      arguments: { provider: 'akshare', symbol: '600519', start_date: '2026-01-01', end_date: '2026-09-20', adjust: 'qfq', question: 'What matters?', horizon: '1w' },
+    })
+    expect(configuredReport.isError).toBe(false)
+    const stockMethodology = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-methodology' as never,
+      name: 'finance_stock_methodology_analysis',
+      arguments: { provider: 'akshare', symbol: '600519' },
+    })
+    expect(stockMethodology.isError).toBe(false)
+    expect(textOf(stockMethodology)).toContain('Warren Buffett')
+    const configuredMethodology = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-methodology-configured' as never,
+      name: 'finance_stock_methodology_analysis',
+      arguments: { provider: 'akshare', symbol: '600519', start_date: '2026-01-01', end_date: '2026-09-20', adjust: 'qfq' },
+    })
+    expect(configuredMethodology.isError).toBe(false)
+    const exported = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-export' as never,
+      name: 'finance_stock_report_export',
+      arguments: { provider: 'akshare', symbol: '600519', output_dir: 'reports', basename: 'moutai' },
+    })
+    expect(exported.isError).toBe(false)
+    expect(writes.has('reports/moutai.md')).toBe(true)
+    expect(writes.has('reports/moutai.html')).toBe(true)
+    const configuredExport = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-export-configured' as never,
+      name: 'finance_stock_report_export',
+      arguments: { provider: 'akshare', symbol: '600519', start_date: '2026-01-01', end_date: '2026-09-20', adjust: 'qfq', question: 'What matters?', horizon: '1w', output_dir: 'reports', basename: 'moutai-config' },
+    })
+    expect(configuredExport.isError).toBe(false)
+    expect(writes.has('reports/moutai-config.html')).toBe(true)
+    const defaultExport = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-export-default' as never,
+      name: 'finance_stock_report_export',
+      arguments: { provider: 'akshare', symbol: '600519' },
+    })
+    expect(defaultExport.isError).toBe(false)
+    expect([...writes.keys()].some(path => path.startsWith('.artifacts/finance-reports/'))).toBe(true)
+  })
+
 })

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -62,6 +62,7 @@ describe('finance research real Loader composition', () => {
     const ctx = await boot()
     expect(ctx.tools.schemas().map(schema => schema.name)).toEqual([
       'finance_market_snapshot', 'finance_technical_analysis', 'finance_research_report',
+      'finance_methodology_analysis', 'finance_strategy_catalog',
       'finance_provider_describe', 'finance_provider_request', 'finance_private_account',
       'finance_coinmarketcap_quotes', 'finance_coinmarketcap_ohlcv',
       'finance_realtime_stream', 'finance_monitor_plan',
@@ -101,6 +102,32 @@ describe('finance research real Loader composition', () => {
       arguments: { symbol: 'AAPL' },
     })
     expect(defaultReport.isError).toBe(false)
+    expect(defaultReport.content.some(block => block.type === 'text' && block.text.includes('## Investor Lenses'))).toBe(true)
+
+    const methodology = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-methodology' as never,
+      name: 'finance_methodology_analysis',
+      arguments: { symbol: 'AAPL' },
+    })
+    expect(methodology.isError, textOf(methodology)).toBe(false)
+    expect(textOf(methodology)).toContain('Warren Buffett')
+
+    const catalog = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-strategy-catalog' as never,
+      name: 'finance_strategy_catalog',
+      arguments: { category: 'momentum' },
+    })
+    expect(catalog.isError).toBe(false)
+    expect(textOf(catalog)).toContain('Momentum')
+    const emptyCatalog = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-strategy-catalog-empty' as never,
+      name: 'finance_strategy_catalog',
+      arguments: { status: 'not-data-backed' },
+    })
+    expect(emptyCatalog.isError).toBe(false)
 
     const report = await ctx.tools.execute({
       signal: new AbortController().signal,
@@ -114,7 +141,7 @@ describe('finance research real Loader composition', () => {
 
   it('selects the HTTP provider and exposes generic provider tools', async () => {
     const ctx = await boot(['    provider: http'])
-    expect(ctx.tools.schemas()).toHaveLength(10)
+    expect(ctx.tools.schemas()).toHaveLength(12)
     const described = await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: 'finance-provider-describe' as never,
@@ -190,7 +217,7 @@ describe('finance research real Loader composition', () => {
 
   it('removes all registered tools when the finance entry is disposed', async () => {
     const ctx = await boot()
-    expect(ctx.tools.schemas()).toHaveLength(10)
+    expect(ctx.tools.schemas()).toHaveLength(12)
     const entry = [...ctx.loader.entries()].find(
       candidate => candidate.options.name === '@deepseek-ai/dsh-experimental-finance-research',
     )
@@ -198,4 +225,35 @@ describe('finance research real Loader composition', () => {
     await entry!.fiber!.dispose()
     expect(ctx.tools.schemas()).toHaveLength(0)
   })
+  it('exports Markdown and HTML when the filesystem service is available', async () => {
+    const ctx = await boot()
+    const writes = new Map<string, string>()
+    ctx.provide('fs', {
+      resolve: async (path: string) => ({ targetKey: path, displayPath: path }),
+      writeText: async (target: { displayPath: string }, content: string) => {
+        writes.set(target.displayPath, content)
+        return { operation: 'create', version: 'v', after: content }
+      },
+    } as never)
+    await vi.waitFor(() => { expect(ctx.tools.schemas().map(schema => schema.name)).toContain('finance_report_export') })
+    const exported = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-export' as never,
+      name: 'finance_report_export',
+      arguments: { symbol: 'AAPL', question: 'What matters?', horizon: '1w', output_dir: 'reports', basename: 'aapl' },
+    })
+    expect(exported.isError).toBe(false)
+    expect(textOf(exported)).toContain('reports/aapl.md')
+    expect(writes.has('reports/aapl.md')).toBe(true)
+    expect(writes.has('reports/aapl.html')).toBe(true)
+    const defaults = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'finance-export-defaults' as never,
+      name: 'finance_report_export',
+      arguments: { symbol: 'AAPL' },
+    })
+    expect(defaults.isError).toBe(false)
+    expect([...writes.keys()].some(path => path.startsWith('.artifacts/finance-reports/'))).toBe(true)
+  })
+
 })

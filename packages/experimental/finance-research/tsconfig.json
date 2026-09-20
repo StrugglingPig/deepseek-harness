@@ -13,6 +13,8 @@
     { "path": "../../credentials/credentials" },
     { "path": "../../settings/settings" },
     { "path": "../../subprocess/subprocess" },
-    { "path": "../../core/system-prompt" }
+    { "path": "../../core/system-prompt" },
+    { "path": "../../host/webserver" },
+    { "path": "../../fs/fs" }
   ]
 }

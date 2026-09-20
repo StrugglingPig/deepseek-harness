@@ -2,8 +2,8 @@
 
 日期：2026-09-20（Asia/Shanghai）
 分支：`codex/finance-research-agent`
-验收起点：`9983a20692fb8c63cd10d3980b8c906fdb1aa5d0`
-修复提交：`6736a17bd6`
+验收起点：`recorded in git history`
+修复提交：`recorded in git history`
 验收结论：可验证链路通过；外部套餐/网络限制和未配置凭据已明确隔离，不计为代码失败。
 
 ## 验收范围

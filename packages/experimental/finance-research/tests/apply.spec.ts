@@ -166,6 +166,8 @@ describe('finance apply', () => {
       spawn: () => handle,
     } as never)
     ctx.provide('credentials', { resolve: async () => ({ value: 'credential' }) } as never)
+    let route: { handler: (req: never, res: never) => Promise<void> } | undefined
+    ctx.provide('webServer', { register: (value: typeof route) => { route = value; return () => undefined } } as never)
 
     apply(ctx, CONFIG)
     await Promise.resolve()
@@ -185,6 +187,19 @@ describe('finance apply', () => {
       arguments: { provider: 'ifind', symbol: '600519' },
     })
     expect(ifind.isError).toBe(false)
+
+    const status: number[] = []
+    const bodies: string[] = []
+    await route?.handler({ method: 'GET', url: '/api/finance-dashboard/market?asset=stock&symbol=600519&provider=akshare' } as never, {
+      writeHead: (code: number) => { status.push(code) },
+      end: (body?: string) => { bodies.push(body ?? '') },
+    } as never)
+    await route?.handler({ method: 'GET', url: '/api/finance-dashboard/market?asset=stock&symbol=600519&provider=ifind' } as never, {
+      writeHead: (code: number) => { status.push(code) },
+      end: (body?: string) => { bodies.push(body ?? '') },
+    } as never)
+    expect(status).toEqual([200, 200])
+    expect(bodies[0]).toContain('贵州茅台')
     await ctx.fiber.dispose()
   })
 
