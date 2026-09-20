@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import { FinanceDataError } from './error.ts'
 import {
   DASHBOARD_MARKET_PATH,
+  barFromRow,
   type DashboardAsset,
   type DashboardBar,
   type DashboardInterval,
@@ -83,16 +84,8 @@ function parseCryptoBars(payload: unknown): DashboardBar[] {
   if (!Array.isArray(payload)) return []
   return payload.flatMap((item) => {
     if (!Array.isArray(item) || item.length < 6) return []
-    const values = item.slice(0, 6).map(finite)
-    if (values.some(value => value === undefined)) return []
-    return [{
-      time: values[0] as number,
-      open: values[1] as number,
-      high: values[2] as number,
-      low: values[3] as number,
-      close: values[4] as number,
-      volume: values[5] as number,
-    }]
+    const bar = barFromRow(item)
+    return bar === undefined ? [] : [bar]
   })
 }
 

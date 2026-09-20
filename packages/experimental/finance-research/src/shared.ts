@@ -38,3 +38,22 @@ export interface DashboardMarketResponse {
   readonly bars: readonly DashboardBar[]
   readonly quote: DashboardQuote
 }
+
+/**
+ * Map one six-field OHLCV row onto a dashboard bar.
+ * @param row - Upstream row carrying time, open, high, low, close, and volume.
+ * @returns The bar, or undefined when any field is missing or non-numeric.
+ */
+export function barFromRow(row: readonly unknown[]): DashboardBar | undefined {
+  if (row.length < 6) return undefined
+  const values = row.slice(0, 6).map(Number)
+  if (values.some(value => !Number.isFinite(value))) return undefined
+  return {
+    time: values[0] as number,
+    open: values[1] as number,
+    high: values[2] as number,
+    low: values[3] as number,
+    close: values[4] as number,
+    volume: values[5] as number,
+  }
+}

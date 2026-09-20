@@ -2,7 +2,7 @@
 
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { ValueField } from './fields.tsx'
+import { NumericValueField, ValueField } from './fields.tsx'
 import { PluginConfigForm } from './PluginConfigForm.tsx'
 import type { BashCardFace } from './bash-card-controller.ts'
 
@@ -29,19 +29,18 @@ export function BashCard(props: BashCardProps) {
       onSave={props.save}
       onDiscard={props.discard}
     >
-      <ValueField
+      {/* jscpd:ignore-start -- rows restate the shared NumericValueField props */}
+      <NumericValueField
         id="plugin-config-bash-timeout"
         label={t('bashTimeoutMs')}
         hint={t('bashTimeoutMsHint')}
-        overriddenLabel={t('overridden')}
-        resetLabel={t('reset')}
-        invalidLabel={t('invalidNumber')}
-        numeric
+        copy={{ overridden: t('overridden'), reset: t('reset'), invalidNumber: t('invalidNumber') }}
         disabled={disabled}
-        {...state.timeoutMs}
+        field={state.timeoutMs}
         onEdit={(text) => { props.edit('timeoutMs', text) }}
         onReset={() => { props.resetField('timeoutMs') }}
       />
+      {/* jscpd:ignore-end */}
       <ValueField
         id="plugin-config-bash-output"
         label={t('bashMaxOutputBytes')}

@@ -147,3 +147,40 @@ export function SecretField(props: Pick<FieldProps, 'id' | 'label' | 'hint' | 't
     </div>
   )
 }
+
+/** One numeric row: the staged value plus the identity and copy of its field. */
+export interface NumericFieldProps {
+  readonly id: string
+  readonly label: string
+  readonly hint: string
+  readonly disabled: boolean
+  /** Locale copy shared by every numeric row. */
+  readonly copy: { readonly overridden: string; readonly reset: string; readonly invalidNumber: string }
+  /** Staged value for this field. */
+  readonly field: Pick<FieldProps, 'text' | 'overridden' | 'invalid'>
+  readonly onEdit: (text: string) => void
+  readonly onReset: () => void
+}
+
+/**
+ * Render one numeric settings row with the override, reset, and invalid labels.
+ * @param props - field identity, copy, staged value, and edit actions.
+ * @returns The labelled numeric control.
+ */
+export function NumericValueField(props: NumericFieldProps) {
+  return (
+    <ValueField
+      id={props.id}
+      label={props.label}
+      hint={props.hint}
+      overriddenLabel={props.copy.overridden}
+      resetLabel={props.copy.reset}
+      invalidLabel={props.copy.invalidNumber}
+      numeric
+      disabled={props.disabled}
+      {...props.field}
+      onEdit={props.onEdit}
+      onReset={props.onReset}
+    />
+  )
+}

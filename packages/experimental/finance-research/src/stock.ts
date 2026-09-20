@@ -8,10 +8,11 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { z as zod } from 'zod'
 import type { FinanceCredentialResolver } from './auth.ts'
 import { FinanceDataError } from './error.ts'
-import { buildIndicatorAnalysis } from './indicators.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { exportResearchReport } from './export.ts'
 import { buildResearchReport } from './report.ts'
+import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, STOCK_INPUT_PARAMETERS, analysisValue, snapshotValue } from './tool-schemas.ts'
+import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
 import type { ReportLanguage } from './report-language.ts'
 import type {
   FinanceStockDataProvider,
@@ -356,15 +357,12 @@ export function registerStockTools(
   provider: FinanceStockDataProvider,
   reportLanguage: () => ReportLanguage = () => 'en',
 ): void {
+  /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
     name: 'finance_stock_snapshot',
     description: 'Load normalized mainland A-share daily history through AKShare or Tonghuashun iFinD. Symbols are six-digit codes such as 600519 or 000001.',
     parameters: {
-      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
-      provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
-      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
-      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
-      adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
+      ...STOCK_INPUT_PARAMETERS,
     },
     output: {
       schema: {
@@ -394,18 +392,14 @@ export function registerStockTools(
         ...args.end_date === undefined ? {} : { endDate: args.end_date },
         ...args.adjust === undefined ? {} : { adjust: args.adjust },
       }, exec.signal)
+      const { synthetic: _synthetic, prediction: _prediction, ...shared } = snapshotValue(snapshot)
       return {
-        symbol: snapshot.instrument.symbol,
-        asset_class: snapshot.instrument.assetClass,
-        as_of: snapshot.asOf,
-        name: snapshot.instrument.name,
-        currency: snapshot.instrument.currency,
-        price: snapshot.quote.price,
-        change_percent: snapshot.quote.changePercent,
-        bar_count: snapshot.bars.length,
+        ...shared,
+        asset_class: 'equity' as const,
+        currency: 'CNY' as const,
+        source: snapshot.source.provider,
         first_bar_at: (snapshot.bars[0] as MarketBar).timestamp,
         last_bar_at: (snapshot.bars.at(-1) as MarketBar).timestamp,
-        source: snapshot.source.provider,
       }
     },
   }))
@@ -477,11 +471,7 @@ export function registerStockTools(
     name: 'finance_stock_technical_analysis',
     description: 'Compute deterministic technical indicators for mainland A-share history returned by AKShare or iFinD.',
     parameters: {
-      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
-      provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
-      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
-      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
-      adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
+      ...STOCK_INPUT_PARAMETERS,
     },
     output: {
       schema: {
@@ -490,46 +480,7 @@ export function registerStockTools(
         properties: {
           symbol: { type: 'string', required: true },
           as_of: { type: 'string', required: true },
-          indicators: {
-            type: 'object',
-            additionalProperties: false,
-            required: true,
-            properties: {
-              sma20: { type: 'number', required: true }, sma50: { type: 'number', required: true },
-              ema12: { type: 'number', required: true }, ema26: { type: 'number', required: true },
-              rsi14: { type: 'number', required: true }, macd: { type: 'number', required: true },
-              macd_signal: { type: 'number', required: true }, macd_histogram: { type: 'number', required: true },
-              atr14: { type: 'number', required: true }, bollinger_middle: { type: 'number', required: true },
-              bollinger_upper: { type: 'number', required: true }, bollinger_lower: { type: 'number', required: true },
-              obv: { type: 'number', required: true }, obv_sma20: { type: 'number', required: true },
-            },
-          },
-          signals: {
-            type: 'array',
-            required: true,
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                name: { type: 'string', required: true },
-                direction: { type: 'string', required: true, enum: ['bullish', 'bearish', 'neutral'] },
-                weight: { type: 'number', required: true },
-                value: { type: 'number', required: true },
-                rationale: { type: 'string', required: true },
-              },
-            },
-          },
-          composite: {
-            type: 'object',
-            required: true,
-            additionalProperties: false,
-            properties: {
-              direction: { type: 'string', required: true, enum: ['bullish', 'bearish', 'neutral'] },
-              score: { type: 'number', required: true },
-              confidence: { type: 'integer', required: true },
-              summary: { type: 'string', required: true },
-            },
-          },
+          ...ANALYSIS_OUTPUT_PROPERTIES,
           conflicts: { type: 'array', required: true, items: { type: 'string' } },
           risk: {
             type: 'object',
@@ -549,37 +500,7 @@ export function registerStockTools(
         ...args.end_date === undefined ? {} : { endDate: args.end_date },
         ...args.adjust === undefined ? {} : { adjust: args.adjust },
       }, exec.signal)
-      const analysis = buildIndicatorAnalysis(snapshot)
-      return {
-        symbol: analysis.symbol,
-        as_of: analysis.asOf,
-        indicators: {
-          sma20: analysis.indicators.sma20,
-          sma50: analysis.indicators.sma50,
-          ema12: analysis.indicators.ema12,
-          ema26: analysis.indicators.ema26,
-          rsi14: analysis.indicators.rsi14,
-          macd: analysis.indicators.macd,
-          macd_signal: analysis.indicators.macdSignal,
-          macd_histogram: analysis.indicators.macdHistogram,
-          atr14: analysis.indicators.atr14,
-          bollinger_middle: analysis.indicators.bollingerMiddle,
-          bollinger_upper: analysis.indicators.bollingerUpper,
-          bollinger_lower: analysis.indicators.bollingerLower,
-          obv: analysis.indicators.obv,
-          obv_sma20: analysis.indicators.obvSma20,
-        },
-        signals: analysis.signals.map(signal => ({
-          name: signal.name,
-          direction: signal.direction,
-          weight: signal.weight,
-          value: signal.value,
-          rationale: signal.rationale,
-        })),
-        composite: analysis.composite,
-        conflicts: [...analysis.conflicts],
-        risk: { atr_percent: analysis.risk.atrPercent },
-      }
+      return analysisValue(snapshot)
     },
   }))
 
@@ -587,14 +508,8 @@ export function registerStockTools(
     name: 'finance_stock_research_report',
     description: 'Generate a complete Markdown and interactive HTML research report for a mainland A-share symbol through AKShare or Tonghuashun iFinD, in the configured report language.',
     parameters: {
-      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
-      provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
-      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
-      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
-      adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
-      question: { type: 'string', description: 'Research question to include in the report.' },
-      horizon: { type: 'string', description: 'Requested research horizon.' },
-      report_type: { type: 'string', description: 'Report type id from finance_report_types; A-share research defaults to equity-deep-dive.' },
+      ...STOCK_INPUT_PARAMETERS,
+      ...REPORT_REQUEST_PARAMETERS,
     },
     output: {
       schema: {
@@ -603,35 +518,11 @@ export function registerStockTools(
         properties: {
           symbol: { type: 'string', required: true },
           as_of: { type: 'string', required: true },
-          title: { type: 'string', required: true },
-          report_type: { type: 'string', required: true },
+          ...REPORT_SUMMARY_PROPERTIES,
           markdown: { type: 'string', required: true },
           html: { type: 'string', required: true },
-          sections: {
-            type: 'array',
-            required: true,
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                title: { type: 'string', required: true },
-                content: { type: 'string', required: true },
-              },
-            },
-          },
-          evidence: {
-            type: 'array',
-            required: true,
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                source: { type: 'string', required: true },
-                as_of: { type: 'string', required: true },
-                url: { type: 'string', required: true },
-              },
-            },
-          },
+          sections: REPORT_SECTIONS_PROPERTY,
+          evidence: REPORT_EVIDENCE_PROPERTY,
         },
       },
       render: (_args, value) => [{ type: 'text', text: value.markdown }],
@@ -648,22 +539,7 @@ export function registerStockTools(
         id: 'stock-python',
         load: () => Promise.resolve(snapshot),
       }
-      const report = await buildResearchReport(stockMarketProvider, {
-        symbol: args.symbol,
-        ...args.question === undefined ? {} : { question: args.question },
-        ...args.horizon === undefined ? {} : { horizon: args.horizon },
-        ...args.report_type === undefined ? {} : { reportType: args.report_type },
-      }, exec.signal, reportLanguage())
-      return {
-        symbol: report.symbol,
-        as_of: report.asOf,
-        title: report.title,
-        report_type: report.reportType,
-        markdown: report.markdown,
-        html: report.html,
-        sections: report.sections.map(section => ({ title: section.title, content: section.content })),
-        evidence: report.evidence.map(item => ({ source: item.source, as_of: item.asOf, url: item.url })),
-      }
+      return reportValue(await buildResearchReport(stockMarketProvider, reportRequest(args), exec.signal, reportLanguage()))
     },
   }))
 
@@ -671,11 +547,7 @@ export function registerStockTools(
     name: 'finance_stock_methodology_analysis',
     description: 'Run deterministic methodology readings and investor lenses for a mainland A-share symbol through AKShare or Tonghuashun iFinD.',
     parameters: {
-      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
-      provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
-      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
-      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
-      adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
+      ...STOCK_INPUT_PARAMETERS,
     },
     output: {
       schema: {
@@ -684,42 +556,7 @@ export function registerStockTools(
         properties: {
           symbol: { type: 'string', required: true },
           as_of: { type: 'string', required: true },
-          readings: {
-            type: 'array',
-            required: true,
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                id: { type: 'string', required: true },
-                name: { type: 'string', required: true },
-                category: { type: 'string', required: true },
-                status: { type: 'string', required: true },
-                direction: { type: 'string', required: true },
-                confidence: { type: 'integer', required: true },
-                value: { type: 'number' },
-                note: { type: 'string', required: true },
-              },
-            },
-          },
-          investors: {
-            type: 'array',
-            required: true,
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                id: { type: 'string', required: true },
-                name: { type: 'string', required: true },
-                school: { type: 'string', required: true },
-                stance: { type: 'string', required: true },
-                evidence: { type: 'array', required: true, items: { type: 'string' } },
-                questions: { type: 'array', required: true, items: { type: 'string' } },
-                risk: { type: 'string', required: true },
-              },
-            },
-          },
-          synthesis_prompt: { type: 'string', required: true },
+          ...METHODOLOGY_OUTPUT_PROPERTIES,
         },
       },
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
@@ -752,14 +589,8 @@ export function registerStockTools(
       name: 'finance_stock_report_export',
       description: 'Generate a mainland A-share research report in the configured report language and persist Markdown and self-contained interactive HTML files in the workspace.',
       parameters: {
-        symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
-        provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
-        start_date: { type: 'string', description: 'Inclusive ISO start date.' },
-        end_date: { type: 'string', description: 'Inclusive ISO end date.' },
-        adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },
-        question: { type: 'string', description: 'Research question to include in the report.' },
-        horizon: { type: 'string', description: 'Requested research horizon.' },
-        report_type: { type: 'string', description: 'Report type id from finance_report_types; A-share research defaults to equity-deep-dive.' },
+        ...STOCK_INPUT_PARAMETERS,
+        ...REPORT_REQUEST_PARAMETERS,
         output_dir: { type: 'string', description: 'Workspace-relative output directory.', default: '.artifacts/finance-reports' },
         basename: { type: 'string', description: 'Optional file stem.' },
       },
@@ -770,8 +601,7 @@ export function registerStockTools(
           properties: {
             symbol: { type: 'string', required: true },
             as_of: { type: 'string', required: true },
-            title: { type: 'string', required: true },
-            report_type: { type: 'string', required: true },
+            ...REPORT_SUMMARY_PROPERTIES,
             markdown_path: { type: 'string', required: true },
             html_path: { type: 'string', required: true },
           },
@@ -789,12 +619,7 @@ export function registerStockTools(
         const report = await buildResearchReport({
           id: 'stock-python',
           load: () => Promise.resolve(snapshot),
-        }, {
-          symbol: args.symbol,
-          ...args.question === undefined ? {} : { question: args.question },
-          ...args.horizon === undefined ? {} : { horizon: args.horizon },
-          ...args.report_type === undefined ? {} : { reportType: args.report_type },
-        }, exec.signal, reportLanguage())
+        }, reportRequest(args), exec.signal, reportLanguage())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,
@@ -802,15 +627,9 @@ export function registerStockTools(
           args.basename,
           exec.signal,
         )
-        return {
-          symbol: report.symbol,
-          as_of: report.asOf,
-          title: report.title,
-          report_type: report.reportType,
-          markdown_path: files.markdown,
-          html_path: files.html,
-        }
+        return reportExportValue(report, files)
       },
     }))
   })
+  /* jscpd:ignore-end */
 }

@@ -1,5 +1,6 @@
 /** Browser-side dashboard market data, indicators, and chart geometry. */
 
+import { barFromRow } from '@deepseek-ai/dsh-experimental-finance-research/shared'
 import type {
   DashboardAsset,
   DashboardBar,
@@ -114,16 +115,8 @@ export function parseKlines(payload: unknown): DashboardBar[] {
   if (!Array.isArray(payload)) return []
   return payload.flatMap((row) => {
     if (!Array.isArray(row) || row.length < 6) return []
-    const values = (row as unknown[]).slice(0, 6).map(finite)
-    if (values.some(value => value === undefined)) return []
-    return [{
-      time: values[0] as number,
-      open: values[1] as number,
-      high: values[2] as number,
-      low: values[3] as number,
-      close: values[4] as number,
-      volume: values[5] as number,
-    }]
+    const bar = barFromRow(row as readonly unknown[])
+    return bar === undefined ? [] : [bar]
   })
 }
 

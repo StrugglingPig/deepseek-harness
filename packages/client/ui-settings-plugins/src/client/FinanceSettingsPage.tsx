@@ -2,7 +2,7 @@
 
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { PluginConfigForm } from './PluginConfigForm.tsx'
-import { SecretField, ValueField } from './fields.tsx'
+import { NumericValueField, SecretField, ValueField } from './fields.tsx'
 import css from './fields.module.css'
 import type { FinanceCardFace } from './finance-card-controller.ts'
 
@@ -40,14 +40,16 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         </select>
         <p className={css.hint}>{t('financeProviderHint')}</p>
       </div>
-      <ValueField id="finance-timeout" label={t('financeTimeoutMs')} hint={t('financeTimeoutMsHint')}
-        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
-        numeric disabled={disabled} {...state.timeoutMs}
+      {/* jscpd:ignore-start -- rows restate the shared NumericValueField props */}
+      <NumericValueField id="finance-timeout" label={t('financeTimeoutMs')} hint={t('financeTimeoutMsHint')}
+        copy={{ overridden: t('overridden'), reset: t('reset'), invalidNumber: t('invalidNumber') }}
+        disabled={disabled} field={state.timeoutMs}
         onEdit={(text) => { props.edit('timeoutMs', text) }} onReset={() => { props.resetField('timeoutMs') }} />
-      <ValueField id="finance-bar-limit" label={t('financeBarLimit')} hint={t('financeBarLimitHint')}
-        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
-        numeric disabled={disabled} {...state.barLimit}
+      <NumericValueField id="finance-bar-limit" label={t('financeBarLimit')} hint={t('financeBarLimitHint')}
+        copy={{ overridden: t('overridden'), reset: t('reset'), invalidNumber: t('invalidNumber') }}
+        disabled={disabled} field={state.barLimit}
         onEdit={(text) => { props.edit('barLimit', text) }} onReset={() => { props.resetField('barLimit') }} />
+      {/* jscpd:ignore-end */}
       {([
         ['yahooBaseUrl', 'financeYahooBaseUrl'],
         ['binanceBaseUrl', 'financeBinanceSpotBaseUrl'],
