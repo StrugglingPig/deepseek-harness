@@ -127,9 +127,19 @@ export interface FinanceCoinMarketCapQuote {
   readonly rank?: number
   readonly currency: string
   readonly price?: number
+  readonly percentChange1h?: number
   readonly percentChange24h?: number
+  readonly percentChange7d?: number
+  readonly percentChange30d?: number
+  readonly percentChange90d?: number
   readonly marketCap?: number
+  readonly fullyDilutedMarketCap?: number
+  readonly marketCapDominance?: number
   readonly volume24h?: number
+  readonly volumeChange24h?: number
+  readonly circulatingSupply?: number
+  readonly totalSupply?: number
+  readonly maxSupply?: number
   readonly lastUpdated?: string
 }
 

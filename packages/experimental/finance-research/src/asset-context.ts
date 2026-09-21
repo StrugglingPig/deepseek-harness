@@ -1,6 +1,6 @@
 /** Market and fundamental metrics a report quotes about its instrument. */
 
-import type { FinanceStockFundamentals } from './types.ts'
+import type { FinanceCoinMarketCapQuote, FinanceStockFundamentals } from './types.ts'
 
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
 export const ASSET_METRIC_GROUPS = [
@@ -60,4 +60,79 @@ export function equityMetricsFromFundamentals(
       source: 'akshare',
     }]
   })
+}
+
+/** Market fields a CoinMarketCap quote contributes, with their dimension and unit. */
+const CRYPTO_QUOTE_METRICS: readonly (readonly [AssetMetricGroup, string, string])[] = [
+  ['market', 'rank', ''],
+  ['market', 'marketCap', 'USD'],
+  ['market', 'fullyDilutedMarketCap', 'USD'],
+  ['market', 'marketCapDominance', '%'],
+  ['market', 'volume24h', 'USD'],
+  ['market', 'volumeChange24h', '%'],
+  ['market', 'change24h', '%'],
+  ['market', 'change7d', '%'],
+  ['market', 'change30d', '%'],
+  ['market', 'change90d', '%'],
+  ['supply', 'circulatingSupply', ''],
+  ['supply', 'totalSupply', ''],
+  ['supply', 'maxSupply', ''],
+]
+
+/** Quote field backing each crypto metric key. */
+const CRYPTO_QUOTE_FIELDS: Readonly<Record<string, keyof FinanceCoinMarketCapQuote>> = {
+  rank: 'rank',
+  marketCap: 'marketCap',
+  fullyDilutedMarketCap: 'fullyDilutedMarketCap',
+  marketCapDominance: 'marketCapDominance',
+  volume24h: 'volume24h',
+  volumeChange24h: 'volumeChange24h',
+  change24h: 'percentChange24h',
+  change7d: 'percentChange7d',
+  change30d: 'percentChange30d',
+  change90d: 'percentChange90d',
+  circulatingSupply: 'circulatingSupply',
+  totalSupply: 'totalSupply',
+  maxSupply: 'maxSupply',
+}
+
+/**
+ * Turn one CoinMarketCap quote into report metrics.
+ * @param quote - Normalized quote, when one loaded.
+ * @returns Market and supply metrics; fields the upstream omitted are skipped.
+ */
+export function cryptoMetricsFromQuote(quote: FinanceCoinMarketCapQuote | undefined): AssetMetric[] {
+  if (quote === undefined) return []
+  const asOf = quote.lastUpdated ?? ''
+  return CRYPTO_QUOTE_METRICS.flatMap(([group, key, unit]) => {
+    const value = quote[CRYPTO_QUOTE_FIELDS[key] as keyof FinanceCoinMarketCapQuote]
+    return typeof value === 'number' ? [{ group, key, value, unit, asOf, source: 'coinmarketcap' }] : []
+  })
+}
+
+/** One report's instrument lookup. */
+export interface ReportAssetRequest {
+  readonly symbol: string
+}
+
+/** Loads the metrics a report quotes for one instrument. */
+export type ReportAssetContext = (request: ReportAssetRequest) => Promise<readonly AssetMetric[]>
+
+/**
+ * Build crypto metrics for one quoted pair.
+ * @param symbol - Snapshot symbol such as `BTC-USD`.
+ * @param loadQuotes - Loader that returns quotes for the given ticker symbols.
+ * @returns Market and supply metrics, empty for a non-pair symbol or a failed lookup.
+ */
+export async function cryptoMetricsForSymbol(
+  symbol: string,
+  loadQuotes: (symbols: readonly string[]) => Promise<readonly FinanceCoinMarketCapQuote[]>,
+): Promise<readonly AssetMetric[]> {
+  const [base] = symbol.split('-')
+  if (base === undefined || base === symbol) return []
+  try {
+    return cryptoMetricsFromQuote((await loadQuotes([base]))[0])
+  } catch {
+    return []
+  }
 }

@@ -54,9 +54,19 @@ export function normalizeCoinMarketCapQuotes(payload: unknown, convert: string):
     const slug = string(item.slug)
     const rank = finite(item.cmc_rank)
     const price = finite(quote?.price)
+    const percentChange1h = finite(quote?.percent_change_1h)
     const percentChange24h = finite(quote?.percent_change_24h)
+    const percentChange7d = finite(quote?.percent_change_7d)
+    const percentChange30d = finite(quote?.percent_change_30d)
+    const percentChange90d = finite(quote?.percent_change_90d)
     const marketCap = finite(quote?.market_cap)
+    const fullyDilutedMarketCap = finite(quote?.fully_diluted_market_cap)
+    const marketCapDominance = finite(quote?.market_cap_dominance)
     const volume24h = finite(quote?.volume_24h)
+    const volumeChange24h = finite(quote?.volume_change_24h)
+    const circulatingSupply = finite(item.circulating_supply)
+    const totalSupply = finite(item.total_supply)
+    const maxSupply = finite(item.max_supply)
     const lastUpdated = string(quote?.last_updated) ?? string(item.last_updated)
     return [{
       id,
@@ -66,9 +76,19 @@ export function normalizeCoinMarketCapQuotes(payload: unknown, convert: string):
       ...rank === undefined ? {} : { rank },
       currency: convert,
       ...price === undefined ? {} : { price },
+      ...percentChange1h === undefined ? {} : { percentChange1h },
       ...percentChange24h === undefined ? {} : { percentChange24h },
+      ...percentChange7d === undefined ? {} : { percentChange7d },
+      ...percentChange30d === undefined ? {} : { percentChange30d },
+      ...percentChange90d === undefined ? {} : { percentChange90d },
       ...marketCap === undefined ? {} : { marketCap },
+      ...fullyDilutedMarketCap === undefined ? {} : { fullyDilutedMarketCap },
+      ...marketCapDominance === undefined ? {} : { marketCapDominance },
       ...volume24h === undefined ? {} : { volume24h },
+      ...volumeChange24h === undefined ? {} : { volumeChange24h },
+      ...circulatingSupply === undefined ? {} : { circulatingSupply },
+      ...totalSupply === undefined ? {} : { totalSupply },
+      ...maxSupply === undefined ? {} : { maxSupply },
       ...lastUpdated === undefined ? {} : { lastUpdated },
     }]
   })

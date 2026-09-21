@@ -108,3 +108,45 @@ describe('CoinMarketCap HTTP provider', () => {
     expect(urls.some(url => url.includes('/v2/cryptocurrency/ohlcv/historical?id=1&convert=USD&count=2&interval=1d'))).toBe(true)
   })
 })
+
+describe('CoinMarketCap extended quote fields', () => {
+  it('carries multi-period changes, dominance, and supply through normalization', () => {
+    const quotes = normalizeCoinMarketCapQuotes({
+      data: [{
+        id: 1,
+        name: 'Bitcoin',
+        symbol: 'BTC',
+        cmc_rank: 1,
+        circulating_supply: 20_087_418,
+        total_supply: 20_087_418,
+        max_supply: 21_000_000,
+        quote: { USD: {
+          price: 85_066,
+          percent_change_1h: 0.65,
+          percent_change_24h: 5.72,
+          percent_change_7d: 9.38,
+          percent_change_30d: 10.12,
+          percent_change_90d: 36.33,
+          market_cap: 1_708_766_071_400,
+          fully_diluted_market_cap: 1_786_396_215_747,
+          market_cap_dominance: 59.21,
+          volume_24h: 37_917_145_061,
+          volume_change_24h: -12.5,
+          last_updated: '2026-09-21T00:00:00.000Z',
+        } },
+      }],
+    }, 'USD')
+    expect(quotes[0]).toMatchObject({
+      percentChange1h: 0.65,
+      percentChange7d: 9.38,
+      percentChange30d: 10.12,
+      percentChange90d: 36.33,
+      fullyDilutedMarketCap: 1_786_396_215_747,
+      marketCapDominance: 59.21,
+      volumeChange24h: -12.5,
+      circulatingSupply: 20_087_418,
+      totalSupply: 20_087_418,
+      maxSupply: 21_000_000,
+    })
+  })
+})

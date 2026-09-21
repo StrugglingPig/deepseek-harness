@@ -28,7 +28,7 @@ import {
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
-import { equityMetricsFromFundamentals } from './asset-context.ts'
+import { cryptoMetricsForSymbol, equityMetricsFromFundamentals, type ReportAssetContext } from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
 import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
@@ -230,6 +230,7 @@ export const Config: z<Config> = z.object({
  * @param streamProvider - Optional real-time market-stream provider.
  * @param reportLanguage - Resolves the report language for generated reports.
  * @param macroContext - Loads the macro series the report quotes as its precondition.
+ * @param assetContext - Loads the instrument metrics the report quotes.
  */
 export function registerFinanceTools(
   ctx: Context,
@@ -237,6 +238,7 @@ export function registerFinanceTools(
   streamProvider?: FinanceMarketStreamProvider,
   reportLanguage: () => ReportLanguage = () => 'en',
   macroContext: () => Promise<readonly MacroSeries[]> = () => Promise.resolve([]),
+  assetContext: ReportAssetContext = () => Promise.resolve([]),
 ): void {
   /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
@@ -343,7 +345,8 @@ export function registerFinanceTools(
     },
     async execute(args, exec) {
       const macro = await macroContext()
-      return reportValue(await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(), macro))
+      const metrics = await assetContext({ symbol: args.symbol })
+      return reportValue(await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(), macro, metrics))
     },
   }))
 
@@ -425,7 +428,8 @@ export function registerFinanceTools(
         render: (_args, value) => [{ type: 'text', text: `Report exported:\n- Markdown: ${value.markdown_path}\n- HTML: ${value.html_path}` }],
       },
       async execute(args, exec) {
-        const report = await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(), await macroContext())
+        const report = await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(),
+          await macroContext(), await assetContext({ symbol: args.symbol }))
         const files = await exportResearchReport(
           fsCtx.fs,
           report,
@@ -1185,7 +1189,8 @@ export function apply(ctx: Context, config: Config): void {
     () => currentSettings,
     ref => resolveCredential(ref),
   )
-  registerFinanceTools(ctx, provider, streamProvider, reportLanguage, () => loadMacroContext(macroProvider))
+  registerFinanceTools(ctx, provider, streamProvider, reportLanguage, () => loadMacroContext(macroProvider),
+    request => cryptoMetricsForSymbol(request.symbol, symbols => provider.loadCoinMarketCapQuotes({ symbols })))
   registerMacroTools(ctx, macroProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({

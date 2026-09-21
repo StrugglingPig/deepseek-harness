@@ -261,6 +261,15 @@ describe('finance apply', () => {
     })
     expect(withoutFundamentals.isError).toBe(false)
     expect(textOfReport(withoutFundamentals)).toContain('Valuation Framework')
+
+    // A quoted crypto pair routes through the market-quote context loader. The market
+    // provider has no network here, so only the routing is observable.
+    await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'crypto-report' as never,
+      name: 'finance_research_report',
+      arguments: { symbol: 'BTC-USD' },
+    })
     await ctx.fiber.dispose()
   })
 
