@@ -33,7 +33,7 @@ function series(id: string, values: readonly number[], source: MacroSeries['sour
 }
 
 describe('macro report builder', () => {
-  it('renders every plan section in Chinese with values, direction, and provenance', () => {
+  it('renders every plan section in Chinese with values, direction, and source', () => {
     const report = buildMacroReport({
       language: 'zh',
       asOf: '2026-09-21T00:00:00.000Z',
