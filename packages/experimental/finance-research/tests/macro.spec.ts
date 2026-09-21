@@ -100,6 +100,24 @@ describe('macro normalization', () => {
     expect(series.previous).toEqual({ date: '2026-01', value: 1 })
     expect(series.nameZh).toBe('美国 CPI')
   })
+
+  it('reports the latest outcome as latest and keeps trailing projections in the series', () => {
+    const series = buildMacroSeries(query(cpi), 'imf', [
+      { date: '2024', value: 1 },
+      { date: '2025', value: 2 },
+      { date: '2030', value: 8, projection: true },
+      { date: '2031', value: 9, projection: true },
+    ])
+    expect(series.latest).toEqual({ date: '2025', value: 2 })
+    expect(series.previous).toEqual({ date: '2024', value: 1 })
+    expect(series.observations).toHaveLength(4)
+  })
+
+  it('falls back to the newest projected period when an upstream publishes nothing else', () => {
+    const series = buildMacroSeries(query(cpi), 'imf', [{ date: '2031', value: 9, projection: true }])
+    expect(series.latest).toEqual({ date: '2031', value: 9, projection: true })
+    expect(series.previous).toBeUndefined()
+  })
 })
 
 describe('macro provider routing', () => {
@@ -143,7 +161,7 @@ describe('macro provider routing', () => {
     await expect(provider.load(query(pmi, { source: 'akshare' }))).rejects.toThrow(/not available in this composition/)
   })
 
-  it('walks the preference order on auto and reports every failure', async () => {
+  it('loads every bound upstream on auto and reports every failure', async () => {
     const provider = new SettingsFinanceMacroDataProvider([
       loader('fred', [], 'fred exploded'),
       loader('akshare', [{ date: '2026-02', value: 5 }]),
@@ -157,16 +175,66 @@ describe('macro provider routing', () => {
     await expect(failing.load(query(cpi))).rejects.toThrow(/fred exploded; akshare: akshare exploded/)
   })
 
-  it('keeps the documented preference order when a loader arrives later', async () => {
+  it('breaks an auto tie with the documented source order when loaders arrive later', async () => {
     const provider = new SettingsFinanceMacroDataProvider([loader('worldbank', [{ date: '2026-01', value: 1 }])])
     provider.addLoader(loader('akshare', [{ date: '2026-01', value: 2 }]))
     provider.addLoader(loader('fred', [{ date: '2026-01', value: 3 }]))
-    // worldbank has no binding for the US CPI entry, so fred wins over akshare.
+    // All three publish the same period, so the documented order decides.
     await expect(provider.load(query(cpi))).resolves.toMatchObject({ source: 'fred' })
 
     const replacing = new SettingsFinanceMacroDataProvider([loader('fred', [{ date: '2026-01', value: 1 }])])
     replacing.addLoader(loader('fred', [{ date: '2026-01', value: 9 }]))
     await expect(replacing.load(query(cpi))).resolves.toMatchObject({ latest: { value: 9 } })
+  })
+
+  it('keeps the upstream publishing the latest period, not the catalog order', async () => {
+    const provider = new SettingsFinanceMacroDataProvider([
+      loader('fred', [{ date: '2025-12', value: 1 }]),
+      loader('akshare', [{ date: '2026-02', value: 2 }]),
+    ])
+    await expect(provider.load(query(cpi))).resolves.toMatchObject({ source: 'akshare', latest: { value: 2 } })
+  })
+
+  it('ignores projected periods when picking the freshest upstream', async () => {
+    const provider = new SettingsFinanceMacroDataProvider([
+      loader('fred', [{ date: '2025-12', value: 1 }, { date: '2031', value: 9, projection: true }]),
+      loader('akshare', [{ date: '2026-02', value: 2 }]),
+    ])
+    await expect(provider.load(query(cpi))).resolves.toMatchObject({ source: 'akshare' })
+  })
+
+  it('falls back to the published label when every observation is a projection', async () => {
+    const provider = new SettingsFinanceMacroDataProvider([
+      loader('fred', [{ date: '2030', value: 1, projection: true }]),
+      loader('akshare', [{ date: '2031', value: 2, projection: true }]),
+    ])
+    await expect(provider.load(query(cpi))).resolves.toMatchObject({ source: 'akshare', latest: { value: 2 } })
+  })
+
+  it('prefers the widest coverage when the request names a date range', async () => {
+    const provider = new SettingsFinanceMacroDataProvider([
+      loader('akshare', [{ date: '2026-01', value: 1 }, { date: '2026-04', value: 4 }]),
+      loader('worldbank', [{ date: '2026-01', value: 1 }, { date: '2026-02', value: 2 }, { date: '2026-03', value: 3 }]),
+    ])
+    await expect(provider.load(query(cpi))).resolves.toMatchObject({ source: 'akshare' })
+    await expect(provider.load(query(cpi, { startDate: '2026-01-01', endDate: '2026-03-31' })))
+      .resolves.toMatchObject({ source: 'worldbank', latest: { value: 3 } })
+  })
+
+  it('ranks mixed period granularities against each other', async () => {
+    const sourceFor = async (left: string, right: string): Promise<string> => {
+      const provider = new SettingsFinanceMacroDataProvider([
+        loader('akshare', [{ date: left, value: 1 }]),
+        loader('worldbank', [{ date: right, value: 2 }]),
+      ])
+      return (await provider.load(query(cpi))).source
+    }
+    await expect(sourceFor('2026-08', '2026-08-15')).resolves.toBe('worldbank')
+    await expect(sourceFor('2026-08', '2026-Q3')).resolves.toBe('akshare')
+    await expect(sourceFor('2026-Q4', '2026-Q3')).resolves.toBe('akshare')
+    await expect(sourceFor('2026', '2026-01')).resolves.toBe('akshare')
+    await expect(sourceFor('2026-QX', '2026')).resolves.toBe('akshare')
+    await expect(sourceFor('nope', '2026-01')).resolves.toBe('worldbank')
   })
 
   it('skips a loader the requested indicator is not bound to and stringifies non-Error failures', async () => {

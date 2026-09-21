@@ -194,7 +194,9 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('global-unemployment', 'World unemployment rate', '全球失业率', 'employment', 'global', '%', 'annual', 'lagging',
     'Cross-country labour slack for global cycle comparison.',
     ['global equities'],
-    { worldbank: { indicator: 'SL.UEM.TOTL.ZS', country: 'WLD' }, imf: { indicator: 'LUR', country: 'WEOWORLD' } }),
+    // IMF DataMapper publishes LUR per economy but has no world aggregate, so this
+    // series is bound to the World Bank panel only.
+    { worldbank: { indicator: 'SL.UEM.TOTL.ZS', country: 'WLD' } }),
 
   // Consumption
   indicator('cn-retail-sales', 'China retail sales of consumer goods', '中国社会消费品零售总额', 'consumption', 'cn', '100M CNY', 'monthly', 'coincident',
@@ -285,20 +287,22 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
     'Total debt over GDP; the constraint on credit-led stimulus.',
     ['CN equities', 'CNY'],
     { akshare: { function: 'macro_cnbs' } }),
-  indicator('us-federal-debt', 'US central government debt (% of GDP)', '美国政府债务占 GDP', 'fiscal', 'us', '%', 'annual', 'lagging',
+  indicator('us-federal-debt', 'US government debt (% of GDP)', '美国政府债务占 GDP', 'fiscal', 'us', '%', 'annual', 'lagging',
     'Debt stock frames the term premium and fiscal risk pricing.',
     ['USTs', 'USD'],
     { worldbank: { indicator: 'GC.DOD.TOTL.GD.ZS', country: 'USA' }, imf: { indicator: 'GGXWDG_NGDP', country: 'USA' } }),
-  indicator('cn-government-debt', 'China central government debt (% of GDP)', '中国政府债务占 GDP', 'fiscal', 'cn', '%', 'annual', 'lagging',
+  indicator('cn-government-debt', 'China government debt (% of GDP)', '中国政府债务占 GDP', 'fiscal', 'cn', '%', 'annual', 'lagging',
     'The formal debt ratio; augment with the leverage ratio for the full picture.',
     ['CN bonds', 'CNY'],
     // The World Bank publishes no Chinese central-government debt rows (all null), so this
     // series is bound to the IMF panel only.
     { imf: { indicator: 'GGXWDG_NGDP', country: 'CHN' } }),
-  indicator('global-government-debt', 'World central government debt (% of GDP)', '全球政府债务占 GDP', 'fiscal', 'global', '%', 'annual', 'lagging',
+  indicator('global-government-debt', 'World government debt (% of GDP)', '全球政府债务占 GDP', 'fiscal', 'global', '%', 'annual', 'lagging',
     'Cross-country fiscal space comparison.',
     ['global rates'],
-    { worldbank: { indicator: 'GC.DOD.TOTL.GD.ZS', country: 'WLD' }, imf: { indicator: 'GGXWDG_NGDP', country: 'WEOWORLD' } }),
+    // The World Bank publishes no world central-government debt rows, so this
+    // series is bound to the IMF panel only.
+    { imf: { indicator: 'GGXWDG_NGDP', country: 'WEOWORLD' } }),
 
   // External
   indicator('cn-exports', 'China exports (YoY)', '中国出口同比', 'external', 'cn', '%', 'monthly', 'coincident',

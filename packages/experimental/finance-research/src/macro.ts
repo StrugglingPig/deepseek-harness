@@ -38,6 +38,7 @@ export interface MacroSeries {
   readonly affectedAssets: readonly string[]
   readonly source: MacroSourceId
   readonly observations: readonly MacroObservation[]
+  /** Newest published outcome; the newest projected period when an upstream publishes nothing else. */
   readonly latest: MacroObservation
   readonly previous: MacroObservation | undefined
   readonly retrievedAt: string
@@ -75,9 +76,38 @@ export interface FinanceMacroDataProvider {
 }
 
 /**
+ * Rank a published period so the mixed granularities upstreams use compare
+ * directly. A label ranks at the start of the period it covers, so an annual
+ * `2026` cannot outrank a monthly `2026-08` that already measured part of it,
+ * while `2026` still outranks every `2025` label.
+ * @param date - Upstream period label: `YYYY`, `YYYY-Qn`, `YYYY-MM`, or `YYYY-MM-DD`.
+ * @returns Comparable integer; a later period ranks higher.
+ */
+function periodRank(date: string): number {
+  const year = Number.parseInt(date.slice(0, 4), 10)
+  if (!Number.isFinite(year)) return 0
+  const rest = date.slice(4)
+  const quarter = rest.startsWith('-Q') ? Number.parseInt(rest.slice(2), 10) : Number.NaN
+  if (Number.isFinite(quarter)) return year * 10_000 + quarter * 300 - 199
+  const month = Number.parseInt(rest.slice(1, 3), 10)
+  if (!Number.isFinite(month)) return year * 10_000 + 101
+  const day = Number.parseInt(rest.slice(4, 6), 10)
+  return year * 10_000 + month * 100 + (Number.isFinite(day) ? day : 1)
+}
+
+/** Latest published outcome, ignoring values an upstream marked as projections. */
+function latestOutcome(observations: readonly MacroObservation[]): MacroObservation | undefined {
+  for (let index = observations.length - 1; index >= 0; index -= 1) {
+    const observation = observations[index]
+    if (observation !== undefined && observation.projection !== true) return observation
+  }
+  return undefined
+}
+
+/**
  * Sort, de-duplicate, filter, and trim observations.
  * @param observations - Raw observations.
- * @param query - Request range and limit.
+ * @param query - Request range and limit; bounds compare as period starts.
  * @returns Observations in ascending date order, newest last.
  */
 export function normalizeObservations(
@@ -90,9 +120,14 @@ export function normalizeObservations(
     byDate.set(observation.date, observation)
   }
   const ordered = [...byDate.values()].sort((left, right) => left.date.localeCompare(right.date))
-  const ranged = ordered.filter(observation =>
-    (query.startDate === undefined || observation.date >= query.startDate)
-    && (query.endDate === undefined || observation.date <= query.endDate))
+  // Bounds compare as period starts so a month-level observation still matches a
+  // day-level bound inside the same month.
+  const start = query.startDate === undefined ? undefined : periodRank(query.startDate)
+  const end = query.endDate === undefined ? undefined : periodRank(query.endDate)
+  const ranged = ordered.filter((observation) => {
+    const rank = periodRank(observation.date)
+    return (start === undefined || rank >= start) && (end === undefined || rank <= end)
+  })
   if (query.limit === undefined || ranged.length <= query.limit) return ranged
   return ranged.slice(ranged.length - query.limit)
 }
@@ -114,7 +149,10 @@ export function buildMacroSeries(
   if (observations.length === 0) {
     throw new FinanceDataError(`${query.indicator.id} returned no observations from ${source}`, 'MACRO_EMPTY')
   }
-  const latest = observations[observations.length - 1] as MacroObservation
+  const newest = observations[observations.length - 1] as MacroObservation
+  // Falls back to the newest projected period when an upstream publishes no outcome.
+  const latest = latestOutcome(observations) ?? newest
+  const position = observations.indexOf(latest)
   return {
     indicator: query.indicator.id,
     name: query.indicator.name,
@@ -129,16 +167,57 @@ export function buildMacroSeries(
     source,
     observations,
     latest,
-    previous: observations.length > 1 ? observations[observations.length - 2] : undefined,
+    previous: position > 0 ? observations[position - 1] : undefined,
     retrievedAt: now().toISOString(),
   }
 }
 
 /**
- * Preference order for `auto`: the authoritative long-history source first, then
- * the local AKShare bridge, then the global panels.
+ * Order that settles an `auto` tie when two upstreams publish the same latest
+ * period: the authoritative long-history source first, then the local AKShare
+ * bridge, then the global panels. It never decides which upstream wins outright;
+ * recency does.
  */
-const AUTO_PRECEDENCE: readonly MacroSourceId[] = ['fred', 'akshare', 'worldbank', 'imf']
+const AUTO_TIE_BREAK: readonly MacroSourceId[] = ['fred', 'akshare', 'worldbank', 'imf']
+
+/** One upstream that answered an `auto` request. */
+interface MacroCandidate {
+  readonly series: MacroSeries
+  /** Position in {@link AUTO_TIE_BREAK}; lower wins a tie. */
+  readonly tieBreak: number
+  /** Latest outcome, or undefined when every observation is a projection. */
+  readonly outcome: MacroObservation | undefined
+}
+
+/**
+ * Score one candidate. Dimensions are compared in order, highest first.
+ * @param candidate - Upstream that answered.
+ * @param ranged - Whether the request named a date range, which rewards coverage over recency.
+ * @returns Comparable integers in significance order.
+ */
+function candidateScore(candidate: MacroCandidate, ranged: boolean): readonly number[] {
+  const covered = candidate.series.observations.length
+  const hasOutcome = candidate.outcome === undefined ? 0 : 1
+  const recency = periodRank((candidate.outcome ?? candidate.series.latest).date)
+  const order = AUTO_TIE_BREAK.length - candidate.tieBreak
+  return ranged ? [covered, hasOutcome, recency, order] : [hasOutcome, recency, covered, order]
+}
+
+/**
+ * Pick the better of two candidates.
+ * @param left - First candidate.
+ * @param right - Second candidate.
+ * @param ranged - Whether the request named a date range.
+ * @returns The preferred candidate, or `left` when they score identically.
+ */
+function betterCandidate(left: MacroCandidate, right: MacroCandidate, ranged: boolean): MacroCandidate {
+  const mine = candidateScore(left, ranged)
+  const other = candidateScore(right, ranged)
+  // The last dimension is the source's position in the tie-break order, which is
+  // unique per candidate, so some dimension always differs.
+  const decided = mine.findIndex((value, index) => value !== other[index])
+  return (mine[decided] as number) > (other[decided] as number) ? left : right
+}
 
 /** Settings-backed macro provider that routes one query across its loaders. */
 export class SettingsFinanceMacroDataProvider implements FinanceMacroDataProvider {
@@ -160,16 +239,16 @@ export class SettingsFinanceMacroDataProvider implements FinanceMacroDataProvide
   /**
    * Install or replace one upstream loader. Loaders that arrive after
    * construction, such as the Python bridge behind its capability injection,
-   * keep their {@link AUTO_PRECEDENCE} position rather than the insertion order.
+   * keep their {@link AUTO_TIE_BREAK} position rather than the insertion order.
    * @param loader - Upstream loader.
    */
   addLoader(loader: MacroSeriesLoader): void {
     this.loaders.set(loader.id, loader)
   }
 
-  /** Loaders in `auto` preference order. */
+  /** Loaders in `auto` tie-break order. */
   private orderedLoaders(): readonly MacroSeriesLoader[] {
-    return AUTO_PRECEDENCE.flatMap((source) => {
+    return AUTO_TIE_BREAK.flatMap((source) => {
       const loader = this.loaders.get(source)
       return loader === undefined ? [] : [loader]
     })
@@ -215,23 +294,40 @@ export class SettingsFinanceMacroDataProvider implements FinanceMacroDataProvide
       const observations = normalizeObservations(await loader.load(query, signal), query)
       return this.series(query, requested, loader, observations)
     }
+    // `auto` reads every upstream bound to the indicator and keeps the one
+    // publishing the latest period, so the resolved source follows what each
+    // upstream currently has rather than a fixed catalog order.
+    const ranged = query.startDate !== undefined || query.endDate !== undefined
+    const attempted = this.orderedLoaders().filter(loader => bound.includes(loader.id))
+    const settled = await Promise.allSettled(attempted.map(async (loader) => {
+      const observations = normalizeObservations(await loader.load(query, signal), query)
+      return this.series(query, loader.id, loader, observations)
+    }))
+    if (signal?.aborted === true) throw new FinanceDataError('macro request aborted', 'ABORTED')
     const failures: string[] = []
-    for (const loader of this.orderedLoaders()) {
-      if (!bound.includes(loader.id)) continue
-      const source = loader.id
-      try {
-        const observations = await loader.load(query, signal)
-        return this.series(query, source, loader, normalizeObservations(observations, query))
-      } catch (error: unknown) {
-        if (signal?.aborted === true) throw new FinanceDataError('macro request aborted', 'ABORTED')
-        // `auto` is a preference walk: a disabled, unconfigured, or failing
-        // upstream is recorded and the next binding gets the chance.
-        failures.push(`${source}: ${error instanceof Error ? error.message : String(error)}`)
+    const candidates: MacroCandidate[] = []
+    settled.forEach((result, index) => {
+      const loader = attempted[index] as MacroSeriesLoader
+      if (result.status === 'rejected') {
+        failures.push(`${loader.id}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`)
+        return
       }
+      candidates.push({
+        series: result.value,
+        tieBreak: AUTO_TIE_BREAK.indexOf(loader.id),
+        outcome: latestOutcome(result.value.observations),
+      })
+    })
+    let best: MacroCandidate | undefined
+    for (const candidate of candidates) {
+      best = best === undefined ? candidate : betterCandidate(best, candidate, ranged)
     }
-    throw new FinanceDataError(
-      `no upstream returned ${query.indicator.id}: ${failures.join('; ')}`,
-      'MACRO_SOURCE_FAILED',
-    )
+    if (best === undefined) {
+      throw new FinanceDataError(
+        `no upstream returned ${query.indicator.id}: ${failures.join('; ')}`,
+        'MACRO_SOURCE_FAILED',
+      )
+    }
+    return best.series
   }
 }

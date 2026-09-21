@@ -123,6 +123,45 @@ const SERIES_SCHEMA = {
   },
 } as const
 
+/** Most indicators read at once; each one fans out to every upstream it is bound to. */
+const MACRO_LOAD_CONCURRENCY = 6
+
+/** One indicator read, tagged so failures stay attributable after a parallel run. */
+type MacroLoadOutcome =
+  | { readonly ok: true; readonly series: MacroSeries }
+  | { readonly ok: false; readonly failure: { indicator: string; message: string } }
+
+/**
+ * Read every indicator with a bounded number of in-flight requests.
+ * @param provider - Macro provider that routes each series to an upstream.
+ * @param entries - Indicators to read, in the order the caller wants them back.
+ * @param limit - Observations kept per series.
+ * @returns One outcome per entry, positionally matched to `entries`.
+ */
+async function loadIndicators(
+  provider: FinanceMacroDataProvider,
+  entries: readonly MacroIndicator[],
+  limit: number,
+): Promise<MacroLoadOutcome[]> {
+  const outcomes = new Array<MacroLoadOutcome>(entries.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(MACRO_LOAD_CONCURRENCY, entries.length) }, async () => {
+    for (;;) {
+      const index = next
+      next += 1
+      const entry = entries[index]
+      if (entry === undefined) return
+      try {
+        outcomes[index] = { ok: true, series: await provider.load({ indicator: entry, country: entry.country, limit }) }
+      } catch (error: unknown) {
+        outcomes[index] = { ok: false, failure: { indicator: entry.id, message: error instanceof Error ? error.message : String(error) } }
+      }
+    }
+  })
+  await Promise.all(workers)
+  return outcomes
+}
+
 /**
  * Load the series one macro report covers.
  * @param provider - Macro provider that routes each series to an upstream.
@@ -164,12 +203,9 @@ async function loadReportSeries(
   }).slice(0, MAX_MACRO_REPORT_SERIES)
   const series: MacroSeries[] = []
   const failures: { indicator: string; message: string }[] = []
-  for (const entry of entries) {
-    try {
-      series.push(await provider.load({ indicator: entry, country: entry.country, limit }))
-    } catch (error: unknown) {
-      failures.push({ indicator: entry.id, message: error instanceof Error ? error.message : String(error) })
-    }
+  for (const outcome of await loadIndicators(provider, entries, limit)) {
+    if (outcome.ok) series.push(outcome.series)
+    else failures.push(outcome.failure)
   }
   return { series, failures }
 }
@@ -193,17 +229,11 @@ export async function loadMacroContext(
   limit = 6,
 ): Promise<MacroSeries[]> {
   const wanted = new Set(MACRO_REPORT_CONTEXT_IDS)
-  const series: MacroSeries[] = []
-  for (const entry of MACRO_INDICATORS) {
-    if (!wanted.has(entry.id)) continue
-    try {
-      series.push(await provider.load({ indicator: entry, country: entry.country, limit }))
-    } catch {
-      // A macro precondition that an upstream cannot serve must not block the
-      // asset report; the missing series simply does not appear in the context.
-    }
-  }
-  return series
+  const entries = MACRO_INDICATORS.filter(entry => wanted.has(entry.id))
+  const outcomes = await loadIndicators(provider, entries, limit)
+  // A macro precondition that an upstream cannot serve must not block the asset
+  // report; the missing series simply does not appear in the context.
+  return outcomes.flatMap(outcome => outcome.ok ? [outcome.series] : [])
 }
 
 /**

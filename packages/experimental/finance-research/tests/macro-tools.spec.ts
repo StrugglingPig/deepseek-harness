@@ -3,7 +3,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { describe, expect, it } from 'vitest'
 import { macroIndicatorById, type MacroIndicator } from '../src/macro-catalog.ts'
-import { registerMacroTools } from '../src/macro-tools.ts'
+import { MACRO_REPORT_CONTEXT_IDS, loadMacroContext, registerMacroTools } from '../src/macro-tools.ts'
 import type { FinanceMacroDataProvider, MacroSeries } from '../src/macro.ts'
 
 function textOf(result: { content: { type: string; text?: string }[] }): string {
@@ -171,6 +171,22 @@ describe('finance_macro_snapshot', () => {
     expect(payload.series[0]?.latest_projection).toBe(true)
     expect(payload.series[0]?.latest.projection).toBe(true)
     expect(payload.series[0]?.observations[0]?.projection).toBeUndefined()
+  })
+
+  it('loads every report precondition and drops the ones an upstream cannot serve', async () => {
+    const requested: string[] = []
+    const provider: FinanceMacroDataProvider = {
+      id: 'macro-context',
+      async load(query) {
+        requested.push(query.indicator.id)
+        if (query.indicator.id === 'cn-ppi') throw new Error('ppi upstream down')
+        return seriesFor(query.indicator, [1, 2])
+      },
+    }
+    const series = await loadMacroContext(provider)
+    expect(requested).toHaveLength(MACRO_REPORT_CONTEXT_IDS.length)
+    const loaded = series.map(entry => entry.indicator)
+    expect(new Set(loaded)).toEqual(new Set(MACRO_REPORT_CONTEXT_IDS.filter(id => id !== 'cn-ppi')))
   })
 
   it('omits the change fields when a series has a single observation at a zero baseline', async () => {
