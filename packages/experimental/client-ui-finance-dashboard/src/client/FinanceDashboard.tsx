@@ -64,6 +64,8 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
   const latest = state.bars.at(-1)
   const currentAsset = state.asset
   const indicators = resolveIndicators(preferences.enabled, preferences.parameters)
+  const indicatorLabel = (indicator: (typeof indicators)[number]): string =>
+    `${t(indicator.spec.labelKey)}${indicatorParameterSuffix(indicator.spec, indicator.values)}`
   const [draft, setDraft] = useState(state.symbol)
   const [showIndicators, setShowIndicators] = useState(false)
   useEffect(() => { setDraft(state.symbol) }, [state.symbol, currentAsset])
@@ -129,7 +131,7 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
         <div className={css.legend}>
           {indicators.map(indicator => (
             <span key={indicator.id} style={{ color: INDICATOR_COLORS[indicator.id] }}>
-              {t(indicator.spec.labelKey)}{indicatorParameterSuffix(indicator.spec, indicator.values)}
+              {indicatorLabel(indicator)}
             </span>
           ))}
         </div>
@@ -179,7 +181,13 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
             <article><span>{t('volume')}</span><strong>{formatNumber(state.quote?.volume ?? latest.volume)}</strong></article>
             <article><span>{t('interval')}</span><strong>{state.interval}</strong></article>
           </div>
-          <TradingChart bars={state.bars} interval={state.interval} chartLabel={t('chartLabel')} indicators={indicators} />
+          <TradingChart
+            bars={state.bars}
+            interval={state.interval}
+            chartLabel={t('chartLabel')}
+            indicators={indicators}
+            labelOf={indicatorLabel}
+          />
         </>
       )}
       <p className={css.accountNote}>{t('accountNote')}</p>

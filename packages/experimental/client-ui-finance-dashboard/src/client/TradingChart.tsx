@@ -6,7 +6,7 @@ import {
   atr, bias, bollinger, cci, chartPath, dmi, ema, kdj, macd, obv, rsi, sar, sma, tdSequential, vwap, wr,
   type DashboardBar, type DashboardInterval, type IndicatorPoint,
 } from './market-data.ts'
-import { chartHeight, indicatorPaneCount, indicatorValue, type ResolvedIndicator } from './indicators.ts'
+import { INDICATOR_COLORS, chartHeight, indicatorPaneCount, indicatorValue, type ResolvedIndicator } from './indicators.ts'
 import css from './FinanceDashboard.module.css'
 
 /** Props for the live finance chart. */
@@ -15,6 +15,8 @@ export interface TradingChartProps {
   readonly interval: DashboardInterval
   readonly chartLabel: string
   readonly indicators: readonly ResolvedIndicator[]
+  /** Locale-owned label for one indicator, reused by the pane captions. */
+  readonly labelOf: (indicator: ResolvedIndicator) => string
 }
 
 /** Band and oscillator colours, kept apart from the candle red/green pair. */
@@ -42,6 +44,9 @@ const COLORS = {
   tdBuy: '#16a34a',
   tdSell: '#dc2626',
 } as const
+
+/** CSS-module class for a pane caption; the bundler always resolves the key. */
+const PANE_LABEL_CLASS = css.paneLabel as string
 
 function canvasAvailable(): boolean {
   if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return false
@@ -83,6 +88,9 @@ export function TradingChart(props: TradingChartProps) {
           background: { color: 'transparent' },
           textColor: '#64748b',
           fontFamily: 'inherit',
+          // Panes stack without titles of their own, so a slightly stronger rule
+          // keeps a six-pane chart readable.
+          panes: { separatorColor: 'rgba(100, 116, 139, 0.4)', separatorHoverColor: 'rgba(37, 99, 235, 0.3)' },
         },
         grid: {
           vertLines: { color: 'rgba(148, 163, 184, 0.22)' },
@@ -113,15 +121,22 @@ export function TradingChart(props: TradingChartProps) {
         close: bar.close,
       })))
       let pane = 1
+      const overlayLabels: string[] = []
+      const paneLabels: { readonly index: number; readonly text: string; readonly color: string }[] = []
+      const caption = (index: number, indicator: ResolvedIndicator): void => {
+        paneLabels.push({ index, text: props.labelOf(indicator), color: INDICATOR_COLORS[indicator.id] })
+      }
       for (const indicator of props.indicators) {
         switch (indicator.id) {
           case 'sma':
             chart.addSeries(charts.LineSeries, { color: COLORS.sma, lineWidth: 2, priceLineVisible: false }, 0)
               .setData(lineData(sma(props.bars, indicatorValue(indicator, 'period'))))
+            overlayLabels.push(props.labelOf(indicator))
             break
           case 'ema':
             chart.addSeries(charts.LineSeries, { color: COLORS.ema, lineWidth: 2, priceLineVisible: false }, 0)
               .setData(lineData(ema(props.bars, indicatorValue(indicator, 'period'))))
+            overlayLabels.push(props.labelOf(indicator))
             break
           case 'boll': {
             const bands = bollinger(props.bars, indicatorValue(indicator, 'period'), indicatorValue(indicator, 'multiplier'))
@@ -131,6 +146,7 @@ export function TradingChart(props: TradingChartProps) {
               .setData(lineData(bands.upper))
             chart.addSeries(charts.LineSeries, { color: COLORS.band, lineWidth: 1, priceLineVisible: false }, 0)
               .setData(lineData(bands.lower))
+            overlayLabels.push(props.labelOf(indicator))
             break
           }
           case 'volume':
@@ -143,11 +159,13 @@ export function TradingChart(props: TradingChartProps) {
               value: bar.volume,
               color: bar.close >= bar.open ? 'rgba(22, 163, 74, 0.65)' : 'rgba(220, 38, 38, 0.65)',
             })))
+            caption(pane, indicator)
             pane += 1
             break
           case 'rsi':
             chart.addSeries(charts.LineSeries, { color: COLORS.rsi, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(rsi(props.bars, indicatorValue(indicator, 'period'))))
+            caption(pane, indicator)
             pane += 1
             break
           case 'macd': {
@@ -156,6 +174,7 @@ export function TradingChart(props: TradingChartProps) {
               .setData(lineData(values_.macd))
             chart.addSeries(charts.LineSeries, { color: COLORS.signal, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(values_.signal))
+            caption(pane, indicator)
             pane += 1
             break
           }
@@ -167,16 +186,19 @@ export function TradingChart(props: TradingChartProps) {
               .setData(lineData(values_.d))
             chart.addSeries(charts.LineSeries, { color: COLORS.j, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(values_.j))
+            caption(pane, indicator)
             pane += 1
             break
           }
           case 'sar':
             chart.addSeries(charts.LineSeries, { color: COLORS.sar, lineWidth: 1, lineStyle: 2, priceLineVisible: false }, 0)
               .setData(lineData(sar(props.bars, indicatorValue(indicator, 'step'), indicatorValue(indicator, 'maxStep'))))
+            overlayLabels.push(props.labelOf(indicator))
             break
           case 'vwap':
             chart.addSeries(charts.LineSeries, { color: COLORS.vwap, lineWidth: 2, priceLineVisible: false }, 0)
               .setData(lineData(vwap(props.bars)))
+            overlayLabels.push(props.labelOf(indicator))
             break
           case 'td': {
             // TD Sequential marks the price pane: numbers above sell setups and
@@ -191,31 +213,37 @@ export function TradingChart(props: TradingChartProps) {
               size: count.count >= target ? 1 : 0.6,
             }))
             charts.createSeriesMarkers(candle, markers)
+            overlayLabels.push(props.labelOf(indicator))
             break
           }
           case 'wr':
             chart.addSeries(charts.LineSeries, { color: COLORS.wr, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(wr(props.bars, indicatorValue(indicator, 'period'))))
+            caption(pane, indicator)
             pane += 1
             break
           case 'cci':
             chart.addSeries(charts.LineSeries, { color: COLORS.cci, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(cci(props.bars, indicatorValue(indicator, 'period'))))
+            caption(pane, indicator)
             pane += 1
             break
           case 'bias':
             chart.addSeries(charts.LineSeries, { color: COLORS.bias, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(bias(props.bars, indicatorValue(indicator, 'period'))))
+            caption(pane, indicator)
             pane += 1
             break
           case 'obv':
             chart.addSeries(charts.LineSeries, { color: COLORS.obv, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(obv(props.bars)))
+            caption(pane, indicator)
             pane += 1
             break
           case 'atr':
             chart.addSeries(charts.LineSeries, { color: COLORS.atr, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(atr(props.bars, indicatorValue(indicator, 'period'))))
+            caption(pane, indicator)
             pane += 1
             break
           case 'dmi': {
@@ -226,6 +254,7 @@ export function TradingChart(props: TradingChartProps) {
               .setData(lineData(values_.minusDi))
             chart.addSeries(charts.LineSeries, { color: COLORS.adx, lineWidth: 2, priceLineVisible: false }, pane)
               .setData(lineData(values_.adx))
+            caption(pane, indicator)
             pane += 1
             break
           }
@@ -233,6 +262,33 @@ export function TradingChart(props: TradingChartProps) {
           default: assertNever(indicator.id, 'finance dashboard indicator')
         }
       }
+      if (overlayLabels.length > 0) {
+        paneLabels.push({ index: 0, text: overlayLabels.join(' · '), color: '#475569' })
+      }
+      // Every pane states which indicator it draws, so colour alone never has
+      // to carry the meaning.
+      // Panes other than the price pane expose their element only after the next
+      // layout pass, so the captions attach now and once more on the next frame.
+      const attachCaptions = (): void => {
+        if (disposed || container.current === null) return
+        for (const label of paneLabels) {
+          const element = chart.panes()[label.index]?.getHTMLElement()
+          if (element === null || element === undefined) continue
+          if (element.querySelector('[data-pane-label]') !== null) continue
+          const caption = document.createElement('div')
+          caption.className = PANE_LABEL_CLASS
+          caption.dataset.paneLabel = ''
+          caption.textContent = label.text
+          caption.style.color = label.color
+          // The pane element is a static table row, so it needs its own
+          // positioning context before an absolute caption can anchor to it.
+          element.style.position = 'relative'
+          element.append(caption)
+        }
+      }
+      attachCaptions()
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(attachCaptions)
+      else setTimeout(attachCaptions, 0)
       // The price pane carries the candles; indicator panes below need axis room only.
       const panes = chart.panes()
       panes[0]?.setStretchFactor(3)

@@ -189,7 +189,7 @@ const SPEC_BY_ID = new Map<IndicatorId, IndicatorSpec>(INDICATORS.map(spec => [s
 /** Height the price pane keeps for candles, in CSS pixels. */
 const PRICE_PANE_HEIGHT = 260
 /** Height of one indicator pane, in CSS pixels. */
-const INDICATOR_PANE_HEIGHT = 120
+const INDICATOR_PANE_HEIGHT = 150
 /** Shortest chart that still draws the time axis with a readable price pane. */
 const MIN_CHART_HEIGHT = 360
 

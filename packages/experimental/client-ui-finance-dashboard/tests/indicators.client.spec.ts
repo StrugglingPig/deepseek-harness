@@ -48,8 +48,8 @@ describe('finance dashboard indicators', () => {
     const resolved = resolveIndicators(['sma', 'volume', 'rsi'], {})
     expect(indicatorPaneCount(resolved)).toBe(2)
     expect(chartHeight(0)).toBe(360)
-    expect(chartHeight(1)).toBe(380)
-    expect(chartHeight(4)).toBe(740)
+    expect(chartHeight(1)).toBe(410)
+    expect(chartHeight(4)).toBe(860)
   })
 
   it('reads resolved parameters, falling back to the declared default', () => {
