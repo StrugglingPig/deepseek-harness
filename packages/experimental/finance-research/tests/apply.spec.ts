@@ -236,6 +236,16 @@ describe('finance apply', () => {
     })
     expect(macro.isError).toBe(false)
     expect(textOfReport(macro)).toContain('50.5')
+
+    // The A-share report resolves its macro precondition through the same provider.
+    const stockReport = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-report' as never,
+      name: 'finance_stock_research_report',
+      arguments: { provider: 'akshare', symbol: '600519' },
+    })
+    expect(stockReport.isError).toBe(false)
+    expect(textOfReport(stockReport)).toContain('Macro Drivers')
     await ctx.fiber.dispose()
   })
 

@@ -10,6 +10,7 @@ import type { FinanceCredentialResolver } from './auth.ts'
 import { FinanceDataError } from './error.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { exportResearchReport } from './export.ts'
+import type { MacroSeries } from './macro.ts'
 import { buildResearchReport } from './report.ts'
 import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, STOCK_INPUT_PARAMETERS, analysisValue, snapshotValue } from './tool-schemas.ts'
 import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
@@ -361,11 +362,13 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
  * @param ctx - Registrant context carrying the tool registry.
  * @param provider - Stock data provider.
  * @param reportLanguage - Resolves the report language for generated reports.
+ * @param macroContext - Loads the macro series the report quotes as its precondition.
  */
 export function registerStockTools(
   ctx: Context,
   provider: FinanceStockDataProvider,
   reportLanguage: () => ReportLanguage = () => 'en',
+  macroContext: () => Promise<readonly MacroSeries[]> = () => Promise.resolve([]),
 ): void {
   /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
@@ -549,7 +552,8 @@ export function registerStockTools(
         id: 'stock-python',
         load: () => Promise.resolve(snapshot),
       }
-      return reportValue(await buildResearchReport(stockMarketProvider, reportRequest(args), exec.signal, reportLanguage()))
+      const macro = await macroContext()
+      return reportValue(await buildResearchReport(stockMarketProvider, reportRequest(args), exec.signal, reportLanguage(), macro))
     },
   }))
 
@@ -629,7 +633,7 @@ export function registerStockTools(
         const report = await buildResearchReport({
           id: 'stock-python',
           load: () => Promise.resolve(snapshot),
-        }, reportRequest(args), exec.signal, reportLanguage())
+        }, reportRequest(args), exec.signal, reportLanguage(), await macroContext())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,

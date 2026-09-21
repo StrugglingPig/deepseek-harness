@@ -69,52 +69,52 @@ const FORM_PLANS: Readonly<Record<ReportForm, {
   readonly categoryBlocks: boolean
 }>> = {
   flash: {
-    core: ['summary', 'market-snapshot', 'price-action', 'synthesis'],
+    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'synthesis'],
     tail: ['risk-and-limitations'],
     categoryBlocks: false,
   },
   daily: {
-    core: ['summary', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis'],
+    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: false,
   },
   weekly: {
-    core: ['summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
+    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   monthly: {
-    core: ['summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
+    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
     tail: ['scenario-analysis', 'monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   'deep-dive': {
-    core: ['summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
+    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
     tail: ['investor-lenses', 'scenario-analysis', 'strategy-gaps', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   thematic: {
-    core: ['summary', 'research-question', 'market-snapshot', 'price-action', 'synthesis', 'methodology-coverage'],
+    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'synthesis', 'methodology-coverage'],
     tail: ['scenario-analysis', 'catalysts', 'strategy-gaps', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   event: {
-    core: ['summary', 'market-snapshot', 'price-action', 'event-context', 'synthesis'],
+    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'event-context', 'synthesis'],
     tail: ['catalysts', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   earnings: {
-    core: ['summary', 'market-snapshot', 'price-action', 'earnings-review', 'synthesis'],
+    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'earnings-review', 'synthesis'],
     tail: ['catalysts', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   allocation: {
-    core: ['summary', 'research-question', 'market-snapshot', 'price-action', 'synthesis', 'methodology-coverage'],
+    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'synthesis', 'methodology-coverage'],
     tail: ['allocation', 'scenario-analysis', 'investor-lenses', 'strategy-gaps', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   data: {
-    core: ['summary', 'market-snapshot', 'technical-indicators', 'data-requirements'],
+    core: ['summary', 'macro-drivers', 'market-snapshot', 'technical-indicators', 'data-requirements'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: false,
   },

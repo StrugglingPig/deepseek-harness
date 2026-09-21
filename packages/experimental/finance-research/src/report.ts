@@ -351,7 +351,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       }
     }
     case 'macro-drivers':
-      return macroBlock(context, id, ['growth', 'inflation', 'employment', 'consumption', 'investment', 'money-credit', 'fiscal', 'external', 'policy'])
+      return macroBlock(context, id, ['growth', 'inflation', 'employment', 'consumption', 'investment', 'money-credit', 'fiscal', 'external', 'policy', 'market'])
     case 'rates-credit':
       return macroBlock(context, id, ['market', 'money-credit', 'policy', 'fiscal'])
     default:

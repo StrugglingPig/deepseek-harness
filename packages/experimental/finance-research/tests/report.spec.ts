@@ -8,7 +8,7 @@ describe('finance research report', () => {
     expect(report.symbol).toBe('AAPL')
     expect(report.reportType).toBe('equity-deep-dive')
     expect(report.sections.map(section => section.title)).toEqual([
-      'Summary', 'Research Question', 'Market Snapshot', 'Price Action', 'Technical Indicators',
+      'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action', 'Technical Indicators',
       'Multi-Indicator Synthesis', 'Methodology Coverage', 'Valuation Framework', 'Financial Quality',
       'Competitive Position', 'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
     ])
@@ -18,6 +18,32 @@ describe('finance research report', () => {
     expect(report.html).toContain('id="price-chart"')
     expect(report.markdown).toContain('synthetic fixture')
     expect(report.evidence[0]?.url).toBe('fixture://AAPL')
+  })
+
+  it('carries the loaded macro precondition into a crypto report', async () => {
+    const macro = [{
+      indicator: 'us-fed-funds-rate',
+      name: 'US effective federal funds rate',
+      nameZh: '美国联邦基金有效利率',
+      category: 'policy' as const,
+      country: 'us' as const,
+      unit: '%',
+      frequency: 'daily' as const,
+      timing: 'coincident' as const,
+      reading: 'The realised policy rate.',
+      affectedAssets: ['USTs'],
+      source: 'fred' as const,
+      observations: [{ date: '2026-09-17', value: 3.88 }],
+      latest: { date: '2026-09-17', value: 3.88 },
+      previous: undefined,
+      retrievedAt: '2026-09-21T00:00:00.000Z',
+    }]
+    const report = await buildResearchReport(fixtureProvider, { symbol: 'BTC' }, undefined, 'en', macro)
+    expect(report.reportType).toBe('crypto-deep-dive')
+    expect(report.sections.map(section => section.title)).toContain('Macro Drivers')
+    const block = report.sections.find(section => section.title === 'Macro Drivers')
+    expect(block?.content).toContain('US effective federal funds rate: 3.88 %')
+    expect(block?.content).toContain('source fred')
   })
 
   it('builds a crypto report with a question and horizon', async () => {
@@ -89,7 +115,7 @@ describe('finance research report', () => {
     const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'zh')
     expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
-      '摘要', '研究问题', '行情快照', '价格行为', '技术指标', '多指标综合', '方法论覆盖',
+      '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为', '技术指标', '多指标综合', '方法论覆盖',
       '估值框架', '财务质量', '竞争格局', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')

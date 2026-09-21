@@ -30,6 +30,12 @@ describe('finance report types', () => {
     }
   })
 
+  it('gives every report type the macro precondition block', () => {
+    for (const type of REPORT_TYPES) {
+      expect(type.sections).toContain('macro-drivers')
+    }
+  })
+
   it('renders every report type with its own section plan', async () => {
     for (const type of REPORT_TYPES) {
       const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL', reportType: type.id })

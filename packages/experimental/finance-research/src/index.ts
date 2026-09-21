@@ -424,7 +424,7 @@ export function registerFinanceTools(
         render: (_args, value) => [{ type: 'text', text: `Report exported:\n- Markdown: ${value.markdown_path}\n- HTML: ${value.html_path}` }],
       },
       async execute(args, exec) {
-        const report = await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage())
+        const report = await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(), await macroContext())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,
@@ -1208,7 +1208,7 @@ export function apply(ctx: Context, config: Config): void {
         : currentSettings.enableIfind,
       ifindTransport: () => currentSettings.ifindTransport,
     })
-    registerStockTools(ctx, stockProvider, reportLanguage)
+    registerStockTools(ctx, stockProvider, reportLanguage, () => loadMacroContext(macroProvider))
   })
 
   ctx.inject(['settings'], (settingsCtx) => {
