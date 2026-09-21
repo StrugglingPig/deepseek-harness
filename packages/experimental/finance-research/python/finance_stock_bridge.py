@@ -194,7 +194,7 @@ def rows_from_frame(frame) -> list[dict]:
     return []
 
 
-MACRO_DATE_KEYS = ("日期", "时间", "月份", "date", "time", "年份")
+MACRO_DATE_KEYS = ("日期", "时间", "月份", "TRADE_DATE", "trade_date", "date", "time", "年份")
 MACRO_VALUE_KEYS = ("今值", "现值", "数值", "值", "value", "close", "收盘价")
 MACRO_FUNCTION_PATTERN = re.compile(r"^macro_[a-z0-9_]+$")
 
@@ -207,8 +207,16 @@ def normalize_macro_date(value):
     text = str(value).strip()
     if text == "":
         return None
-    match = re.fullmatch(r"(\d{4})年(\d{1,2})月(?:份)?", text)
+    match = re.fullmatch(r"(\d{4})年第([1-4])-([1-4])季度", text)
     if match:
+        return f"{match.group(1)}-H{1 if int(match.group(3)) <= 2 else 2}"
+    match = re.fullmatch(r"(\d{4})年第([1-4])季度", text)
+    if match:
+        return f"{match.group(1)}-Q{match.group(2)}"
+    match = re.fullmatch(r"(\d{4})年(\d{1,2})月(?:份)?(\d{1,2})?日?", text)
+    if match:
+        if match.group(3) is not None:
+            return f"{match.group(1)}-{int(match.group(2)):02d}-{int(match.group(3)):02d}"
         return f"{match.group(1)}-{int(match.group(2)):02d}"
     match = re.fullmatch(r"(\d{4})[-/](\d{1,2})", text)
     if match:

@@ -22,7 +22,7 @@ The package reads macro series from four upstreams and exposes them through `fin
 | World Bank | Annual cross-country and global panels (GDP growth, inflation, unemployment, debt, current account, trade) | None |
 | IMF DataMapper | Annual global panel, including the `WEOWORLD` aggregate | None |
 
-`finance_macro_catalog` returns the indicator id, unit, frequency, cycle timing, transmission reading, affected assets, and the upstreams bound to each series. `finance_macro_snapshot` resolves a request across those bindings: `source: auto` walks FRED, then AKShare, then the global panels, records why each one failed, and returns the series that did load beside a per-indicator `errors` list. Observations stay upstream-as-published — quarterly and annual series are not resampled.
+`finance_macro_catalog` returns the indicator id, unit, frequency, cycle timing, transmission reading, affected assets, and the upstreams bound to each series. `finance_macro_snapshot` resolves a request across those bindings: `source: auto` walks FRED, then AKShare, then the global panels, records why each one failed, and returns the series that did load beside a per-indicator `errors` list. Observations stay upstream-as-published — quarterly and annual series are not resampled. A binding that reports a different measure than the catalog's primary one (for example an event table publishing a monthly change where FRED publishes an index level) declares its own unit, and IMF values for years beyond the current one carry `projection: true` so a forecast is never read as an outcome.
 
 ## Table of Contents
 

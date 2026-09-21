@@ -7,7 +7,7 @@ import {
   MACRO_CATEGORIES, MACRO_COUNTRIES, MACRO_SOURCES, macroIndicatorById, macroIndicatorsMatching, macroSourcesOf,
   type MacroSourceId,
 } from './macro-catalog.ts'
-import type { FinanceMacroDataProvider, MacroSeries } from './macro.ts'
+import type { FinanceMacroDataProvider, MacroObservation, MacroSeries } from './macro.ts'
 
 /** Maximum catalog series one snapshot call may fan out to. */
 const MAX_MACRO_INDICATORS = 12
@@ -16,6 +16,7 @@ const MAX_MACRO_INDICATORS = 12
 interface MacroObservationValue {
   readonly date: string
   readonly value: number
+  readonly projection?: boolean
 }
 
 /** One series as returned to the model. */
@@ -30,10 +31,25 @@ interface MacroSeriesValue {
   readonly timing: string
   readonly source: string
   readonly latest: MacroObservationValue
+  /** True when the latest published value is a projection rather than an outcome. */
+  readonly latest_projection: boolean
   readonly previous?: MacroObservationValue
   readonly change?: number
   readonly change_percent?: number
   readonly observations: MacroObservationValue[]
+}
+
+/**
+ * Project one observation into the tool payload.
+ * @param observation - Normalized observation.
+ * @returns The model-facing value.
+ */
+function observationValue(observation: MacroObservation): MacroObservationValue {
+  return {
+    date: observation.date,
+    value: observation.value,
+    ...observation.projection === true ? { projection: true } : {},
+  }
 }
 
 /**
@@ -57,11 +73,12 @@ export function macroSeriesValue(series: MacroSeries): MacroSeriesValue {
     frequency: series.frequency,
     timing: series.timing,
     source: series.source,
-    latest: { date: series.latest.date, value: series.latest.value },
-    ...previous === undefined ? {} : { previous: { date: previous.date, value: previous.value } },
+    latest: observationValue(series.latest),
+    latest_projection: series.latest.projection === true,
+    ...previous === undefined ? {} : { previous: observationValue(previous) },
     ...change === undefined ? {} : { change },
     ...changePercent === undefined ? {} : { change_percent: changePercent },
-    observations: series.observations.map(observation => ({ date: observation.date, value: observation.value })),
+    observations: series.observations.map(observation => observationValue(observation)),
   }
 }
 
@@ -72,6 +89,7 @@ const OBSERVATION_SCHEMA = {
   properties: {
     date: { type: 'string', required: true },
     value: { type: 'number', required: true },
+    projection: { type: 'boolean' },
   },
 } as const
 
@@ -90,6 +108,7 @@ const SERIES_SCHEMA = {
     timing: { type: 'string', required: true },
     source: { type: 'string', required: true },
     latest: { ...OBSERVATION_SCHEMA, required: true },
+    latest_projection: { type: 'boolean', required: true },
     previous: OBSERVATION_SCHEMA,
     change: { type: 'number' },
     change_percent: { type: 'number' },

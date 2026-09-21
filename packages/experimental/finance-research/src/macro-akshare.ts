@@ -23,6 +23,11 @@ export class AkshareMacroLoader implements MacroSeriesLoader {
     private readonly enabled: () => boolean,
   ) {}
 
+  /** @param query - Catalog request whose binding may override the catalog unit. */
+  unit(query: MacroSeriesQuery): string | undefined {
+    return query.indicator.sources.akshare?.unit
+  }
+
   /**
    * Load one AKShare macro series.
    * @param query - Catalog request whose binding names the AKShare function.
@@ -41,6 +46,7 @@ export class AkshareMacroLoader implements MacroSeriesLoader {
       action: 'macro_series',
       function: binding.function,
       ...binding.params === undefined ? {} : { params: binding.params },
+      ...binding.column === undefined ? {} : { column: binding.column },
     }, signal))
     if (data.observations.length === 0) {
       throw new FinanceDataError(`${binding.function} returned no usable observations`, 'MACRO_EMPTY')

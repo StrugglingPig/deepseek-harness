@@ -103,6 +103,29 @@ describe('macro normalization', () => {
 })
 
 describe('macro provider routing', () => {
+  it('lets the serving loader override the catalog unit', async () => {
+    const override: MacroSeriesLoader = {
+      id: 'akshare',
+      unit: () => '% (MoM)',
+      async load() { return [{ date: '2026-01', value: 0.3 }] },
+    }
+    const matching: MacroSeriesLoader = {
+      id: 'akshare',
+      unit: () => cpi.unit,
+      async load() { return [{ date: '2026-01', value: 1 }] },
+    }
+    const provider = new SettingsFinanceMacroDataProvider([loader('akshare', [{ date: '2026-01', value: 2 }])])
+    // No loader override: the catalog unit stands.
+    await expect(provider.load(query(pmi))).resolves.toMatchObject({ unit: 'index' })
+
+    const overridden = new SettingsFinanceMacroDataProvider([override])
+    await expect(overridden.load(query(pmi, { source: 'akshare' }))).resolves.toMatchObject({ unit: '% (MoM)' })
+
+    // A loader that agrees with the catalog leaves the catalog unit in place.
+    const same = new SettingsFinanceMacroDataProvider([matching])
+    await expect(same.load(query(cpi, { source: 'akshare' }))).resolves.toMatchObject({ unit: 'index' })
+  })
+
   it('serves an explicit source and rejects an unbound one', async () => {
     const provider = new SettingsFinanceMacroDataProvider([loader('akshare', [{ date: '2026-01', value: 2 }])])
     await expect(provider.load(query(pmi, { source: 'akshare' }))).resolves.toMatchObject({
@@ -287,10 +310,21 @@ describe('AKShare macro loader', () => {
     await expect(new AkshareMacroLoader(bridge, () => true).load(query(pmi))).rejects.toMatchObject({ code: 'MACRO_EMPTY' })
   })
 
-  it('passes catalog parameters through to the bridge', async () => {
+  it('marks IMF projections beyond the current year and leaves outcomes unflagged', async () => {
+    const imf = new ImfMacroLoader(
+      transport({ values: { NGDP_RPCH: { USA: { 2025: 2.1, 2030: 1.8 } } } }),
+      () => new Date(Date.UTC(2026, 8, 21)),
+    )
+    await expect(imf.load(query(postGrowth()))).resolves.toEqual([
+      { date: '2025', value: 2.1 },
+      { date: '2030', value: 1.8, projection: true },
+    ])
+  })
+
+  it('passes catalog parameters and the value column through to the bridge', async () => {
     const withParams: MacroIndicator = {
       ...pmi,
-      sources: { akshare: { function: 'macro_china_pmi', params: { year: '2026' } } },
+      sources: { akshare: { function: 'macro_china_pmi', params: { year: '2026' }, column: '制造业-指数' } },
     }
     const seen: unknown[] = []
     const loaderUnderTest = new AkshareMacroLoader({
@@ -300,6 +334,11 @@ describe('AKShare macro loader', () => {
       },
     }, () => true)
     await loaderUnderTest.load(query(withParams))
-    expect(seen[0]).toEqual({ action: 'macro_series', function: 'macro_china_pmi', params: { year: '2026' } })
+    expect(seen[0]).toEqual({
+      action: 'macro_series',
+      function: 'macro_china_pmi',
+      params: { year: '2026' },
+      column: '制造业-指数',
+    })
   })
 })

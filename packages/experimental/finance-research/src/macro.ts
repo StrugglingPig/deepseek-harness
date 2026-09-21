@@ -8,6 +8,8 @@ export interface MacroObservation {
   /** Period the value describes, as published upstream. */
   readonly date: string
   readonly value: number
+  /** Set when the upstream published the value as a projection rather than an outcome. */
+  readonly projection?: boolean
 }
 
 /** One macro series request. */
@@ -44,6 +46,13 @@ export interface MacroSeries {
 /** Loader for one upstream. */
 export interface MacroSeriesLoader {
   readonly id: MacroSourceId
+  /**
+   * Unit this upstream actually reports for one indicator, when it differs from
+   * the catalog's primary unit.
+   * @param query - Catalog request being resolved.
+   * @returns The binding unit, or undefined to use the catalog unit.
+   */
+  unit?(query: MacroSeriesQuery): string | undefined
   /**
    * Load raw normalized observations for one catalog binding.
    * @param query - Catalog entry, country, and range.
@@ -174,6 +183,18 @@ export class SettingsFinanceMacroDataProvider implements FinanceMacroDataProvide
     return loader
   }
 
+  /** Build one series, letting the serving loader override the catalog unit. */
+  private series(
+    query: MacroSeriesQuery,
+    source: MacroSourceId,
+    loader: MacroSeriesLoader,
+    observations: readonly MacroObservation[],
+  ): MacroSeries {
+    const series = buildMacroSeries(query, source, observations, this.now)
+    const unit = loader.unit?.(query)
+    return unit === undefined || unit === series.unit ? series : { ...series, unit }
+  }
+
   /**
    * Load one catalog series.
    * @param query - Catalog entry, country, source, and range.
@@ -191,7 +212,8 @@ export class SettingsFinanceMacroDataProvider implements FinanceMacroDataProvide
         throw new FinanceDataError(`${query.indicator.id} is not bound to ${requested}`, 'MACRO_SOURCE_UNAVAILABLE')
       }
       const loader = this.loaderFor(requested)
-      return buildMacroSeries(query, requested, normalizeObservations(await loader.load(query, signal), query), this.now)
+      const observations = normalizeObservations(await loader.load(query, signal), query)
+      return this.series(query, requested, loader, observations)
     }
     const failures: string[] = []
     for (const loader of this.orderedLoaders()) {
@@ -199,7 +221,7 @@ export class SettingsFinanceMacroDataProvider implements FinanceMacroDataProvide
       const source = loader.id
       try {
         const observations = await loader.load(query, signal)
-        return buildMacroSeries(query, source, normalizeObservations(observations, query), this.now)
+        return this.series(query, source, loader, normalizeObservations(observations, query))
       } catch (error: unknown) {
         if (signal?.aborted === true) throw new FinanceDataError('macro request aborted', 'ABORTED')
         // `auto` is a preference walk: a disabled, unconfigured, or failing

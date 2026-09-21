@@ -156,6 +156,23 @@ describe('finance_macro_snapshot', () => {
     expect(payload.errors[0]?.message).toContain('upstream is down')
   })
 
+  it('flags a projected latest value and carries the flag on its observation', async () => {
+    const projected = await bench({
+      async load(query) {
+        const series = seriesFor(query.indicator, [1, 2])
+        const latest = { ...series.latest, projection: true }
+        return { ...series, observations: [...series.observations.slice(0, 1), latest], latest }
+      },
+    })
+    const result = await execute(projected.ctx, 'finance_macro_snapshot', { indicators: ['us-cpi'] })
+    const payload = JSON.parse(textOf(result)) as {
+      series: { latest_projection: boolean; latest: { projection?: boolean }; observations: { projection?: boolean }[] }[]
+    }
+    expect(payload.series[0]?.latest_projection).toBe(true)
+    expect(payload.series[0]?.latest.projection).toBe(true)
+    expect(payload.series[0]?.observations[0]?.projection).toBeUndefined()
+  })
+
   it('omits the change fields when a series has a single observation at a zero baseline', async () => {
     const { ctx } = await bench()
     const single = await bench({
@@ -163,6 +180,7 @@ describe('finance_macro_snapshot', () => {
     })
     const result = await execute(single.ctx, 'finance_macro_snapshot', { indicators: ['us-cpi'] })
     const payload = JSON.parse(textOf(result)) as { series: Record<string, unknown>[] }
+    expect(payload.series[0]?.latest_projection).toBe(false)
     expect(payload.series[0]?.previous).toBeUndefined()
     expect(payload.series[0]?.change).toBeUndefined()
     expect(payload.series[0]?.change_percent).toBeUndefined()

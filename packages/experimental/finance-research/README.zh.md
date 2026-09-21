@@ -22,7 +22,7 @@ English | [中文](README.md)
 | World Bank | 年度跨国与全球面板（GDP 增速、通胀、失业、债务、经常账户、贸易） | 无需凭据 |
 | IMF DataMapper | 年度全球面板，含 `WEOWORLD` 全球合计 | 无需凭据 |
 
-`finance_macro_catalog` 返回指标 id、单位、频率、周期属性（领先/同步/滞后）、传导解读、影响资产，以及该序列可用的上游绑定。`finance_macro_snapshot` 按这些绑定解析请求：`source: auto` 依次尝试 FRED、AKShare、全球面板，记录每一个失败原因，并在返回结果中把成功加载的序列与逐指标的 `errors` 一并给出。观测值保持上游原始口径——季度与年度序列不会被重采样。
+`finance_macro_catalog` 返回指标 id、单位、频率、周期属性（领先/同步/滞后）、传导解读、影响资产，以及该序列可用的上游绑定。`finance_macro_snapshot` 按这些绑定解析请求：`source: auto` 依次尝试 FRED、AKShare、全球面板，记录每一个失败原因，并在返回结果中把成功加载的序列与逐指标的 `errors` 一并给出。观测值保持上游原始口径——季度与年度序列不会被重采样。当某个绑定的口径与目录主口径不同时（例如事件表给出月度变化、FRED 给出指数水平），该绑定会声明自己的单位；IMF 中晚于当前年份的值会带 `projection: true`，避免把预测当成已发生的事实。
 
 ## 目录
 

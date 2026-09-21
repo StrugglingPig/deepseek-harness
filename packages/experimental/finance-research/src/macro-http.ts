@@ -140,8 +140,14 @@ export class WorldBankMacroLoader implements MacroSeriesLoader {
 export class ImfMacroLoader implements MacroSeriesLoader {
   readonly id = 'imf' as const
 
-  /** @param transport - Shared HTTP transport. */
-  constructor(private readonly transport: MacroHttpTransport) {}
+  /**
+   * @param transport - Shared HTTP transport.
+   * @param now - Clock deciding which published years are projections.
+   */
+  constructor(
+    private readonly transport: MacroHttpTransport,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   /**
    * Load one IMF DataMapper indicator for one country.
@@ -165,10 +171,18 @@ export class ImfMacroLoader implements MacroSeriesLoader {
     if (years === undefined) {
       throw new FinanceDataError(`IMF returned no ${binding.country} series for ${binding.indicator}`, 'MACRO_SOURCE_FAILED')
     }
+    // The DataMapper panel mixes outcomes with WEO projections: mark every year
+    // after the current one so a report cannot quote a forecast as an outcome.
+    const currentYear = this.now().getUTCFullYear()
     return Object.entries(years).flatMap(([year, value]) => {
       const parsed = finite(value)
       if (parsed === undefined) return []
-      return [{ date: year, value: parsed }]
+      const numericYear = Number(year)
+      return [{
+        date: year,
+        value: parsed,
+        ...Number.isFinite(numericYear) && numericYear > currentYear ? { projection: true } : {},
+      }]
     })
   }
 }

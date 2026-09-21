@@ -33,7 +33,18 @@ export type MacroTiming = 'leading' | 'coincident' | 'lagging'
 /** One upstream binding for a catalog indicator. */
 export interface MacroSourceBindings {
   /** AKShare macro function plus any fixed arguments the bridge must pass. */
-  readonly akshare?: { readonly function: string; readonly params?: Readonly<Record<string, string>> }
+  readonly akshare?: {
+    readonly function: string
+    readonly params?: Readonly<Record<string, string>>
+    /** Value column to read when the function publishes several series. */
+    readonly column?: string
+    /**
+     * Unit this binding actually reports. AKShare's event tables publish release
+     * values (a monthly change, a headline count, a trade balance in billions)
+     * under an indicator whose other bindings report a level or an index.
+     */
+    readonly unit?: string
+  }
   /** FRED series id. */
   readonly fred?: { readonly seriesId: string }
   /** World Bank indicator id and ISO3 country code. */
@@ -133,19 +144,19 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('cn-cpi', 'China CPI (YoY)', '中国 CPI 同比', 'inflation', 'cn', '%', 'monthly', 'lagging',
     'Food and energy dominate the headline; services CPI is the demand signal worth separating.',
     ['CNY', 'CN bonds'],
-    { akshare: { function: 'macro_china_cpi_yearly' }, worldbank: { indicator: 'FP.CPI.TOTL.ZG', country: 'CHN' }, imf: { indicator: 'PCPIPCH', country: 'CHN' } }),
+    { akshare: { function: 'macro_china_cpi', column: '全国-同比增长' }, worldbank: { indicator: 'FP.CPI.TOTL.ZG', country: 'CHN' }, imf: { indicator: 'PCPIPCH', country: 'CHN' } }),
   indicator('cn-ppi', 'China PPI (YoY)', '中国 PPI 同比', 'inflation', 'cn', '%', 'monthly', 'leading',
     'Factory-gate prices lead corporate margins and commodity demand; negative PPI signals industrial deflation.',
     ['industrial metals', 'CN cyclicals'],
-    { akshare: { function: 'macro_china_ppi_yearly' } }),
+    { akshare: { function: 'macro_china_ppi', column: '当月同比增长' } }),
   indicator('us-cpi', 'US CPI', '美国 CPI', 'inflation', 'us', 'index', 'monthly', 'lagging',
     'The print that moves the front end of the curve; shelter and services stickiness decide the Fed reaction function.',
     ['USTs', 'USD', 'US equities'],
-    { fred: { seriesId: 'CPIAUCSL' }, akshare: { function: 'macro_usa_cpi_yoy' }, worldbank: { indicator: 'FP.CPI.TOTL.ZG', country: 'USA' }, imf: { indicator: 'PCPIPCH', country: 'USA' } }),
+    { fred: { seriesId: 'CPIAUCSL' }, akshare: { function: 'macro_usa_cpi_yoy', unit: '% (YoY)' }, worldbank: { indicator: 'FP.CPI.TOTL.ZG', country: 'USA' }, imf: { indicator: 'PCPIPCH', country: 'USA' } }),
   indicator('us-core-cpi', 'US core CPI', '美国核心 CPI', 'inflation', 'us', 'index', 'monthly', 'lagging',
     'Strips food and energy to expose underlying services inflation.',
     ['USTs', 'USD'],
-    { fred: { seriesId: 'CPILFESL' }, akshare: { function: 'macro_usa_core_cpi_monthly' } }),
+    { fred: { seriesId: 'CPILFESL' }, akshare: { function: 'macro_usa_core_cpi_monthly', unit: '% (MoM)' } }),
   indicator('us-pce', 'US PCE price index', '美国 PCE 物价指数', 'inflation', 'us', 'index', 'monthly', 'lagging',
     'The Fed policy target family; broader coverage than CPI.',
     ['USTs', 'USD'],
@@ -153,11 +164,11 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('us-core-pce', 'US core PCE price index', '美国核心 PCE 物价指数', 'inflation', 'us', 'index', 'monthly', 'lagging',
     'The single most important inflation series for the Fed reaction function.',
     ['USTs', 'USD', 'US equities'],
-    { fred: { seriesId: 'PCEPILFE' }, akshare: { function: 'macro_usa_core_pce_price' } }),
+    { fred: { seriesId: 'PCEPILFE' }, akshare: { function: 'macro_usa_core_pce_price', unit: '% (YoY)' } }),
   indicator('us-ppi', 'US PPI (all commodities)', '美国 PPI', 'inflation', 'us', 'index', 'monthly', 'leading',
     'Pipeline prices lead consumer inflation and signal margin pressure.',
     ['US equities', 'USTs'],
-    { fred: { seriesId: 'PPIACO' }, akshare: { function: 'macro_usa_ppi' } }),
+    { fred: { seriesId: 'PPIACO' }, akshare: { function: 'macro_usa_ppi', unit: '% (MoM)' } }),
   indicator('global-inflation', 'World inflation (annual %)', '全球通胀率', 'inflation', 'global', '%', 'annual', 'lagging',
     'The global inflation baseline for cross-country real-rate comparison.',
     ['global rates', 'EM assets'],
@@ -167,11 +178,11 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('us-unemployment-rate', 'US unemployment rate', '美国失业率', 'employment', 'us', '%', 'monthly', 'lagging',
     'The demand-side anchor: a rising rate pulls forward easing expectations.',
     ['USTs', 'USD', 'US equities'],
-    { fred: { seriesId: 'UNRATE' }, akshare: { function: 'macro_usa_unemployment_rate' }, worldbank: { indicator: 'SL.UEM.TOTL.ZS', country: 'USA' }, imf: { indicator: 'LUR', country: 'USA' } }),
+    { fred: { seriesId: 'UNRATE' }, akshare: { function: 'macro_usa_unemployment_rate', unit: '%' }, worldbank: { indicator: 'SL.UEM.TOTL.ZS', country: 'USA' }, imf: { indicator: 'LUR', country: 'USA' } }),
   indicator('us-nonfarm-payrolls', 'US nonfarm payrolls', '美国非农就业人数', 'employment', 'us', 'thousand persons', 'monthly', 'coincident',
     'The headline labour print; the revision and the wage component usually matter more than the first estimate.',
     ['USTs', 'USD', 'US equities'],
-    { fred: { seriesId: 'PAYEMS' }, akshare: { function: 'macro_usa_non_farm' } }),
+    { fred: { seriesId: 'PAYEMS' }, akshare: { function: 'macro_usa_non_farm', unit: 'thousand persons (change)' } }),
   indicator('us-adp-employment', 'US ADP employment change', '美国 ADP 就业人数', 'employment', 'us', 'thousand persons', 'monthly', 'leading',
     'A private-sector preview that leads the official payroll print.',
     ['USTs', 'USD'],
@@ -193,11 +204,11 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('us-retail-sales', 'US retail sales', '美国零售销售', 'consumption', 'us', 'M USD', 'monthly', 'coincident',
     'Consumer resilience feeds services inflation and the growth nowcast.',
     ['US consumer equities', 'USTs'],
-    { fred: { seriesId: 'RSAFS' }, akshare: { function: 'macro_usa_retail_sales' } }),
+    { fred: { seriesId: 'RSAFS' }, akshare: { function: 'macro_usa_retail_sales', unit: '% (MoM)' } }),
   indicator('us-real-consumer-spending', 'US real consumer spending', '美国实际消费支出', 'consumption', 'us', 'B USD', 'monthly', 'coincident',
     'Inflation-adjusted consumption separates volume growth from price effects.',
     ['US equities'],
-    { akshare: { function: 'macro_usa_real_consumer_spending' } }),
+    { akshare: { function: 'macro_usa_real_consumer_spending', unit: '% (MoM)' } }),
   indicator('us-consumer-sentiment', 'US consumer sentiment (Michigan)', '美国密歇根消费者信心指数', 'consumption', 'us', 'index', 'monthly', 'leading',
     'Sentiment and inflation expectations lead spending and the Fed narrative.',
     ['US equities', 'USTs'],
@@ -219,7 +230,11 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('us-housing-starts', 'US housing starts', '美国新屋开工', 'investment', 'us', 'thousand units', 'monthly', 'leading',
     'Rate-sensitive construction leads the US investment cycle.',
     ['US homebuilders', 'USTs'],
-    { fred: { seriesId: 'HOUST' }, akshare: { function: 'macro_usa_building_permits' } }),
+    { fred: { seriesId: 'HOUST' } }),
+  indicator('us-building-permits', 'US building permits', '美国营建许可', 'investment', 'us', 'thousand units', 'monthly', 'leading',
+    'Permits lead starts and are the least rate-sensitive edge of the housing pipeline.',
+    ['US homebuilders', 'rates'],
+    { fred: { seriesId: 'PERMIT' }, akshare: { function: 'macro_usa_building_permits', unit: 'thousand units' } }),
 
   // Money and credit
   indicator('cn-money-supply', 'China money supply (M0/M1/M2)', '中国货币供应量', 'money-credit', 'cn', '100M CNY', 'monthly', 'coincident',
@@ -229,7 +244,7 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('cn-m2', 'China M2 (YoY)', '中国 M2 同比', 'money-credit', 'cn', '%', 'monthly', 'coincident',
     'The broad money baseline; its spread over nominal GDP frames financial conditions.',
     ['CN equities', 'CN bonds'],
-    { akshare: { function: 'macro_china_m2_yearly' } }),
+    { akshare: { function: 'macro_china_money_supply', column: '货币和准货币(M2)-同比增长' } }),
   indicator('cn-social-financing', 'China total social financing', '中国社会融资规模', 'money-credit', 'cn', '100M CNY', 'monthly', 'coincident',
     'The widest credit measure and the best single read on Chinese liquidity transmission.',
     ['CN equities', 'industrial metals', 'CNY'],
@@ -251,7 +266,7 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('cn-policy-rate', 'China policy interest rate', '中国政策利率（LPR/MLF）', 'policy', 'cn', '%', 'monthly', 'coincident',
     'The administered price of credit; moves signal the easing or tightening stance.',
     ['CN bonds', 'CNY', 'CN equities'],
-    { akshare: { function: 'macro_bank_china_interest_rate' } }),
+    { akshare: { function: 'macro_china_lpr', column: 'LPR1Y' } }),
   indicator('cn-reserve-requirement', 'China reserve requirement ratio', '中国存款准备金率', 'policy', 'cn', '%', 'monthly', 'coincident',
     'Quantity easing tool; cuts signal the liquidity stance before activity data turns.',
     ['CN equities', 'CN bonds'],
@@ -277,7 +292,9 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('cn-government-debt', 'China central government debt (% of GDP)', '中国政府债务占 GDP', 'fiscal', 'cn', '%', 'annual', 'lagging',
     'The formal debt ratio; augment with the leverage ratio for the full picture.',
     ['CN bonds', 'CNY'],
-    { worldbank: { indicator: 'GC.DOD.TOTL.GD.ZS', country: 'CHN' }, imf: { indicator: 'GGXWDG_NGDP', country: 'CHN' } }),
+    // The World Bank publishes no Chinese central-government debt rows (all null), so this
+    // series is bound to the IMF panel only.
+    { imf: { indicator: 'GGXWDG_NGDP', country: 'CHN' } }),
   indicator('global-government-debt', 'World central government debt (% of GDP)', '全球政府债务占 GDP', 'fiscal', 'global', '%', 'annual', 'lagging',
     'Cross-country fiscal space comparison.',
     ['global rates'],
@@ -303,11 +320,11 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
   indicator('us-trade-balance', 'US goods and services trade balance', '美国贸易差额', 'external', 'us', 'M USD', 'monthly', 'coincident',
     'The trade gap feeds net exports and the dollar narrative.',
     ['USD', 'USTs'],
-    { fred: { seriesId: 'BOPGSTB' }, akshare: { function: 'macro_usa_trade_balance' } }),
+    { fred: { seriesId: 'BOPGSTB' }, akshare: { function: 'macro_usa_trade_balance', unit: 'USD billion' } }),
   indicator('global-current-account', 'World current account balance (% of GDP)', '全球经常账户占 GDP', 'external', 'global', '%', 'annual', 'lagging',
     'Global imbalances frame capital flows and currency pressure.',
     ['global rates', 'EM assets'],
-    { worldbank: { indicator: 'BN.CAB.XOKA.GD.ZS', country: 'WLD' }, imf: { indicator: 'BCA_NGDPD', country: 'WEOWORLD' } }),
+    { imf: { indicator: 'BCA_NGDPD', country: 'WEOWORLD' } }),
   indicator('global-trade-openness', 'World trade (% of GDP)', '全球贸易占 GDP', 'external', 'global', '%', 'annual', 'lagging',
     'Trade intensity tracks globalisation and supply-chain regime.',
     ['global equities', 'shipping'],
