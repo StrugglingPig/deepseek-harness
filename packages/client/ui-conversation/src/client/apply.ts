@@ -190,7 +190,13 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         return candidate !== undefined && tab.id === candidate.id && tab.label === candidate.label
       })
     if (!unchanged) conversationViews.set(next)
-    for (const binding of bindings) restoreView(binding.sessionId)
+    for (const binding of bindings) {
+      // A refresh can outlive its Session: releasing the last reference drops the
+      // catalog entry synchronously while the binding's effect disposal is still
+      // pending, and locale or Slot subscriptions can fire inside that window.
+      if (sessions.binding(binding.sessionId) !== binding) continue
+      restoreView(binding.sessionId)
+    }
   }
   ctx.effect(() => {
     const disposeViews = slots.subscribe('conversation.view', refreshViews)

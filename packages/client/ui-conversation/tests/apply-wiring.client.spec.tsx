@@ -65,6 +65,35 @@ describe('target-neutral Conversation apply wiring', () => {
     await b.runtime.dispose()
   })
 
+  it('survives a view refresh for a Session whose catalog entry is already gone', async () => {
+    const b = await bench()
+    // A registered View is what makes the restore reach the binding at all.
+    const disposeView = b.runtime.slots.register({
+      name: 'conversation.view',
+      id: 'chat',
+      label: () => 'Chat',
+    }, (() => null) as never)
+    await b.runtime.sessions.add({ id: SID })
+    const reference = b.runtime.sessions.retain(SID)
+    // Resolving the Session adapter is what registers the tracked view binding.
+    b.runtime.ctx.uiSession.adapter.bindingSource(reference)
+
+    // Releasing the last reference drops the catalog entry synchronously while
+    // the binding's effect disposal is still pending — the window a locale or
+    // Slot refresh can fire inside.
+    reference.release()
+    expect(b.runtime.sessions.binding(SID)).toBeUndefined()
+
+    // The locale runtime reports a throwing subscriber instead of rethrowing it,
+    // so the regression surfaces as that log line rather than as a throw.
+    const crash = vi.spyOn(console, 'error').mockImplementation(() => {})
+    b.runtime.ctx.locale.setLocale('en')
+    expect(crash.mock.calls.filter(([first]) => String(first).includes('locale subscriber crashed'))).toHaveLength(0)
+    crash.mockRestore()
+    disposeView()
+    await b.runtime.dispose()
+  })
+
   it('provides both action and assembly services without installing Chat', async () => {
     const b = await bench()
     expect(b.runtime.ctx.get('conversation')).toBeDefined()
