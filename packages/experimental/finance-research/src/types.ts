@@ -218,10 +218,16 @@ export interface FinanceCoinMarketCapOhlcvSeries {
 /** Python-backed mainland stock data providers. */
 export type FinanceStockProviderId = 'akshare' | 'ifind'
 
+/**
+ * Provider selector accepted from callers: one upstream, or `auto` to try every
+ * enabled upstream in order and keep the first that answers.
+ */
+export type FinanceStockProviderSelector = FinanceStockProviderId | 'auto'
+
 /** One mainland stock history request. */
 export interface FinanceStockHistoryRequest {
-  /** Data provider. */
-  readonly provider: FinanceStockProviderId
+  /** Data provider, or `auto` to try every enabled upstream. */
+  readonly provider: FinanceStockProviderSelector
   /** Six-digit A-share symbol, with or without exchange suffix. */
   readonly symbol: string
   /** Inclusive ISO start date. */
@@ -234,8 +240,8 @@ export interface FinanceStockHistoryRequest {
 
 /** One mainland stock real-time quote request. */
 export interface FinanceStockQuoteRequest {
-  /** Data provider. */
-  readonly provider: FinanceStockProviderId
+  /** Data provider, or `auto` to try every enabled upstream. */
+  readonly provider: FinanceStockProviderSelector
   /** Six-digit A-share symbols. */
   readonly symbols: readonly string[]
 }

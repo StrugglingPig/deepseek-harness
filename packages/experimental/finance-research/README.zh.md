@@ -79,6 +79,8 @@ English | [中文](README.md)
 
 使用 `provider: http` 时，先调用 `finance_provider_describe` 发现已配置 base、认证模式和上游文档；再调用 `finance_provider_request`，传入 base、上游 path、method 和 Provider 原生 query/body 参数。
 
+数据源按字段组合，而不是按失败切换。不同上游各自负责的字段——价格与 K 线、已披露财务、行情与供给、社区与开发活跃度——会向所有发布该字段的上游请求并合并，因此某个上游故障只会丢掉它自己那部分字段，且每条指标仍然标注来源。当多个上游覆盖同一字段时，按新鲜度与完整度整体选取一条序列，而不是拼接，因为复权口径与交易日历等约定不同。A 股工具支持 `provider: auto`，按顺序尝试所有已启用的上游并保留第一个应答者。
+
 Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API、凭据、限流、账户权限、网络策略和适用条款。Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma、Polymarket CLOB、CoinMarketCap Pro、CoinGecko、GitHub 与 Alpha Vantage 被配置为不同 base。CoinMarketCap 的 REST 与 WebSocket 请求使用存储的 `FINANCE_COINMARKETCAP_API_KEY`，CoinGecko 社区数据使用 `FINANCE_COINGECKO_API_KEY`，GitHub 读取使用可选的 `FINANCE_GITHUB_TOKEN`；所有密钥都只由 Host 发送，CoinGecko 开关默认关闭，GitHub 无 token 也能读取公开仓库。
 
 示例：

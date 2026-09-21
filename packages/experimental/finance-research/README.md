@@ -79,6 +79,8 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 With `provider: http`, call `finance_provider_describe` to discover configured bases, authentication mode, and upstream documentation. Then call `finance_provider_request` with a base, an upstream path, a method, and provider-native query or body parameters.
 
+Sources combine by field rather than by failover. Fields that different upstreams own — price and bars, reported fundamentals, market and supply, community and developer activity — are requested from every upstream that publishes them and merged, so a failing upstream removes only its own fields and every metric still names the source it came from. When several upstreams cover the same field, one whole series is selected by freshness and completeness instead of being stitched together, because conventions such as price adjustment and trading calendars differ. The A-share tools accept `provider: auto` to try every enabled upstream in order and keep the first that answers.
+
 The provider does not enforce an endpoint whitelist. What can be obtained is limited by the upstream API, credentials, rate limits, account permissions, network policy, and applicable terms. Binance Spot, USD-M Futures, COIN-M Futures, Options, Yahoo Finance, Polymarket Gamma, Polymarket CLOB, CoinMarketCap Pro, CoinGecko, GitHub, and Alpha Vantage are configured as separate bases. CoinMarketCap REST and WebSocket requests use the stored `FINANCE_COINMARKETCAP_API_KEY` credential, CoinGecko community reads use `FINANCE_COINGECKO_API_KEY`, and GitHub reads use the optional `FINANCE_GITHUB_TOKEN`; every key is sent only by the Host, the CoinGecko switch is off by default, and GitHub serves public repositories without a token.
 
 Examples:

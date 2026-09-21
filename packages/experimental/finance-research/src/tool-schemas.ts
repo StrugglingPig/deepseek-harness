@@ -6,7 +6,7 @@ import type { MarketSnapshot } from './types.ts'
 /** A-share request fields shared by the mainland stock tools. */
 export const STOCK_INPUT_PARAMETERS = {
   symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
-  provider: { type: 'string', required: true, enum: ['akshare', 'ifind'], description: 'Installed Python stock data provider.' },
+  provider: { type: 'string', required: true, enum: ['auto', 'akshare', 'ifind'], description: 'Installed Python stock data provider, or auto to try every enabled provider in order.' },
   start_date: { type: 'string', description: 'Inclusive ISO start date.' },
   end_date: { type: 'string', description: 'Inclusive ISO end date.' },
   adjust: { type: 'string', enum: ['none', 'qfq', 'hfq'], description: 'Price adjustment mode.' },

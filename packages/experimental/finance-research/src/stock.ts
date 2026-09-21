@@ -18,6 +18,7 @@ import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PR
 import type { ReportLanguage } from './report-language.ts'
 import type {
   FinanceStockDataProvider,
+  FinanceStockProviderSelector,
   FinanceStockFundamentals,
   FinanceStockValuation,
   FinanceStockHistoryRequest,
@@ -275,7 +276,8 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
 
 /** One instrument-metrics lookup keyed by the report's provider and symbol. */
 export interface StockAssetRequest {
-  readonly provider: 'akshare' | 'ifind'
+  /** Provider selector from the tool call; `auto` resolves inside the provider. */
+  readonly provider: FinanceStockProviderSelector
   readonly symbol: string
 }
 
@@ -312,6 +314,23 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
     this.ifindTransport = options.ifindTransport ?? (() => 'http')
   }
 
+  /**
+   * Resolve a caller selector into the upstreams to try, in order.
+   * @param selector - One provider, or `auto` for every enabled provider.
+   * @returns The providers to attempt; `auto` skips providers the user disabled.
+   */
+  private attempts(selector: FinanceStockProviderSelector): readonly ('akshare' | 'ifind')[] {
+    if (selector !== 'auto') {
+      this.assertEnabled(selector)
+      return [selector]
+    }
+    const enabled = (['akshare', 'ifind'] as const).filter(provider => this.enabled(provider))
+    if (enabled.length === 0) {
+      throw new FinanceDataError('no stock provider is enabled in settings', 'STOCK_PROVIDER_DISABLED')
+    }
+    return enabled
+  }
+
   private assertEnabled(provider: 'akshare' | 'ifind'): void {
     if (!this.enabled(provider)) {
       throw new FinanceDataError(`${provider} stock data is disabled in settings`, 'STOCK_PROVIDER_DISABLED')
@@ -325,17 +344,39 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
    * @returns Snapshot ready for technical analysis and reports.
    */
   async loadStockSnapshot(request: FinanceStockHistoryRequest, signal?: AbortSignal): Promise<FinanceStockSnapshot> {
-    this.assertEnabled(request.provider)
     const symbol = request.symbol.trim().toUpperCase()
     if (symbol.length === 0) throw new FinanceDataError('stock symbol must be a non-empty string', 'INVALID_SYMBOL')
+    const providers = this.attempts(request.provider)
+    const failures: string[] = []
+    const errors: unknown[] = []
+    for (const provider of providers) {
+      try {
+        return await this.loadSnapshotFrom(provider, request, symbol, signal)
+      } catch (error: unknown) {
+        if (signal?.aborted === true) throw new FinanceDataError('stock request aborted', 'ABORTED')
+        failures.push(`${provider}: ${error instanceof Error ? error.message : String(error)}`)
+        errors.push(error)
+      }
+    }
+    // One attempt keeps its own error code; only a real fallback run reports the aggregate.
+    if (errors.length === 1) throw errors[0]
+    throw new FinanceDataError(`no stock provider served ${symbol}: ${failures.join('; ')}`, 'STOCK_PROVIDER_FAILED')
+  }
+
+  private async loadSnapshotFrom(
+    provider: 'akshare' | 'ifind',
+    request: FinanceStockHistoryRequest,
+    symbol: string,
+    signal?: AbortSignal,
+  ): Promise<FinanceStockSnapshot> {
     const data = stockHistorySchema.parse(await this.bridge.run({
       action: 'stock_history',
-      provider: request.provider,
+      provider,
       symbol,
       ...request.startDate === undefined ? {} : { startDate: request.startDate },
       ...request.endDate === undefined ? {} : { endDate: request.endDate },
       ...request.adjust === undefined ? {} : { adjust: request.adjust },
-      ...request.provider === 'ifind' ? { transport: this.ifindTransport() } : {},
+      ...provider === 'ifind' ? { transport: this.ifindTransport() } : {},
     }, signal))
     if (data.bars.length < 50) throw new FinanceDataError(`only ${String(data.bars.length)} stock bars returned for ${symbol}`, 'INSUFFICIENT_HISTORY')
     const bars = data.bars as MarketBar[]
@@ -348,7 +389,7 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
     return {
       instrument: { symbol: data.symbol, name: data.name, assetClass: 'equity', currency: 'CNY' },
       asOf: latest.timestamp,
-      source: { provider: request.provider, retrievedAt: this.now().toISOString(), synthetic: false },
+      source: { provider, retrievedAt: this.now().toISOString(), synthetic: false },
       quote: { price, changePercent },
       bars,
     }
@@ -361,15 +402,31 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
    * @returns Current quotes.
    */
   async loadStockQuotes(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockQuote[]> {
-    this.assertEnabled(request.provider)
     const symbols = request.symbols.map(symbol => symbol.trim().toUpperCase()).filter(symbol => symbol.length > 0)
     if (symbols.length === 0) throw new FinanceDataError('stock quotes require at least one symbol', 'INVALID_SYMBOL')
-    const data = stockQuotesSchema.parse(await this.bridge.run({
-      action: 'stock_quote',
-      provider: request.provider,
-      symbols,
-      ...request.provider === 'ifind' ? { transport: this.ifindTransport() } : {},
-    }, signal))
+    const providers = this.attempts(request.provider)
+    const failures: string[] = []
+    const errors: unknown[] = []
+    let data: zod.infer<typeof stockQuotesSchema> | undefined
+    for (const provider of providers) {
+      try {
+        data = stockQuotesSchema.parse(await this.bridge.run({
+          action: 'stock_quote',
+          provider,
+          symbols,
+          ...provider === 'ifind' ? { transport: this.ifindTransport() } : {},
+        }, signal))
+        break
+      } catch (error: unknown) {
+        if (signal?.aborted === true) throw new FinanceDataError('stock request aborted', 'ABORTED')
+        failures.push(`${provider}: ${error instanceof Error ? error.message : String(error)}`)
+        errors.push(error)
+      }
+    }
+    if (data === undefined) {
+      if (errors.length === 1) throw errors[0]
+      throw new FinanceDataError(`no stock provider returned quotes: ${failures.join('; ')}`, 'STOCK_PROVIDER_FAILED')
+    }
     return data.quotes.map(quote => ({
       symbol: quote.symbol,
       name: quote.name,
@@ -398,12 +455,14 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
     request: FinanceStockQuoteRequest,
     signal?: AbortSignal,
   ): Promise<readonly FinanceStockValuation[]> {
-    this.assertEnabled(request.provider)
+    // Only the AKShare bridge publishes these tables, so `auto` resolves to it.
+    const provider = request.provider === 'ifind' ? 'ifind' : 'akshare'
+    this.assertEnabled(provider)
     const symbol = request.symbols[0]?.trim().toUpperCase()
     if (symbol === undefined || symbol.length === 0) return []
     const data = stockValuationSchema.parse(await this.bridge.run({
       action: 'stock_valuation',
-      provider: request.provider,
+      provider,
       symbol: symbol.replace(/[^0-9]/g, ''),
     }, signal))
     return [{
@@ -434,12 +493,14 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
     request: FinanceStockQuoteRequest,
     signal?: AbortSignal,
   ): Promise<readonly FinanceStockFundamentals[]> {
-    this.assertEnabled(request.provider)
+    // Only the AKShare bridge publishes these tables, so `auto` resolves to it.
+    const provider = request.provider === 'ifind' ? 'ifind' : 'akshare'
+    this.assertEnabled(provider)
     const symbol = request.symbols[0]?.trim().toUpperCase()
     if (symbol === undefined || symbol.length === 0) return []
     const data = stockFundamentalsSchema.parse(await this.bridge.run({
       action: 'stock_fundamentals',
-      provider: request.provider,
+      provider,
       symbol: symbol.replace(/[^0-9]/g, ''),
     }, signal))
     return [{ symbol: data.symbol, periods: data.periods }]
