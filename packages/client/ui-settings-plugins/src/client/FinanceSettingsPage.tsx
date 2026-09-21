@@ -269,6 +269,16 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         stateLabel={state.coinGeckoApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
         onEdit={(text) => { props.edit('coinGeckoApiKey', text) }}
       />
+      <SecretField
+        id="finance-github-token"
+        label={t('financeGithubToken')}
+        hint={t('financeGithubTokenHint')}
+        disabled={!state.githubTokenWritable}
+        text={state.githubToken.text}
+        configured={state.githubTokenConfigured}
+        stateLabel={state.githubTokenConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('githubToken', text) }}
+      />
       <h3 className={css.label}>{t('financeDeliveryTitle')}</h3>
       <ValueField id="finance-ws-base" label={t('financeBinanceWebSocketBaseUrl')} hint={t('financeEndpointHint')}
         overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}

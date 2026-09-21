@@ -10,7 +10,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 IFIND_HTTP_TIMEOUT_SECONDS = 45.0
 
@@ -448,6 +448,18 @@ def ifind_http_access_token() -> str:
     return str(token)
 
 
+def ak_valuation_baidu(symbol: str, indicator: str):
+    return import_akshare().stock_zh_valuation_baidu(symbol=symbol, indicator=indicator, period="近一年")
+
+
+def ak_profile(symbol: str):
+    return import_akshare().stock_profile_cninfo(symbol=symbol)
+
+
+def ak_industry_pe(date_text: str):
+    return import_akshare().stock_industry_pe_ratio_cninfo(symbol="证监会行业分类", date=date_text)
+
+
 def ak_history(request: dict) -> dict:
     ak = import_akshare()
     symbol = bare_symbol(request["symbol"])
@@ -759,6 +771,90 @@ def ak_fundamentals(request: dict) -> dict:
     return {"symbol": symbol, "periods": periods[-8:]}
 
 
+VALUATION_INDICATORS = (
+    ("peTtm", "市盈率(TTM)"),
+    ("pb", "市净率"),
+    ("marketCapYi", "总市值"),
+)
+
+
+def baidu_latest(symbol: str, indicator: str):
+    """Read the newest value of one Baidu valuation series."""
+    frame = ak_valuation_baidu(symbol, indicator)
+    rows = rows_from_frame(frame)
+    if not rows:
+        return None
+    value = rows[-1].get("value")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
+
+
+def industry_pe(industry: str):
+    """Read the published industry P/E baseline for one industry name."""
+    today = date.today()
+    for offset in range(0, 6):
+        probe = today - timedelta(days=offset)
+        try:
+            frame = ak_industry_pe(probe.strftime("%Y%m%d"))
+        except Exception:
+            continue
+        for row in rows_from_frame(frame):
+            if str(row.get("行业名称")) != industry:
+                continue
+            return {
+                "date": normalize_macro_date(row.get("变动日期")),
+                "weighted": to_number(row.get("静态市盈率-加权平均")),
+                "median": to_number(row.get("静态市盈率-中位数")),
+                "companies": to_number(row.get("纳入计算公司数量")),
+            }
+    return None
+
+
+def to_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
+
+
+def ak_valuation(request: dict) -> dict:
+    """Load reported valuation multiples and the industry baseline for one symbol."""
+    symbol = bare_symbol(request["symbol"])
+    profile = {}
+    try:
+        rows = rows_from_frame(ak_profile(symbol))
+        if rows:
+            profile = rows[0]
+    except Exception:
+        profile = {}
+    indicators = {}
+    for key, label in VALUATION_INDICATORS:
+        try:
+            value = baidu_latest(symbol, label)
+        except Exception:
+            value = None
+        if value is not None:
+            indicators[key] = value
+    if not indicators and not profile:
+        raise RuntimeError("AKSHARE_VALUATION_EMPTY: no valuation or profile data")
+    industry = str(profile.get("所属行业") or "") or None
+    baseline = industry_pe(industry) if industry else None
+    market_cap_yi = indicators.pop("marketCapYi", None)
+    return {
+        "symbol": symbol,
+        "name": profile.get("公司名称"),
+        "industry": industry,
+        "market": profile.get("所属市场"),
+        "indicators": indicators,
+        **({} if market_cap_yi is None else {"marketCapYuan": market_cap_yi * 100000000}),
+        **({} if baseline is None else {"industryPe": baseline}),
+    }
+
+
 def main() -> None:
     try:
         request = json.load(sys.stdin)
@@ -781,6 +877,8 @@ def main() -> None:
             emit({"ok": True, "data": ak_quotes(request)})
         elif action == "stock_quote" and provider == "ifind":
             emit({"ok": True, "data": ifind_quotes(request)})
+        elif action == "stock_valuation" and provider == "akshare":
+            emit({"ok": True, "data": ak_valuation(request)})
         elif action == "stock_fundamentals" and provider == "akshare":
             emit({"ok": True, "data": ak_fundamentals(request)})
         elif action == "macro_series":

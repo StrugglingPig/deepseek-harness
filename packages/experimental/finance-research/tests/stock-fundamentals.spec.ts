@@ -37,3 +37,39 @@ describe('stock fundamentals provider', () => {
       .rejects.toMatchObject({ code: 'STOCK_PROVIDER_DISABLED' })
   })
 })
+
+describe('stock valuation provider', () => {
+  it('loads multiples and the industry baseline', async () => {
+    const provider = new SubprocessFinanceStockDataProvider(bridge(async () => ({
+      symbol: '600519',
+      name: '贵州茅台酒股份有限公司',
+      industry: '酒、饮料和精制茶制造业',
+      market: '上交所',
+      indicators: { peTtm: 19.23, pb: 6.23 },
+      marketCapYuan: 1_565_815_000_000,
+      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, companies: 39 },
+    })))
+    await expect(provider.loadStockValuation({ provider: 'akshare', symbols: ['600519'] })).resolves.toEqual([{
+      symbol: '600519',
+      name: '贵州茅台酒股份有限公司',
+      industry: '酒、饮料和精制茶制造业',
+      market: '上交所',
+      indicators: { peTtm: 19.23, pb: 6.23 },
+      marketCapYuan: 1_565_815_000_000,
+      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, companies: 39 },
+    }])
+    await expect(provider.loadStockValuation({ provider: 'akshare', symbols: [] })).resolves.toEqual([])
+  })
+
+  it('omits every optional valuation field the upstream did not publish', async () => {
+    const bare = new SubprocessFinanceStockDataProvider(bridge(async () => ({ symbol: '600519', indicators: {} })))
+    await expect(bare.loadStockValuation({ provider: 'akshare', symbols: ['600519'] }))
+      .resolves.toEqual([{ symbol: '600519', indicators: {} }])
+
+    const partial = new SubprocessFinanceStockDataProvider(bridge(async () => ({
+      symbol: '600519', indicators: { pb: 6.23 }, name: '贵州茅台酒股份有限公司', industryPe: {},
+    })))
+    await expect(partial.loadStockValuation({ provider: 'akshare', symbols: ['600519'] }))
+      .resolves.toEqual([{ symbol: '600519', indicators: { pb: 6.23 }, name: '贵州茅台酒股份有限公司', industryPe: {} }])
+  })
+})

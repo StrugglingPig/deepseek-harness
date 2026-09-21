@@ -38,6 +38,7 @@ export type PluginsSettingsLocaleKey =
   | 'financeCoinMarketCapApiKey' | 'financeCoinMarketCapApiKeyHint'
   | 'financeCoinGeckoTitle' | 'financeEnableCoinGeckoRequests' | 'financeEnableCoinGeckoRequestsHint'
   | 'financeCoinGeckoBaseUrl' | 'financeCoinGeckoApiKey' | 'financeCoinGeckoApiKeyHint'
+  | 'financeGithubToken' | 'financeGithubTokenHint'
   | 'financeFredTitle' | 'financeEnableFredRequests' | 'financeEnableFredRequestsHint'
   | 'financeFredBaseUrl' | 'financeFredApiKey' | 'financeFredApiKeyHint' | 'financeFredApiKeyLink'
   | 'financeStockTitle' | 'financeEnableAkshare' | 'financeEnableAkshareHint'
@@ -161,6 +162,8 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinGeckoBaseUrl: 'CoinGecko API origin',
   financeCoinGeckoApiKey: 'CoinGecko demo API key',
   financeCoinGeckoApiKeyHint: 'Free key from coingecko.com/en/developers/dashboard. Stored like every other finance credential.',
+  financeGithubToken: 'GitHub token (optional)',
+  financeGithubTokenHint: 'Optional. Public repositories are read without a token; a token only raises the 60-per-hour shared limit.',
 
   financeFredTitle: 'Macro data (FRED)',
   financeEnableFredRequests: 'Allow FRED macro requests',
@@ -318,6 +321,8 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinGeckoBaseUrl: 'CoinGecko API 地址',
   financeCoinGeckoApiKey: 'CoinGecko demo API Key',
   financeCoinGeckoApiKeyHint: '在 coingecko.com/zh/developers/dashboard 免费申请。与其他金融凭据一样加密存储。',
+  financeGithubToken: 'GitHub Token（可选）',
+  financeGithubTokenHint: '可选。公开仓库无需 token 即可读取；配置 token 只是把共享的每小时 60 次限额提高。',
 
   financeFredTitle: '宏观数据（FRED）',
   financeEnableFredRequests: '允许 FRED 宏观请求',

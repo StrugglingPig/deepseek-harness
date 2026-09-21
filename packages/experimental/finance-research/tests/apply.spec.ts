@@ -193,6 +193,25 @@ describe('finance apply', () => {
       })),
     }
     let payload: object = history
+    const payloadFor = (stdin: string): object => {
+      if (stdin.includes('stock_valuation')) {
+        return {
+          symbol: '600519',
+          industry: '酒、饮料和精制茶制造业',
+          indicators: { peTtm: 19.23, pb: 6.23 },
+          industryPe: { date: '2026-09-21', weighted: 18.94 },
+        }
+      }
+      if (stdin.includes('macro_series')) {
+        return { function: 'macro_china_pmi', observations: [{ date: '2026-01', value: 50.5 }] }
+      }
+      if (stdin.includes('stock_fundamentals')) {
+        return stdin.includes('000001')
+          ? { symbol: '000001', periods: 'not-an-array' }
+          : { symbol: '600519', periods: [{ period: '2026-06-30', metrics: { roe: 17.72, revenueGrowth: 1.47 } }] }
+      }
+      return history
+    }
     const handle = {
       collected: {
         stdout: { readFrom: () => ({ text: JSON.stringify({ ok: true, data: payload }), nextOffset: 0, lossy: false }) },
@@ -203,14 +222,7 @@ describe('finance apply', () => {
     ctx.provide('subprocess', {
       resolveExecutable: async () => '/usr/bin/python3',
       spawn: (request: { readonly stdio?: { readonly stdin?: { readonly data?: string } } }) => {
-        const stdin = request.stdio?.stdin?.data ?? ''
-        payload = stdin.includes('macro_series')
-          ? { function: 'macro_china_pmi', observations: [{ date: '2026-01', value: 50.5 }] }
-          : stdin.includes('stock_fundamentals')
-            ? stdin.includes('000001')
-              ? { symbol: '000001', periods: 'not-an-array' }
-              : { symbol: '600519', periods: [{ period: '2026-06-30', metrics: { roe: 17.72, revenueGrowth: 1.47 } }] }
-            : history
+        payload = payloadFor(request.stdio?.stdin?.data ?? '')
         return handle
       },
     } as never)
@@ -286,6 +298,7 @@ describe('finance apply', () => {
     expect(stockReport.isError).toBe(false)
     expect(textOfReport(stockReport)).toContain('Macro Drivers')
     expect(textOfReport(stockReport)).toContain('Return on equity: 17.72%')
+    expect(textOfReport(stockReport)).toContain('P/E (TTM): 19.23')
 
     // A failing fundamentals read leaves the report intact.
     const withoutFundamentals = await ctx.tools.execute({

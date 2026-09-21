@@ -493,6 +493,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiSecret: field(''),
       coinMarketCapApiKey: field(''),
       coinGeckoApiKey: field(''),
+      githubToken: field(''),
       fredApiKey: field(''),
       ifindUser: field(''),
       ifindPassword: field(''),
@@ -501,6 +502,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiSecretConfigured: true,
       coinMarketCapApiKeyConfigured: true,
       coinGeckoApiKeyConfigured: true,
+      githubTokenConfigured: true,
       fredApiKeyConfigured: true,
       ifindUserConfigured: true,
       ifindPasswordConfigured: true,
@@ -509,6 +511,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiSecretWritable: true,
       coinMarketCapApiKeyWritable: true,
       coinGeckoApiKeyWritable: true,
+      githubTokenWritable: true,
       fredApiKeyWritable: true,
       ifindUserWritable: true,
       ifindPasswordWritable: true,
@@ -596,7 +599,7 @@ describe('FinanceSettingsPage', () => {
     ]))
     expect(actions.save).toHaveBeenCalledOnce()
     expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
-    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(8)
+    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(9)
 
     // The FRED block sits before the A-share section and links to the free key page.
     const fredTitle = screen.getByText(en.financeFredTitle)
@@ -619,6 +622,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiSecretConfigured: false,
       coinMarketCapApiKeyConfigured: false,
       coinGeckoApiKeyConfigured: false,
+      githubTokenConfigured: false,
       ifindUserConfigured: false,
       ifindPasswordConfigured: false,
       ifindRefreshTokenConfigured: false,
@@ -636,7 +640,7 @@ describe('FinanceSettingsPage', () => {
     fireEvent.change(screen.getByLabelText(en.financeIfindPassword), { target: { value: 'ifind-password' } })
     expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('value', 'fixture')
     expect(screen.getByLabelText(en.financeIfindTransport)).toHaveProperty('value', 'http')
-    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(7)
+    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(8)
   })
 
   it('disables settings and credential controls when their owners are read-only', () => {

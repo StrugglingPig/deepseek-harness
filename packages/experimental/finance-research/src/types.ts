@@ -255,6 +255,23 @@ export interface FinanceStockFundamentals {
   readonly periods: readonly FinanceStockFundamentalsPeriod[]
 }
 
+/** One normalized valuation and industry snapshot for a mainland stock. */
+export interface FinanceStockValuation {
+  readonly symbol: string
+  readonly name?: string
+  readonly industry?: string
+  readonly market?: string
+  /** Reported multiples keyed by normalized metric name. */
+  readonly indicators: Readonly<Record<string, number>>
+  readonly marketCapYuan?: number
+  readonly industryPe?: {
+    readonly date?: string
+    readonly weighted?: number
+    readonly median?: number
+    readonly companies?: number
+  }
+}
+
 /** One normalized mainland stock real-time quote. */
 export interface FinanceStockQuote {
   readonly symbol: string
@@ -304,6 +321,8 @@ export interface FinanceStockDataProvider {
   loadStockQuotes(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockQuote[]>
   /** Load reported financial ratios when the upstream publishes them. */
   loadStockFundamentals?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockFundamentals[]>
+  /** Load reported valuation multiples and the industry baseline when available. */
+  loadStockValuation?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockValuation[]>
 }
 
 /** Replacing this provider changes the data source without changing the tools. */

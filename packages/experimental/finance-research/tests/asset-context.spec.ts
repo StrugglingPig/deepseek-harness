@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub, cryptoMetricsFromQuote,
-  equityMetricsFromFundamentals,
+  equityMetricsFromFundamentals, equityMetricsFromValuation,
 } from '../src/asset-context.ts'
 
 describe('asset metric context', () => {
@@ -166,5 +166,41 @@ describe('crypto development context', () => {
     await expect(cryptoMetricsForSymbol(
       'BTC-USD', async () => [quote], async () => ({ id: 'bitcoin', name: 'Bitcoin' }), async () => undefined,
     )).resolves.toHaveLength(1)
+  })
+})
+
+describe('equity valuation context', () => {
+  it('maps multiples, market cap, and the industry baseline', () => {
+    const metrics = equityMetricsFromValuation({
+      symbol: '600519',
+      name: '贵州茅台酒股份有限公司',
+      industry: '酒、饮料和精制茶制造业',
+      indicators: { peTtm: 19.23, pb: 6.23, unknown: 1 },
+      marketCapYuan: 1_565_815_000_000,
+      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, companies: 39 },
+    })
+    const byKey = new Map(metrics.map(metric => [metric.key, metric]))
+    expect(byKey.get('peTtm')).toMatchObject({ group: 'valuation', value: 19.23, unit: '' })
+    expect(byKey.get('marketCap')).toMatchObject({ unit: 'CNY', value: 1_565_815_000_000 })
+    expect(byKey.get('industryName')).toMatchObject({ group: 'industry', text: '酒、饮料和精制茶制造业' })
+    expect(byKey.get('industryPe')).toMatchObject({ group: 'industry', value: 18.94 })
+    expect(byKey.get('industryPeMedian')).toMatchObject({ value: 24.09 })
+    // P/E against the industry weighted average.
+    expect((byKey.get('peVsIndustry')?.value ?? 0)).toBeCloseTo(1.53, 1)
+    expect(byKey.has('unknown')).toBe(false)
+  })
+
+  it('omits the premium without a baseline or a P/E, and reports nothing without a snapshot', () => {
+    const partial = equityMetricsFromValuation({ symbol: '600519', indicators: { peTtm: 19.23 } })
+    expect(partial.map(metric => metric.key)).toEqual(['peTtm'])
+    const noPe = equityMetricsFromValuation({
+      symbol: '600519', indicators: {}, industryPe: { weighted: 18.94 },
+    })
+    expect(noPe.map(metric => metric.key)).toEqual(['industryPe'])
+    expect(equityMetricsFromValuation(undefined)).toEqual([])
+    const zeroBaseline = equityMetricsFromValuation({
+      symbol: '600519', indicators: { peTtm: 19.23 }, industryPe: { weighted: 0 },
+    })
+    expect(zeroBaseline.map(metric => metric.key)).toEqual(['peTtm', 'industryPe'])
   })
 })

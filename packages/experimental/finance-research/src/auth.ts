@@ -30,13 +30,15 @@ export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
 /** Credential reference for the CoinMarketCap API key. */
 export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
+/** Credential reference for the optional GitHub token. */
+export const GITHUB_TOKEN_REF = 'FINANCE_GITHUB_TOKEN'
 /** Credential reference for the CoinGecko demo API key. */
 export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 
 /** Bases whose requests carry an API key; each has exactly one owning authorizer. */
-const API_KEY_BASES: ReadonlySet<string> = new Set(['coingecko', 'coinmarketcap', 'fred'])
+const API_KEY_BASES: ReadonlySet<string> = new Set(['coingecko', 'coinmarketcap', 'fred', 'github'])
 
 /** Options for CoinMarketCap API-key authorization. */
 export interface CoinMarketCapRequestAuthorizerOptions {
@@ -44,6 +46,37 @@ export interface CoinMarketCapRequestAuthorizerOptions {
   readonly resolveCredential: FinanceCredentialResolver
   /** Whether the user enabled CoinMarketCap API requests in settings. */
   readonly enabled: () => boolean
+}
+
+/** Options for the optional GitHub token. */
+export interface GithubRequestAuthorizerOptions {
+  /** Resolve the stored token at request time. */
+  readonly resolveCredential: FinanceCredentialResolver
+}
+
+/**
+ * Create the GitHub request authorizer.
+ *
+ * GitHub serves public repositories without a token, so a missing credential
+ * leaves the request unauthenticated rather than failing it; a configured token
+ * only raises the shared hourly rate limit.
+ * @param options - credential resolver.
+ * @returns an authorizer that adds a bearer token when one is configured.
+ */
+export function createGithubRequestAuthorizer(
+  options: GithubRequestAuthorizerOptions,
+): FinanceRequestAuthorizer {
+  return async (request, _url, headers) => {
+    if (request.auth !== 'api-key') return
+    if (request.base !== 'github') {
+      // Another authorizer owns the remaining api-key bases.
+      if (API_KEY_BASES.has(request.base)) return
+      throw new FinanceDataError('api-key requests are configured only for the finance upstream bases', 'AUTH_UNSUPPORTED')
+    }
+    const token = await options.resolveCredential(GITHUB_TOKEN_REF)
+    if (token === undefined || token.length === 0) return
+    headers.Authorization = `Bearer ${token}`
+  }
 }
 
 /** Options for CoinGecko API-key authorization. */

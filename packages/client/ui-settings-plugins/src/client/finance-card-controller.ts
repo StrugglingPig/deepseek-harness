@@ -19,6 +19,8 @@ export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
 export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
 /** Credential reference for the CoinGecko demo API key. */
 export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
+/** Credential reference for the optional GitHub token. */
+export const GITHUB_TOKEN_REF = 'FINANCE_GITHUB_TOKEN'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 /** Credential reference for the iFinD account. */
@@ -32,6 +34,7 @@ const API_KEY_FIELD = 'binanceApiKey'
 const API_SECRET_FIELD = 'binanceApiSecret'
 const COINMARKETCAP_API_KEY_FIELD = 'coinMarketCapApiKey'
 const COINGECKO_API_KEY_FIELD = 'coinGeckoApiKey'
+const GITHUB_TOKEN_FIELD = 'githubToken'
 const FRED_API_KEY_FIELD = 'fredApiKey'
 const IFIND_USER_FIELD = 'ifindUser'
 const IFIND_PASSWORD_FIELD = 'ifindPassword'
@@ -122,6 +125,7 @@ export interface FinanceCardState extends CardShell {
   binanceApiSecret: CardFieldState
   coinMarketCapApiKey: CardFieldState
   coinGeckoApiKey: CardFieldState
+  githubToken: CardFieldState
   fredApiKey: CardFieldState
   ifindUser: CardFieldState
   ifindPassword: CardFieldState
@@ -130,6 +134,7 @@ export interface FinanceCardState extends CardShell {
   binanceApiSecretConfigured: boolean
   coinMarketCapApiKeyConfigured: boolean
   coinGeckoApiKeyConfigured: boolean
+  githubTokenConfigured: boolean
   fredApiKeyConfigured: boolean
   ifindUserConfigured: boolean
   ifindPasswordConfigured: boolean
@@ -138,6 +143,7 @@ export interface FinanceCardState extends CardShell {
   binanceApiSecretWritable: boolean
   coinMarketCapApiKeyWritable: boolean
   coinGeckoApiKeyWritable: boolean
+  githubTokenWritable: boolean
   fredApiKeyWritable: boolean
   ifindUserWritable: boolean
   ifindPasswordWritable: boolean
@@ -159,6 +165,7 @@ export class FinanceCardController {
   private apiSecret: CredentialState = { configured: false, writable: true }
   private coinMarketCapApiKey: CredentialState = { configured: false, writable: true }
   private coinGeckoApiKey: CredentialState = { configured: false, writable: true }
+  private githubToken: CredentialState = { configured: false, writable: true }
   private fredApiKey: CredentialState = { configured: false, writable: true }
   private ifindUser: CredentialState = { configured: false, writable: true }
   private ifindPassword: CredentialState = { configured: false, writable: true }
@@ -198,6 +205,7 @@ export class FinanceCardController {
         { field: API_SECRET_FIELD, write: text => this.writeCredential(BINANCE_API_SECRET_REF, text) },
         { field: COINMARKETCAP_API_KEY_FIELD, write: text => this.writeCredential(COINMARKETCAP_API_KEY_REF, text) },
         { field: COINGECKO_API_KEY_FIELD, write: text => this.writeCredential(COINGECKO_API_KEY_REF, text) },
+        { field: GITHUB_TOKEN_FIELD, write: text => this.writeCredential(GITHUB_TOKEN_REF, text) },
         { field: FRED_API_KEY_FIELD, write: text => this.writeCredential(FRED_API_KEY_REF, text) },
         { field: IFIND_USER_FIELD, write: text => this.writeCredential(IFIND_USER_REF, text) },
         { field: IFIND_PASSWORD_FIELD, write: text => this.writeCredential(IFIND_PASSWORD_REF, text) },
@@ -251,6 +259,7 @@ export class FinanceCardController {
       binanceApiSecret: this.form.field(API_SECRET_FIELD),
       coinMarketCapApiKey: this.form.field(COINMARKETCAP_API_KEY_FIELD),
       coinGeckoApiKey: this.form.field(COINGECKO_API_KEY_FIELD),
+      githubToken: this.form.field(GITHUB_TOKEN_FIELD),
       fredApiKey: this.form.field(FRED_API_KEY_FIELD),
       ifindUser: this.form.field(IFIND_USER_FIELD),
       ifindPassword: this.form.field(IFIND_PASSWORD_FIELD),
@@ -259,6 +268,7 @@ export class FinanceCardController {
       binanceApiSecretConfigured: this.apiSecret.configured,
       coinMarketCapApiKeyConfigured: this.coinMarketCapApiKey.configured,
       coinGeckoApiKeyConfigured: this.coinGeckoApiKey.configured,
+      githubTokenConfigured: this.githubToken.configured,
       fredApiKeyConfigured: this.fredApiKey.configured,
       ifindUserConfigured: this.ifindUser.configured,
       ifindPasswordConfigured: this.ifindPassword.configured,
@@ -267,6 +277,7 @@ export class FinanceCardController {
       binanceApiSecretWritable: this.apiSecret.writable,
       coinMarketCapApiKeyWritable: this.coinMarketCapApiKey.writable,
       coinGeckoApiKeyWritable: this.coinGeckoApiKey.writable,
+      githubTokenWritable: this.githubToken.writable,
       fredApiKeyWritable: this.fredApiKey.writable,
       ifindUserWritable: this.ifindUser.writable,
       ifindPasswordWritable: this.ifindPassword.writable,
@@ -277,6 +288,7 @@ export class FinanceCardController {
   private async readCredentials(): Promise<void> {
     const response = await this.ctx.remote.credentials.describe([
       BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF, COINGECKO_API_KEY_REF,
+      GITHUB_TOKEN_REF,
       FRED_API_KEY_REF,
       IFIND_USER_REF, IFIND_PASSWORD_REF, IFIND_REFRESH_TOKEN_REF,
     ])
@@ -285,6 +297,7 @@ export class FinanceCardController {
     const apiSecret = response.value[BINANCE_API_SECRET_REF]
     const coinMarketCapApiKey = response.value[COINMARKETCAP_API_KEY_REF]
     const coinGeckoApiKey = response.value[COINGECKO_API_KEY_REF]
+    const githubToken = response.value[GITHUB_TOKEN_REF]
     const fredApiKey = response.value[FRED_API_KEY_REF]
     const ifindUser = response.value[IFIND_USER_REF]
     const ifindPassword = response.value[IFIND_PASSWORD_REF]
@@ -296,6 +309,7 @@ export class FinanceCardController {
       writable: coinMarketCapApiKey?.writable ?? true,
     }
     const nextCoinGeckoKey = { configured: coinGeckoApiKey?.configured ?? false, writable: coinGeckoApiKey?.writable ?? true }
+    const nextGithubToken = { configured: githubToken?.configured ?? false, writable: githubToken?.writable ?? true }
     const nextFredKey = { configured: fredApiKey?.configured ?? false, writable: fredApiKey?.writable ?? true }
     const nextIfindUser = { configured: ifindUser?.configured ?? false, writable: ifindUser?.writable ?? true }
     const nextIfindPassword = { configured: ifindPassword?.configured ?? false, writable: ifindPassword?.writable ?? true }
@@ -306,6 +320,8 @@ export class FinanceCardController {
       && nextCoinMarketCapKey.writable === this.coinMarketCapApiKey.writable
       && nextCoinGeckoKey.configured === this.coinGeckoApiKey.configured
       && nextCoinGeckoKey.writable === this.coinGeckoApiKey.writable
+      && nextGithubToken.configured === this.githubToken.configured
+      && nextGithubToken.writable === this.githubToken.writable
       && nextFredKey.configured === this.fredApiKey.configured && nextFredKey.writable === this.fredApiKey.writable
       && nextIfindUser.configured === this.ifindUser.configured && nextIfindUser.writable === this.ifindUser.writable
       && nextIfindPassword.configured === this.ifindPassword.configured
@@ -316,6 +332,7 @@ export class FinanceCardController {
     this.apiSecret = nextSecret
     this.coinMarketCapApiKey = nextCoinMarketCapKey
     this.coinGeckoApiKey = nextCoinGeckoKey
+    this.githubToken = nextGithubToken
     this.fredApiKey = nextFredKey
     this.ifindUser = nextIfindUser
     this.ifindPassword = nextIfindPassword

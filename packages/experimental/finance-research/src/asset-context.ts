@@ -3,6 +3,7 @@
 import { githubSlug } from './github.ts'
 import type {
   FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote, FinanceGithubRepo, FinanceStockFundamentals,
+  FinanceStockValuation,
 } from './types.ts'
 
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
@@ -20,6 +21,8 @@ export interface AssetMetric {
   /** Locale dictionary key for the metric label. */
   readonly key: string
   readonly value: number
+  /** Set instead of a number when the metric is textual, such as an industry name. */
+  readonly text?: string
   /** Reported unit: `%`, `CNY`, `USD`, or empty for a bare ratio or count. */
   readonly unit: string
   /** Reporting period or observation time, as published upstream. */
@@ -211,4 +214,51 @@ export function cryptoMetricsFromGithub(repo: FinanceGithubRepo | undefined): As
     const value = repo[field]
     return typeof value === 'number' ? [{ group: 'development' as const, key, value, unit: '', asOf: '', source: 'github' }] : []
   })
+}
+
+/** Multiples the valuation bridge reports, with their dimension and unit. */
+const VALUATION_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; readonly unit: string }>> = {
+  peTtm: { group: 'valuation', unit: '' },
+  pb: { group: 'valuation', unit: '' },
+}
+
+/**
+ * Turn one valuation snapshot into report metrics, including the industry premium.
+ * @param valuation - Normalized valuation, when one loaded.
+ * @returns Valuation and industry metrics, empty when nothing loaded.
+ */
+export function equityMetricsFromValuation(valuation: FinanceStockValuation | undefined): AssetMetric[] {
+  if (valuation === undefined) return []
+  const asOf = valuation.industryPe?.date ?? ''
+  const metrics: AssetMetric[] = Object.entries(valuation.indicators).flatMap(([key, value]) => {
+    const entry = VALUATION_METRICS[key]
+    if (entry === undefined) return []
+    return [{ group: entry.group, key, value, unit: entry.unit, asOf, source: 'akshare' }]
+  })
+  if (valuation.marketCapYuan !== undefined) {
+    metrics.push({ group: 'valuation', key: 'marketCap', value: valuation.marketCapYuan, unit: 'CNY', asOf, source: 'akshare' })
+  }
+  if (valuation.industry !== undefined) {
+    metrics.push({ group: 'industry', key: 'industryName', value: 0, text: valuation.industry, unit: '', asOf, source: 'akshare' })
+  }
+  const baseline = valuation.industryPe?.weighted
+  const pe = valuation.indicators.peTtm
+  if (baseline !== undefined) {
+    metrics.push({ group: 'industry', key: 'industryPe', value: baseline, unit: '', asOf, source: 'akshare' })
+  }
+  const median = valuation.industryPe?.median
+  if (median !== undefined) {
+    metrics.push({ group: 'industry', key: 'industryPeMedian', value: median, unit: '', asOf, source: 'akshare' })
+  }
+  if (pe !== undefined && baseline !== undefined && baseline !== 0) {
+    metrics.push({
+      group: 'valuation',
+      key: 'peVsIndustry',
+      value: (pe / baseline - 1) * 100,
+      unit: '%',
+      asOf,
+      source: 'akshare',
+    })
+  }
+  return metrics
 }

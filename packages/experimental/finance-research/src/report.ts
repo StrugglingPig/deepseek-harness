@@ -66,8 +66,12 @@ interface SectionContext {
  * @returns The formatted value with its unit.
  */
 function metricValue(metric: AssetMetric): string {
+  if (metric.text !== undefined) return metric.text
   if (metric.unit === '%') return percent(metric.value)
-  if (metric.unit === 'CNY') return `${number(metric.value)} CNY`
+  if (metric.unit === 'CNY') {
+    // Per-share amounts read best in full; market-sized amounts do not.
+    return Math.abs(metric.value) >= 1_000_000 ? `${compact(metric.value)} CNY` : `${number(metric.value)} CNY`
+  }
   if (metric.unit === 'USD') return `${compact(metric.value)} USD`
   if (metric.unit === '') return compact(metric.value)
   return `${number(metric.value)} ${metric.unit}`

@@ -189,7 +189,7 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'polymarket-gamma', description: 'Polymarket Gamma public catalog API', auth: 'none', docs: 'https://gamma-api.polymarket.com' },
   { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
   { name: 'coingecko', description: 'CoinGecko community and developer data', auth: 'api-key', docs: 'https://docs.coingecko.com/reference/coins-id' },
-  { name: 'github', description: 'GitHub public REST API for repository activity', auth: 'none', docs: 'https://docs.github.com/rest' },
+  { name: 'github', description: 'GitHub public REST API for repository activity', auth: 'api-key', docs: 'https://docs.github.com/rest' },
   { name: 'coinmarketcap', description: 'CoinMarketCap Pro REST API', auth: 'api-key', docs: 'https://coinmarketcap.com/api/documentation/' },
   { name: 'fred', description: 'Federal Reserve Economic Data (FRED) series and observations', auth: 'api-key', docs: 'https://fred.stlouisfed.org/docs/api/fred/' },
   { name: 'worldbank', description: 'World Bank indicator API', auth: 'none', docs: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392' },
@@ -445,12 +445,12 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
   ): Promise<FinanceGithubRepo | undefined> {
     const path = `/repos/${request.repository}`
     try {
-      const response = await this.request({ base: 'github', path, auth: 'none' }, signal)
+      const response = await this.request({ base: 'github', path, auth: 'api-key' }, signal)
       const repo = normalizeGithubRepo(response.data, request.repository)
       if (repo === undefined) return undefined
       try {
         // GitHub answers 202 with an empty body while it computes this series.
-        const activity = await this.request({ base: 'github', path: `${path}/stats/commit_activity`, auth: 'none' }, signal)
+        const activity = await this.request({ base: 'github', path: `${path}/stats/commit_activity`, auth: 'api-key' }, signal)
         const commits4w = normalizeGithubCommitActivity(activity.data)
         return commits4w === undefined ? repo : { ...repo, commits4w }
       } catch {

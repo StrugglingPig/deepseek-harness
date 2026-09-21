@@ -19,6 +19,7 @@ import type { ReportLanguage } from './report-language.ts'
 import type {
   FinanceStockDataProvider,
   FinanceStockFundamentals,
+  FinanceStockValuation,
   FinanceStockHistoryRequest,
   FinanceStockQuote,
   FinanceStockQuoteRequest,
@@ -53,6 +54,20 @@ const stockFundamentalsSchema = zod.object({
     metrics: zod.record(zod.string(), zod.number()),
   })),
 })
+const stockValuationSchema = zod.object({
+  symbol: zod.string(),
+  name: zod.string().optional(),
+  industry: zod.string().optional(),
+  market: zod.string().optional(),
+  indicators: zod.record(zod.string(), zod.number()),
+  marketCapYuan: zod.number().optional(),
+  industryPe: zod.object({
+    date: zod.string().optional(),
+    weighted: zod.number().optional(),
+    median: zod.number().optional(),
+    companies: zod.number().optional(),
+  }).optional(),
+})
 const stockQuoteSchema = zod.object({
   symbol: zod.string(),
   name: zod.string().optional(),
@@ -84,7 +99,7 @@ const bridgeFailureSchema = zod.object({
 
 /** One request sent to the bundled Python stock bridge. */
 export interface FinanceStockBridgeRequest {
-  readonly action: 'stock_history' | 'stock_quote' | 'stock_fundamentals'
+  readonly action: 'stock_history' | 'stock_quote' | 'stock_fundamentals' | 'stock_valuation'
   readonly provider: 'akshare' | 'ifind'
   readonly symbol?: string
   readonly symbols?: readonly string[]
@@ -371,6 +386,42 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
       volume: quote.volume,
       amount: quote.amount,
     }))
+  }
+
+  /**
+   * Load reported valuation multiples and the industry baseline for one symbol.
+   * @param request - Provider and symbols; only the first symbol is read.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized valuation series, or an empty list without a symbol.
+   */
+  async loadStockValuation(
+    request: FinanceStockQuoteRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceStockValuation[]> {
+    this.assertEnabled(request.provider)
+    const symbol = request.symbols[0]?.trim().toUpperCase()
+    if (symbol === undefined || symbol.length === 0) return []
+    const data = stockValuationSchema.parse(await this.bridge.run({
+      action: 'stock_valuation',
+      provider: request.provider,
+      symbol: symbol.replace(/[^0-9]/g, ''),
+    }, signal))
+    return [{
+      symbol: data.symbol,
+      indicators: data.indicators,
+      ...data.name === undefined ? {} : { name: data.name },
+      ...data.industry === undefined ? {} : { industry: data.industry },
+      ...data.market === undefined ? {} : { market: data.market },
+      ...data.marketCapYuan === undefined ? {} : { marketCapYuan: data.marketCapYuan },
+      ...data.industryPe === undefined ? {} : {
+        industryPe: {
+          ...data.industryPe.date === undefined ? {} : { date: data.industryPe.date },
+          ...data.industryPe.weighted === undefined ? {} : { weighted: data.industryPe.weighted },
+          ...data.industryPe.median === undefined ? {} : { median: data.industryPe.median },
+          ...data.industryPe.companies === undefined ? {} : { companies: data.industryPe.companies },
+        },
+      },
+    }]
   }
 
   /**

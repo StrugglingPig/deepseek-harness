@@ -11,6 +11,7 @@ import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
   createCoinGeckoRequestAuthorizer, createCoinMarketCapRequestAuthorizer, createFredRequestAuthorizer,
+  createGithubRequestAuthorizer,
   type FinanceCredentialResolver,
 } from './auth.ts'
 import { FinanceDataError } from './error.ts'
@@ -28,7 +29,10 @@ import {
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
-import { cryptoMetricsForSymbol, equityMetricsFromFundamentals, type ReportAssetContext } from './asset-context.ts'
+import {
+  cryptoMetricsForSymbol, equityMetricsFromFundamentals, equityMetricsFromValuation,
+  type AssetMetric, type ReportAssetContext,
+} from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
 import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
@@ -62,12 +66,16 @@ export type { DashboardAsset, DashboardBar, DashboardInterval, DashboardMarketRe
 export {
   BINANCE_API_KEY_REF,
   BINANCE_API_SECRET_REF,
+  COINGECKO_API_KEY_REF,
   COINMARKETCAP_API_KEY_REF,
   FRED_API_KEY_REF,
+  GITHUB_TOKEN_REF,
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
+  createCoinGeckoRequestAuthorizer,
   createCoinMarketCapRequestAuthorizer,
   createFredRequestAuthorizer,
+  createGithubRequestAuthorizer,
 } from './auth.ts'
 export type {
   BinanceRequestAuthorizerOptions,
@@ -1190,6 +1198,7 @@ export function apply(ctx: Context, config: Config): void {
       resolveCredential: ref => resolveCredential(ref),
       enabled: () => currentSettings.enableCoinGeckoRequests,
     }),
+    createGithubRequestAuthorizer({ resolveCredential: ref => resolveCredential(ref) }),
     createFredRequestAuthorizer({
       resolveCredential: ref => resolveCredential(ref),
       enabled: () => currentSettings.enableFredRequests,
@@ -1237,16 +1246,21 @@ export function apply(ctx: Context, config: Config): void {
     })
     const fundamentalsSource = stockProvider
     registerStockTools(ctx, stockProvider, reportLanguage, () => loadMacroContext(macroProvider), async (request) => {
+      const query = { provider: request.provider, symbols: [request.symbol] }
+      const metrics: AssetMetric[] = []
       try {
-        const [fundamentals] = await fundamentalsSource.loadStockFundamentals({
-          provider: request.provider,
-          symbols: [request.symbol],
-        })
-        return equityMetricsFromFundamentals(fundamentals)
+        const [fundamentals] = await fundamentalsSource.loadStockFundamentals(query)
+        metrics.push(...equityMetricsFromFundamentals(fundamentals))
       } catch {
         // A report keeps its price and macro sections when fundamentals are unavailable.
-        return []
       }
+      try {
+        const [valuation] = await fundamentalsSource.loadStockValuation(query)
+        metrics.push(...equityMetricsFromValuation(valuation))
+      } catch {
+        // Valuation and industry data are optional for the same reason.
+      }
+      return metrics
     })
   })
 

@@ -7,6 +7,8 @@ import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
   createCoinGeckoRequestAuthorizer,
+  createGithubRequestAuthorizer,
+  GITHUB_TOKEN_REF,
   createCoinMarketCapRequestAuthorizer,
   COINGECKO_API_KEY_REF,
   createFredRequestAuthorizer,
@@ -222,6 +224,38 @@ describe('CoinGecko request authorizer', () => {
 
     const unsigned = createCoinGeckoRequestAuthorizer({ resolveCredential: async () => 'cg-key', enabled: () => false })
     await expect(unsigned({ base: 'coingecko', path: '/coins/bitcoin', auth: 'none' }, new URL('https://x.test'), {}))
+      .resolves.toBeUndefined()
+  })
+})
+
+describe('GitHub request authorizer', () => {
+  const request = { base: 'github', path: '/repos/bitcoin/bitcoin', auth: 'api-key' as const }
+
+  it('adds a bearer token only when one is configured', async () => {
+    const withToken = createGithubRequestAuthorizer({
+      resolveCredential: async ref => ref === GITHUB_TOKEN_REF ? 'gh-token' : undefined,
+    })
+    const headers: Record<string, string> = {}
+    await withToken(request, new URL('https://api.github.test'), headers)
+    expect(headers).toEqual({ Authorization: 'Bearer gh-token' })
+
+    // Public repositories need no token, so an unset credential is not an error.
+    const withoutToken = createGithubRequestAuthorizer({ resolveCredential: async () => undefined })
+    const anonymous: Record<string, string> = {}
+    await expect(withoutToken(request, new URL('https://api.github.test'), anonymous)).resolves.toBeUndefined()
+    expect(anonymous).toEqual({})
+  })
+
+  it('leaves owned bases alone and rejects unknown ones', async () => {
+    const authorize = createGithubRequestAuthorizer({ resolveCredential: async () => 'gh-token' })
+    const fred: Record<string, string> = {}
+    await authorize({ base: 'fred', path: '/fred/series', auth: 'api-key' }, new URL('https://fred.test'), fred)
+    expect(fred).toEqual({})
+
+    await expect(authorize({ base: 'unknown', path: '/x', auth: 'api-key' }, new URL('https://x.test'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_UNSUPPORTED' })
+
+    await expect(authorize({ base: 'github', path: '/x', auth: 'none' }, new URL('https://x.test'), {}))
       .resolves.toBeUndefined()
   })
 })
