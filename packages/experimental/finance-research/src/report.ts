@@ -5,6 +5,7 @@ import { buildMethodologyAnalysis, type MethodologyAnalysis } from './methodolog
 import { REPORT_COPY, formatCopy, type ReportBlockCopy, type ReportCategoryCopy, type ReportCopy } from './report-copy.ts'
 import type { ReportLanguage } from './report-language.ts'
 import { REPORT_TYPES, defaultReportType, reportTypeById, type ReportSectionId, type ReportTypeDefinition } from './report-types.ts'
+import type { AssetMetric, AssetMetricGroup } from './asset-context.ts'
 import type { MacroCategory } from './macro-catalog.ts'
 import type { MacroSeries } from './macro.ts'
 import type {
@@ -55,6 +56,45 @@ interface SectionContext {
   readonly type: ReportTypeDefinition
   /** Macro series available to this report; absent when the caller loaded none. */
   readonly macro: readonly MacroSeries[]
+  /** Instrument metrics available to this report; absent when the caller loaded none. */
+  readonly metrics: readonly AssetMetric[]
+}
+
+/**
+ * Render a metric value with the precision its unit implies.
+ * @param metric - Metric to render.
+ * @returns The formatted value with its unit.
+ */
+function metricValue(metric: AssetMetric): string {
+  if (metric.unit === '%') return percent(metric.value)
+  if (metric.unit === 'CNY') return `${number(metric.value)} CNY`
+  if (metric.unit === 'USD') return `${compact(metric.value)} USD`
+  if (metric.unit === '') return compact(metric.value)
+  return `${number(metric.value)} ${metric.unit}`
+}
+
+/**
+ * Render the instrument metrics a category block consumes.
+ * @param context - Section context carrying the loaded metrics.
+ * @param id - Section being rendered.
+ * @param groups - Metric dimensions this block reports.
+ * @returns The rendered section, or the missing-input block when no metric matched.
+ */
+function metricBlock(
+  context: SectionContext,
+  id: ReportSectionId,
+  groups: readonly AssetMetricGroup[],
+): ResearchReportSection {
+  const matched = context.metrics.filter(metric => groups.includes(metric.group))
+  if (matched.length === 0) return inputBlock(context, id)
+  const copy = context.copy
+  return {
+    title: copy.sections[sectionKey(id)],
+    content: matched.map((metric) => {
+      const label = copy.metrics[metric.key] ?? metric.key
+      return `- ${label}: ${metricValue(metric)} (${metric.asOf}, source ${metric.source})`
+    }).join('\n'),
+  }
 }
 
 /**
@@ -416,6 +456,18 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         ].join('\n'),
       }
     }
+    case 'valuation-framework':
+      return metricBlock(context, id, ['valuation'])
+    case 'financial-quality':
+      return metricBlock(context, id, ['profitability', 'balance', 'cash'])
+    case 'earnings-review':
+      return metricBlock(context, id, ['growth'])
+    case 'industry-landscape':
+      return metricBlock(context, id, ['industry'])
+    case 'onchain-tokenomics':
+      return metricBlock(context, id, ['supply', 'development'])
+    case 'fund-flows':
+      return metricBlock(context, id, ['market'])
     case 'macro-drivers':
       return macroBlock(context, id, ['growth', 'inflation', 'employment', 'consumption', 'investment', 'money-credit', 'fiscal', 'external', 'policy', 'market'])
     case 'rates-credit':
@@ -451,6 +503,7 @@ function sectionsFor(
   language: ReportLanguage,
   type: ReportTypeDefinition,
   macro: readonly MacroSeries[],
+  metrics: readonly AssetMetric[],
 ): ResearchReportSection[] {
   const copy = REPORT_COPY[language]
   const context: SectionContext = {
@@ -462,6 +515,7 @@ function sectionsFor(
     category: copy.reportCategories[type.category] as ReportCategoryCopy,
     type,
     macro,
+    metrics,
   }
   const sections = type.sections.map(id => renderSection(id, context))
   const prediction = predictionSection(snapshot, copy)
@@ -628,6 +682,7 @@ export function resolveReportType(request: ResearchReportRequest, snapshot: Mark
  * @param signal - Optional cancellation forwarded to the provider.
  * @param language - Report language; defaults to English.
  * @param macro - Macro series rendered as the report precondition; empty when none loaded.
+ * @param metrics - Instrument metrics rendered into the fundamental blocks; empty when none loaded.
  * @returns The structured report with Markdown and interactive HTML renderings.
  */
 export async function buildResearchReport(
@@ -636,12 +691,13 @@ export async function buildResearchReport(
   signal?: AbortSignal,
   language: ReportLanguage = 'en',
   macro: readonly MacroSeries[] = [],
+  metrics: readonly AssetMetric[] = [],
 ): Promise<ResearchReport> {
   const copy = REPORT_COPY[language]
   const snapshot = await provider.load(request.symbol, signal)
   const analysis = buildIndicatorAnalysis(snapshot)
   const type = resolveReportType(request, snapshot)
-  const sections = sectionsFor(snapshot, analysis, request, language, type, macro)
+  const sections = sectionsFor(snapshot, analysis, request, language, type, macro, metrics)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`

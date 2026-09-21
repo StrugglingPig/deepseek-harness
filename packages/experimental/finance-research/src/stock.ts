@@ -10,6 +10,7 @@ import type { FinanceCredentialResolver } from './auth.ts'
 import { FinanceDataError } from './error.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { exportResearchReport } from './export.ts'
+import type { AssetMetric } from './asset-context.ts'
 import type { MacroSeries } from './macro.ts'
 import { buildResearchReport } from './report.ts'
 import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, STOCK_INPUT_PARAMETERS, analysisValue, snapshotValue } from './tool-schemas.ts'
@@ -17,6 +18,7 @@ import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PR
 import type { ReportLanguage } from './report-language.ts'
 import type {
   FinanceStockDataProvider,
+  FinanceStockFundamentals,
   FinanceStockHistoryRequest,
   FinanceStockQuote,
   FinanceStockQuoteRequest,
@@ -43,6 +45,13 @@ const stockHistorySchema = zod.object({
   symbol: zod.string(),
   name: zod.string(),
   bars: zod.array(stockBarSchema),
+})
+const stockFundamentalsSchema = zod.object({
+  symbol: zod.string(),
+  periods: zod.array(zod.object({
+    period: zod.string(),
+    metrics: zod.record(zod.string(), zod.number()),
+  })),
 })
 const stockQuoteSchema = zod.object({
   symbol: zod.string(),
@@ -75,7 +84,7 @@ const bridgeFailureSchema = zod.object({
 
 /** One request sent to the bundled Python stock bridge. */
 export interface FinanceStockBridgeRequest {
-  readonly action: 'stock_history' | 'stock_quote'
+  readonly action: 'stock_history' | 'stock_quote' | 'stock_fundamentals'
   readonly provider: 'akshare' | 'ifind'
   readonly symbol?: string
   readonly symbols?: readonly string[]
@@ -249,6 +258,15 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
   }
 }
 
+/** One instrument-metrics lookup keyed by the report's provider and symbol. */
+export interface StockAssetRequest {
+  readonly provider: 'akshare' | 'ifind'
+  readonly symbol: string
+}
+
+/** Loads the instrument metrics a stock report quotes, or none when unavailable. */
+export type StockAssetContext = (request: StockAssetRequest) => Promise<readonly AssetMetric[]>
+
 /** Options for the Python-backed stock provider. */
 export interface SubprocessFinanceStockDataProviderOptions {
   /** Retrieval clock for normalized source metadata. */
@@ -354,6 +372,27 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
       amount: quote.amount,
     }))
   }
+
+  /**
+   * Load reported financial ratios for one mainland symbol.
+   * @param request - Provider and symbols; only the first symbol is read.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized fundamentals series, or an empty list without a symbol.
+   */
+  async loadStockFundamentals(
+    request: FinanceStockQuoteRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceStockFundamentals[]> {
+    this.assertEnabled(request.provider)
+    const symbol = request.symbols[0]?.trim().toUpperCase()
+    if (symbol === undefined || symbol.length === 0) return []
+    const data = stockFundamentalsSchema.parse(await this.bridge.run({
+      action: 'stock_fundamentals',
+      provider: request.provider,
+      symbol: symbol.replace(/[^0-9]/g, ''),
+    }, signal))
+    return [{ symbol: data.symbol, periods: data.periods }]
+  }
 }
 
 
@@ -363,12 +402,14 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
  * @param provider - Stock data provider.
  * @param reportLanguage - Resolves the report language for generated reports.
  * @param macroContext - Loads the macro series the report quotes as its precondition.
+ * @param assetContext - Loads the instrument metrics the report quotes.
  */
 export function registerStockTools(
   ctx: Context,
   provider: FinanceStockDataProvider,
   reportLanguage: () => ReportLanguage = () => 'en',
   macroContext: () => Promise<readonly MacroSeries[]> = () => Promise.resolve([]),
+  assetContext: StockAssetContext = () => Promise.resolve([]),
 ): void {
   /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
@@ -553,7 +594,8 @@ export function registerStockTools(
         load: () => Promise.resolve(snapshot),
       }
       const macro = await macroContext()
-      return reportValue(await buildResearchReport(stockMarketProvider, reportRequest(args), exec.signal, reportLanguage(), macro))
+      const metrics = await assetContext({ provider: args.provider, symbol: args.symbol })
+      return reportValue(await buildResearchReport(stockMarketProvider, reportRequest(args), exec.signal, reportLanguage(), macro, metrics))
     },
   }))
 
@@ -633,7 +675,8 @@ export function registerStockTools(
         const report = await buildResearchReport({
           id: 'stock-python',
           load: () => Promise.resolve(snapshot),
-        }, reportRequest(args), exec.signal, reportLanguage(), await macroContext())
+        }, reportRequest(args), exec.signal, reportLanguage(), await macroContext(),
+        await assetContext({ provider: args.provider, symbol: args.symbol }))
         const files = await exportResearchReport(
           fsCtx.fs,
           report,

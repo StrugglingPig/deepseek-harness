@@ -33,9 +33,9 @@ describe('finance research report', () => {
     expect(report.reportType).toBe('equity-deep-dive')
     expect(report.sections.map(section => section.title)).toEqual([
       'Investment View', 'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action',
-      'Valuation Framework', 'Financial Quality', 'Competitive Position', 'Technical Indicators',
-      'Multi-Indicator Synthesis', 'Methodology Coverage', 'Investor Lenses', 'Scenario Analysis',
-      'Strategy Gaps', 'Risk And Limitations',
+      'Valuation Framework', 'Earnings Review', 'Financial Quality', 'Competitive Position',
+      'Technical Indicators', 'Multi-Indicator Synthesis', 'Methodology Coverage', 'Investor Lenses',
+      'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
     ])
     expect(report.markdown).toContain('# Apple Inc. (AAPL) · Equity Deep dive')
     expect(report.html).toContain('<title>Apple Inc. (AAPL) · Equity Deep dive</title>')
@@ -129,6 +129,26 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Technical Indicators')).toContain('overbought')
   })
 
+  it('fills the fundamental blocks from the supplied metrics', async () => {
+    const metrics = [
+      { group: 'valuation' as const, key: 'eps', value: 36.8243, unit: 'CNY', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'profitability' as const, key: 'roe', value: 17.72, unit: '%', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'balance' as const, key: 'currentRatio', value: 5.5895, unit: '', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'growth' as const, key: 'profitGrowth', value: -2.029, unit: '%', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'market' as const, key: 'marketCap', value: 1.7e12, unit: 'USD', asOf: '2026-09-21', source: 'coinmarketcap' },
+      { group: 'market' as const, key: 'turnoverRatio', value: 0.42, unit: 'x', asOf: '2026-09-21', source: 'coinmarketcap' },
+    ]
+    const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'en', [], metrics)
+    expect(sectionOf(report, 'Valuation Framework')).toContain('Diluted EPS: 36.82 CNY (2026-06-30, source akshare)')
+    expect(sectionOf(report, 'Financial Quality')).toContain('Return on equity: 17.72%')
+    expect(sectionOf(report, 'Financial Quality')).toContain('Current ratio: 5.59')
+    expect(sectionOf(report, 'Earnings Review')).toContain('Net profit growth (YoY): -2.03%')
+    // A category block with no matching metric still reports what it needs.
+    const crypto = await buildResearchReport(fixtureProvider, { symbol: 'BTC' }, undefined, 'en', [], metrics)
+    expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('1.7T USD')
+    expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('0.42 x')
+  })
+
   it('escapes HTML and script terminators in interactive report data', async () => {
     const report = await buildResearchReport({
       id: 'external',
@@ -163,7 +183,7 @@ describe('finance research report', () => {
     expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
       '投资结论', '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为',
-      '估值框架', '财务质量', '竞争格局', '技术指标', '多指标综合', '方法论覆盖',
+      '估值框架', '业绩点评', '财务质量', '竞争格局', '技术指标', '多指标综合', '方法论覆盖',
       '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')

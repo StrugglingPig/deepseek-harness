@@ -713,6 +713,52 @@ def ifind_quotes(request: dict) -> dict:
     raise RuntimeError(f"INVALID_STOCK_TRANSPORT: unsupported iFinD transport {transport}")
 
 
+FUNDAMENTAL_METRICS = (
+    ("eps", "摊薄每股收益(元)"),
+    ("bookValuePerShare", "每股净资产_调整前(元)"),
+    ("roe", "净资产收益率(%)"),
+    ("netMargin", "销售净利率(%)"),
+    ("operatingMargin", "营业利润率(%)"),
+    ("debtRatio", "资产负债率(%)"),
+    ("currentRatio", "流动比率"),
+    ("revenueGrowth", "主营业务收入增长率(%)"),
+    ("profitGrowth", "净利润增长率(%)"),
+    ("cashConversion", "经营现金净流量与净利润的比率(%)"),
+)
+
+
+def ak_fundamentals(request: dict) -> dict:
+    """Load reported financial ratios for one mainland symbol.
+
+    Reads the published indicator table, which carries quarterly reporting
+    periods, and keeps the newest periods for the report to quote.
+    """
+    ak = import_akshare()
+    symbol = bare_symbol(request["symbol"])
+    start_year = str(request.get("startYear") or (date.today().year - 2))
+    frame = ak.stock_financial_analysis_indicator(symbol=symbol, start_year=start_year)
+    rows = rows_from_frame(frame)
+    periods = []
+    for row in rows:
+        reported = normalize_macro_date(row.get("日期"))
+        if reported is None:
+            continue
+        metrics = {}
+        for key, column in FUNDAMENTAL_METRICS:
+            try:
+                value = float(row.get(column))
+            except (TypeError, ValueError):
+                continue
+            if value == value:
+                metrics[key] = value
+        if metrics:
+            periods.append({"period": reported, "metrics": metrics})
+    if not periods:
+        raise RuntimeError("AKSHARE_FUNDAMENTALS_EMPTY: indicator table returned no numeric rows")
+    periods.sort(key=lambda item: item["period"])
+    return {"symbol": symbol, "periods": periods[-8:]}
+
+
 def main() -> None:
     try:
         request = json.load(sys.stdin)
@@ -735,6 +781,8 @@ def main() -> None:
             emit({"ok": True, "data": ak_quotes(request)})
         elif action == "stock_quote" and provider == "ifind":
             emit({"ok": True, "data": ifind_quotes(request)})
+        elif action == "stock_fundamentals" and provider == "akshare":
+            emit({"ok": True, "data": ak_fundamentals(request)})
         elif action == "macro_series":
             emit({"ok": True, "data": ak_macro(request)})
         else:

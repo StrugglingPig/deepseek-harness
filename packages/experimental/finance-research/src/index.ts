@@ -28,6 +28,7 @@ import {
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
+import { equityMetricsFromFundamentals } from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
 import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
@@ -1208,7 +1209,19 @@ export function apply(ctx: Context, config: Config): void {
         : currentSettings.enableIfind,
       ifindTransport: () => currentSettings.ifindTransport,
     })
-    registerStockTools(ctx, stockProvider, reportLanguage, () => loadMacroContext(macroProvider))
+    const fundamentalsSource = stockProvider
+    registerStockTools(ctx, stockProvider, reportLanguage, () => loadMacroContext(macroProvider), async (request) => {
+      try {
+        const [fundamentals] = await fundamentalsSource.loadStockFundamentals({
+          provider: request.provider,
+          symbols: [request.symbol],
+        })
+        return equityMetricsFromFundamentals(fundamentals)
+      } catch {
+        // A report keeps its price and macro sections when fundamentals are unavailable.
+        return []
+      }
+    })
   })
 
   ctx.inject(['settings'], (settingsCtx) => {

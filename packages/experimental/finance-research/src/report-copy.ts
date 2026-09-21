@@ -84,6 +84,8 @@ export interface ReportCopy {
   readonly catalogNames: Readonly<Record<string, string>>
   /** Localized data requirements keyed by the canonical requirement; absent entries keep the canonical text. */
   readonly requirements: Readonly<Record<string, string>>
+  /** Locale labels for the instrument metrics a report quotes. */
+  readonly metrics: Readonly<Record<string, string>>
   /** Report category copy keyed by category id. */
   readonly reportCategories: Readonly<Record<string, ReportCategoryCopy>>
   /** Report form display names keyed by form id. */
@@ -254,6 +256,18 @@ const EN: ReportCopy = {
   statuses: {},
   categories: {},
   catalogNames: {},
+  metrics: {
+    eps: 'Diluted EPS',
+    bookValuePerShare: 'Book value per share',
+    roe: 'Return on equity',
+    netMargin: 'Net margin',
+    operatingMargin: 'Operating margin',
+    revenueGrowth: 'Revenue growth (YoY)',
+    profitGrowth: 'Net profit growth (YoY)',
+    debtRatio: 'Debt-to-asset ratio',
+    currentRatio: 'Current ratio',
+    cashConversion: 'Operating cash flow / net profit',
+  },
   requirements: {},
   reportCategories: {
     macro: { name: 'Macro', focus: ['growth, inflation, and policy direction', 'rates, liquidity, and transmission', 'cross-asset implications'], requirements: ['national accounts', 'inflation series', 'policy rates and balance sheets'], catalysts: ['policy meetings and rate decisions', 'inflation and labour prints', 'fiscal and geopolitical events'] },
@@ -573,6 +587,18 @@ const ZH: ReportCopy = {
     'fx-drivers': { requires: ['利差', '国际收支', '仓位'], checks: ['哪一条腿主导该货币对？', '驱动来自 carry、贸易条件还是风险偏好？', '什么政策变化会打破趋势？'] },
     'fund-flows': { requires: ['基金持仓', '资金流与折溢价', '基准与费率'], checks: ['基金实际承担了什么暴露？', '资金流与价格趋势如何相互影响？', '跟踪误差或流动性成本是多少？'] },
     'onchain-tokenomics': { requires: ['链上活跃度指标', '代币解锁计划', '交易所与 ETF 资金流'], checks: ['网络使用量是否与价格同步增长？', '解锁带来多大的供应压力？', '资金流集中在哪些交易所或发行方？'] },
+  },
+  metrics: {
+    eps: '摊薄每股收益',
+    bookValuePerShare: '每股净资产',
+    roe: '净资产收益率',
+    netMargin: '销售净利率',
+    operatingMargin: '营业利润率',
+    revenueGrowth: '营业收入同比',
+    profitGrowth: '净利润同比',
+    debtRatio: '资产负债率',
+    currentRatio: '流动比率',
+    cashConversion: '经营现金流/净利润',
   },
   requirements: {
     'daily OHLCV': '日线 OHLCV',

@@ -187,6 +187,21 @@ export interface FinanceStockQuoteRequest {
   readonly symbols: readonly string[]
 }
 
+/** One reported financial period for a mainland stock. */
+export interface FinanceStockFundamentalsPeriod {
+  /** Reporting period the ratios describe, as published upstream. */
+  readonly period: string
+  /** Reported ratios keyed by normalized metric name. */
+  readonly metrics: Readonly<Record<string, number>>
+}
+
+/** One normalized mainland stock fundamentals series. */
+export interface FinanceStockFundamentals {
+  readonly symbol: string
+  /** Reporting periods in ascending order, newest last. */
+  readonly periods: readonly FinanceStockFundamentalsPeriod[]
+}
+
 /** One normalized mainland stock real-time quote. */
 export interface FinanceStockQuote {
   readonly symbol: string
@@ -234,6 +249,8 @@ export interface FinanceStockDataProvider {
   loadStockSnapshot(request: FinanceStockHistoryRequest, signal?: AbortSignal): Promise<FinanceStockSnapshot>
   /** Load normalized current stock quotes. */
   loadStockQuotes(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockQuote[]>
+  /** Load reported financial ratios when the upstream publishes them. */
+  loadStockFundamentals?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockFundamentals[]>
 }
 
 /** Replacing this provider changes the data source without changing the tools. */

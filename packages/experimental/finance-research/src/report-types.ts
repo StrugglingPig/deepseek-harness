@@ -54,7 +54,7 @@ const CATEGORY_FORMS: Readonly<Record<ReportCategory, readonly ReportForm[]>> = 
 const CATEGORY_BLOCKS: Readonly<Record<ReportCategory, readonly ReportSectionId[]>> = {
   macro: ['macro-drivers', 'rates-credit'],
   industry: ['industry-landscape', 'competitive-position'],
-  equity: ['valuation-framework', 'financial-quality', 'competitive-position'],
+  equity: ['valuation-framework', 'earnings-review', 'financial-quality', 'competitive-position'],
   fund: ['fund-flows', 'valuation-framework'],
   'fixed-income': ['rates-credit', 'macro-drivers'],
   'commodity-fx': ['commodity-balance', 'fx-drivers'],

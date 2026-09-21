@@ -193,7 +193,11 @@ describe('finance apply', () => {
         const stdin = request.stdio?.stdin?.data ?? ''
         payload = stdin.includes('macro_series')
           ? { function: 'macro_china_pmi', observations: [{ date: '2026-01', value: 50.5 }] }
-          : history
+          : stdin.includes('stock_fundamentals')
+            ? stdin.includes('000001')
+              ? { symbol: '000001', periods: 'not-an-array' }
+              : { symbol: '600519', periods: [{ period: '2026-06-30', metrics: { roe: 17.72, revenueGrowth: 1.47 } }] }
+            : history
         return handle
       },
     } as never)
@@ -246,6 +250,17 @@ describe('finance apply', () => {
     })
     expect(stockReport.isError).toBe(false)
     expect(textOfReport(stockReport)).toContain('Macro Drivers')
+    expect(textOfReport(stockReport)).toContain('Return on equity: 17.72%')
+
+    // A failing fundamentals read leaves the report intact.
+    const withoutFundamentals = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-report-gap' as never,
+      name: 'finance_stock_research_report',
+      arguments: { provider: 'akshare', symbol: '000001' },
+    })
+    expect(withoutFundamentals.isError).toBe(false)
+    expect(textOfReport(withoutFundamentals)).toContain('Valuation Framework')
     await ctx.fiber.dispose()
   })
 
