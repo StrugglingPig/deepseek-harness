@@ -316,6 +316,287 @@ export function kdj(
   return { k, d, j }
 }
 
+/** One TD Sequential bar count, drawn above or below its candle. */
+export interface TdSequentialCount {
+  readonly time: number
+  readonly count: number
+  readonly side: 'buy' | 'sell'
+}
+
+/** Arithmetic mean of a non-empty window. */
+function mean(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+/** True range at one index; the first bar uses its own high-low span. */
+function trueRange(bars: readonly DashboardBar[], index: number): number {
+  const bar = bars[index] as DashboardBar
+  if (index === 0) return bar.high - bar.low
+  const previousClose = (bars[index - 1] as DashboardBar).close
+  return Math.max(bar.high - bar.low, Math.abs(bar.high - previousClose), Math.abs(bar.low - previousClose))
+}
+
+/**
+ * Wilder smoothing.
+ * @param values - Input series.
+ * @param period - Smoothing length.
+ * @returns Smoothed values starting at index `period - 1`.
+ */
+function wilder(values: readonly number[], period: number): number[] {
+  if (period < 1 || values.length < period) return []
+  const smoothed = [mean(values.slice(0, period))]
+  for (let index = period; index < values.length; index += 1) {
+    const previous = smoothed[smoothed.length - 1] as number
+    smoothed.push((previous * (period - 1) + (values[index] as number)) / period)
+  }
+  return smoothed
+}
+
+/**
+ * Points built from a per-index value reader.
+ * @param bars - Bars supplying the timeline.
+ * @param from - First index that produces a point.
+ * @param read - Value reader.
+ * @returns One point per index from `from`.
+ */
+function seriesFrom(
+  bars: readonly DashboardBar[],
+  from: number,
+  read: (index: number) => number,
+): IndicatorPoint[] {
+  const points: IndicatorPoint[] = []
+  for (let index = Math.max(0, from); index < bars.length; index += 1) {
+    points.push({ time: (bars[index] as DashboardBar).time, value: read(index) })
+  }
+  return points
+}
+
+/**
+ * Parabolic SAR.
+ * @param bars - Bars to measure.
+ * @param step - Acceleration factor increment.
+ * @param maxStep - Acceleration factor ceiling.
+ * @returns One point per bar.
+ */
+export function sar(bars: readonly DashboardBar[], step = 0.02, maxStep = 0.2): IndicatorPoint[] {
+  const first = bars[0]
+  if (first === undefined) return []
+  let rising = true
+  let extreme = first.high
+  let acceleration = step
+  let value = first.low
+  const points: IndicatorPoint[] = [{ time: first.time, value }]
+  for (let index = 1; index < bars.length; index += 1) {
+    const bar = bars[index] as DashboardBar
+    const previous = bars[index - 1] as DashboardBar
+    const prior = bars[index - 2] ?? previous
+    value += acceleration * (extreme - value)
+    if (rising) {
+      // The stop may not enter the prior two bars' range; the reversal test
+      // compares the current low against that clamped stop.
+      value = Math.min(value, previous.low, prior.low)
+      if (bar.low < value) {
+        rising = false
+        value = extreme
+        extreme = bar.low
+        acceleration = step
+      } else if (bar.high > extreme) {
+        extreme = bar.high
+        acceleration = Math.min(maxStep, acceleration + step)
+      }
+    } else {
+      value = Math.max(value, previous.high, prior.high)
+      if (bar.high > value) {
+        rising = true
+        value = extreme
+        extreme = bar.high
+        acceleration = step
+      } else if (bar.low < extreme) {
+        extreme = bar.low
+        acceleration = Math.min(maxStep, acceleration + step)
+      }
+    }
+    points.push({ time: bar.time, value })
+  }
+  return points
+}
+
+/**
+ * Volume-weighted average price over the loaded window.
+ * @param bars - Bars to measure.
+ * @returns One point per bar.
+ */
+export function vwap(bars: readonly DashboardBar[]): IndicatorPoint[] {
+  let weighted = 0
+  let volume = 0
+  return bars.map((bar) => {
+    const typical = (bar.high + bar.low + bar.close) / 3
+    weighted += typical * bar.volume
+    volume += bar.volume
+    return { time: bar.time, value: volume === 0 ? typical : weighted / volume }
+  })
+}
+
+/**
+ * Williams %R on the inverted 0-100 scale used by mainland charts.
+ * @param bars - Bars to measure.
+ * @param period - Lookback length.
+ * @returns One point per completed window.
+ */
+export function wr(bars: readonly DashboardBar[], period = 14): IndicatorPoint[] {
+  if (period < 1) return []
+  return seriesFrom(bars, period - 1, (index) => {
+    const window = bars.slice(index + 1 - period, index + 1)
+    const highest = Math.max(...window.map(bar => bar.high))
+    const lowest = Math.min(...window.map(bar => bar.low))
+    const range = highest - lowest
+    return range === 0 ? 0 : (highest - (bars[index] as DashboardBar).close) / range * 100
+  })
+}
+
+/**
+ * Commodity channel index.
+ * @param bars - Bars to measure.
+ * @param period - Lookback length.
+ * @returns One point per completed window.
+ */
+export function cci(bars: readonly DashboardBar[], period = 14): IndicatorPoint[] {
+  if (period < 1) return []
+  const typical = bars.map(bar => (bar.high + bar.low + bar.close) / 3)
+  return seriesFrom(bars, period - 1, (index) => {
+    const window = typical.slice(index + 1 - period, index + 1)
+    const average = mean(window)
+    const deviation = mean(window.map(value => Math.abs(value - average)))
+    return deviation === 0 ? 0 : (typical[index] as number - average) / (0.015 * deviation)
+  })
+}
+
+/**
+ * Close-to-average deviation (BIAS).
+ * @param bars - Bars to measure.
+ * @param period - Moving-average length.
+ * @returns One point per completed window.
+ */
+export function bias(bars: readonly DashboardBar[], period = 6): IndicatorPoint[] {
+  if (period < 1) return []
+  return seriesFrom(bars, period - 1, (index) => {
+    const average = mean(bars.slice(index + 1 - period, index + 1).map(bar => bar.close))
+    return average === 0 ? 0 : ((bars[index] as DashboardBar).close - average) / average * 100
+  })
+}
+
+/**
+ * On-balance volume.
+ * @param bars - Bars to measure.
+ * @returns One point per bar.
+ */
+export function obv(bars: readonly DashboardBar[]): IndicatorPoint[] {
+  let total = 0
+  return seriesFrom(bars, 0, (index) => {
+    const bar = bars[index] as DashboardBar
+    const previous = bars[index - 1]
+    if (previous !== undefined) {
+      if (bar.close > previous.close) total += bar.volume
+      else if (bar.close < previous.close) total -= bar.volume
+    }
+    return total
+  })
+}
+
+/**
+ * Average true range.
+ * @param bars - Bars to measure.
+ * @param period - Smoothing length.
+ * @returns One point per smoothed bar.
+ */
+export function atr(bars: readonly DashboardBar[], period = 14): IndicatorPoint[] {
+  if (period < 1) return []
+  const ranges = bars.map((_bar, index) => trueRange(bars, index))
+  const smoothed = wilder(ranges, period)
+  return smoothed.map((value, offset) => ({
+    time: (bars[period - 1 + offset] as DashboardBar).time,
+    value,
+  }))
+}
+
+/**
+ * Directional movement: +DI, -DI, and ADX.
+ * @param bars - Bars to measure.
+ * @param period - Smoothing length.
+ * @returns The three directional series.
+ */
+export function dmi(
+  bars: readonly DashboardBar[],
+  period = 14,
+): { readonly plusDi: IndicatorPoint[]; readonly minusDi: IndicatorPoint[]; readonly adx: IndicatorPoint[] } {
+  const plusDi: IndicatorPoint[] = []
+  const minusDi: IndicatorPoint[] = []
+  const adx: IndicatorPoint[] = []
+  if (period < 1 || bars.length <= period) return { plusDi, minusDi, adx }
+  const plusMovement: number[] = []
+  const minusMovement: number[] = []
+  const ranges: number[] = []
+  for (let index = 1; index < bars.length; index += 1) {
+    const bar = bars[index] as DashboardBar
+    const previous = bars[index - 1] as DashboardBar
+    const up = bar.high - previous.high
+    const down = previous.low - bar.low
+    plusMovement.push(up > down && up > 0 ? up : 0)
+    minusMovement.push(down > up && down > 0 ? down : 0)
+    ranges.push(trueRange(bars, index))
+  }
+  const smoothedRange = wilder(ranges, period)
+  const smoothedPlus = wilder(plusMovement, period)
+  const smoothedMinus = wilder(minusMovement, period)
+  const dx: number[] = []
+  smoothedRange.forEach((range, offset) => {
+    const plus = range === 0 ? 0 : (smoothedPlus[offset] as number) / range * 100
+    const minus = range === 0 ? 0 : (smoothedMinus[offset] as number) / range * 100
+    const index = period + offset
+    plusDi.push({ time: (bars[index] as DashboardBar).time, value: plus })
+    minusDi.push({ time: (bars[index] as DashboardBar).time, value: minus })
+    dx.push(plus + minus === 0 ? 0 : Math.abs(plus - minus) / (plus + minus) * 100)
+  })
+  wilder(dx, period).forEach((value, offset) => {
+    const index = period + period - 1 + offset
+    adx.push({ time: (bars[index] as DashboardBar).time, value })
+  })
+  return { plusDi, minusDi, adx }
+}
+
+/**
+ * TD Sequential setup counts. A buy count advances while a close sits below the
+ * close {@link lookback} bars earlier; a sell count advances on the mirror
+ * comparison. Each bar joins at most one of the two counts, and the count keeps
+ * running until its comparison breaks.
+ * @param bars - Bars to measure.
+ * @param lookback - Comparison distance, four bars in the published setup.
+ * @returns One count per bar that belongs to an active setup.
+ */
+export function tdSequential(bars: readonly DashboardBar[], lookback = 4): TdSequentialCount[] {
+  if (lookback < 1) return []
+  const counts: TdSequentialCount[] = []
+  let buy = 0
+  let sell = 0
+  for (let index = lookback; index < bars.length; index += 1) {
+    const bar = bars[index] as DashboardBar
+    const reference = (bars[index - lookback] as DashboardBar).close
+    if (bar.close < reference) {
+      buy += 1
+      sell = 0
+    } else if (bar.close > reference) {
+      sell += 1
+      buy = 0
+    } else {
+      buy = 0
+      sell = 0
+    }
+    if (buy > 0) counts.push({ time: bar.time, count: buy, side: 'buy' })
+    else if (sell > 0) counts.push({ time: bar.time, count: sell, side: 'sell' })
+  }
+  return counts
+}
+
 function formatCoordinate(value: number): string {
   return Number(value.toFixed(4)).toString()
 }

@@ -16,7 +16,8 @@ const mock = vi.hoisted(() => {
     panes: vi.fn(() => panes),
     remove: vi.fn(),
   }
-  return { state, api, panes }
+  const markers = vi.fn((_series: unknown, list: readonly unknown[]) => ({ markers: () => list }))
+  return { state, api, panes, markers }
 })
 
 vi.mock('lightweight-charts', () => ({
@@ -24,6 +25,7 @@ vi.mock('lightweight-charts', () => ({
     if (mock.state.fail) throw new Error('chart failed')
     return mock.api
   }),
+  createSeriesMarkers: (series: unknown, list: readonly unknown[]) => mock.markers(series, list),
   CrosshairMode: { Normal: 0 },
   CandlestickSeries: {},
   HistogramSeries: {},
@@ -95,6 +97,28 @@ describe('TradingChart', () => {
     expect(panes.slice(7, 12)).toEqual([2, 3, 3, 4, 4])
     expect(mock.api.addSeries).toHaveBeenCalledTimes(13)
     expect(panes.at(-1)).toBe(4)
+    view.unmount()
+  })
+
+  it('draws every catalogued pane indicator and marks TD Sequential setups', async () => {
+    // A wave produces both a buy setup and a sell setup for the TD markers.
+    const wave = [...Array.from({ length: 12 }, (_, index) => 100 - index), ...Array.from({ length: 12 }, (_, index) => 90 + index)]
+      .map((close, index) => ({ time: 1_700_000_000_000 + index * 60_000, open: close, high: close + 1, low: close - 1, close, volume: 5 }))
+    const view = render(<TradingChart
+      bars={wave}
+      interval="1d"
+      chartLabel="chart"
+      indicators={indicators('sar', 'vwap', 'td', 'wr', 'cci', 'bias', 'obv', 'atr', 'dmi')}
+    />)
+    await waitFor(() => { expect(view.getByTestId('finance-chart').getAttribute('data-native')).toBe('true') })
+
+    const panes = mock.api.addSeries.mock.calls.map(call => call[2])
+    // SAR and VWAP overlay the candles; TD Sequential only marks them.
+    expect(panes.slice(0, 2)).toEqual([undefined, 0])
+    // WR, CCI, BIAS, OBV, ATR own one pane each and DMI shares its own three lines.
+    expect(panes.slice(2)).toEqual([0, 1, 2, 3, 4, 5, 6, 6, 6])
+    expect(mock.markers).toHaveBeenCalledTimes(1)
+    expect(Number.parseInt(view.getByTestId('finance-chart').style.minHeight, 10)).toBe(980)
     view.unmount()
   })
 

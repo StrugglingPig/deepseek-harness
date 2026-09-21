@@ -132,6 +132,11 @@ describe('FinanceDashboardController', () => {
     expect(face.hooks.indicators.getSnapshot().enabled).toContain('kdj')
     face.setIndicatorParameter('kdj', 'period', 12)
     expect(face.hooks.indicators.getSnapshot().parameters.kdj).toEqual({ period: 12 })
+
+    face.resetIndicator('kdj')
+    expect(face.hooks.indicators.getSnapshot().parameters.kdj).toBeUndefined()
+    face.resetIndicators()
+    expect(face.hooks.indicators.getSnapshot().enabled).toEqual([...DEFAULT_INDICATOR_IDS])
     controller.dispose()
   })
 

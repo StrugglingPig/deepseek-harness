@@ -75,6 +75,7 @@
     "lib/types/**/*.d.ts"
   ],
   "dependencies": {
+    "@deepseek-ai/dsh-util-values": "workspace:^",
     "lightweight-charts": "^5.2.1"
   }
 }

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { INDICATOR_PERSIST_KEY, createIndicatorStore, setIndicatorParameter, toggleIndicator } from '../src/client/indicator-store.ts'
+import {
+  INDICATOR_PERSIST_KEY, createIndicatorStore, defaultIndicatorPreferences, resetIndicator, setIndicatorParameter, toggleIndicator,
+} from '../src/client/indicator-store.ts'
 import { DEFAULT_INDICATOR_IDS } from '../src/client/indicators.ts'
 
 beforeEach(() => { localStorage.clear() })
@@ -22,6 +24,21 @@ describe('finance dashboard indicator preferences', () => {
     store.set(setIndicatorParameter(store.getSnapshot(), 'boll', 'period', 10))
     store.set(setIndicatorParameter(store.getSnapshot(), 'boll', 'multiplier', 3))
     expect(store.getSnapshot().parameters.boll).toEqual({ period: 10, multiplier: 3 })
+  })
+
+  it('drops one indicator override or every override on reset', () => {
+    const store = createIndicatorStore()
+    store.set(setIndicatorParameter(store.getSnapshot(), 'boll', 'period', 10))
+    store.set(setIndicatorParameter(store.getSnapshot(), 'rsi', 'period', 7))
+
+    store.set(resetIndicator(store.getSnapshot(), 'boll'))
+    expect(store.getSnapshot().parameters.boll).toBeUndefined()
+    expect(store.getSnapshot().parameters.rsi).toEqual({ period: 7 })
+
+    store.set(toggleIndicator(store.getSnapshot(), 'kdj'))
+    store.set(defaultIndicatorPreferences())
+    expect(store.getSnapshot().enabled).toEqual([...DEFAULT_INDICATOR_IDS])
+    expect(store.getSnapshot().parameters).toEqual({})
   })
 
   it('rehydrates the selection and overrides from browser storage', () => {

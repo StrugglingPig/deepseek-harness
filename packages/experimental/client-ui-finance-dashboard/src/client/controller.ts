@@ -3,7 +3,7 @@
 import { DASHBOARD_MARKET_PATH } from '@deepseek-ai/dsh-experimental-finance-research/shared'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { createIndicatorStore, setIndicatorParameter, toggleIndicator } from './indicator-store.ts'
+import { createIndicatorStore, defaultIndicatorPreferences, resetIndicator, setIndicatorParameter, toggleIndicator } from './indicator-store.ts'
 import type { IndicatorPreferences } from './indicator-store.ts'
 import type { IndicatorId } from './indicators.ts'
 import {
@@ -67,6 +67,13 @@ export interface FinanceDashboardActions {
    * @param value - Requested value.
    */
   setIndicatorParameter(id: IndicatorId, key: string, value: number): void
+  /**
+   * Restore one indicator's declared parameter defaults.
+   * @param id - Indicator to reset.
+   */
+  resetIndicator(id: IndicatorId): void
+  /** Restore the shipped indicator selection and parameters. */
+  resetIndicators(): void
 }
 
 /** Browser face injected into the dashboard component. */
@@ -296,6 +303,10 @@ export class FinanceDashboardController {
       setIndicatorParameter: (id, key, value) => {
         this.indicators.set(setIndicatorParameter(this.indicators.getSnapshot(), id, key, value))
       },
+      resetIndicator: (id) => {
+        this.indicators.set(resetIndicator(this.indicators.getSnapshot(), id))
+      },
+      resetIndicators: () => { this.indicators.set(defaultIndicatorPreferences()) },
       hooks: { dashboard: this.store, indicators: this.indicators },
     }
   }

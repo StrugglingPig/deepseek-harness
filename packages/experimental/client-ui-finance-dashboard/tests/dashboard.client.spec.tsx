@@ -41,6 +41,8 @@ function renderDashboard(
   const setInterval = vi.fn()
   const toggleIndicator = vi.fn()
   const setIndicatorParameter = vi.fn()
+  const resetIndicator = vi.fn()
+  const resetIndicators = vi.fn()
   const props = {
     useDashboard: <T,>(selector: (value: FinanceDashboardState) => T): T => selector(current),
     useIndicators: <T,>(selector: (value: IndicatorPreferences) => T): T => selector(preferences),
@@ -50,10 +52,15 @@ function renderDashboard(
     setInterval,
     toggleIndicator,
     setIndicatorParameter,
+    resetIndicator,
+    resetIndicators,
     t: (key: keyof typeof en) => en[key],
   } as unknown as FinanceDashboardProps
   const view = render(<FinanceDashboard {...props} />)
-  return { ...view, refresh, setSymbol, setAsset, setInterval, toggleIndicator, setIndicatorParameter }
+  return {
+    ...view, refresh, setSymbol, setAsset, setInterval,
+    toggleIndicator, setIndicatorParameter, resetIndicator, resetIndicators,
+  }
 }
 
 function indicatorPreferences(enabled: readonly IndicatorId[], parameters: IndicatorParameterMap = {}): IndicatorPreferences {
@@ -117,12 +124,15 @@ describe('FinanceDashboard', () => {
     expect(screen.getByTestId('finance-chart')).toBeTruthy()
   })
 
-  it('lists every indicator and forwards selections and parameter edits', () => {
+  it('opens the indicator settings module and forwards its edits', () => {
     const actions = renderDashboard()
-    fireEvent.click(screen.getByRole('button', { name: en.indicators }))
+    expect(screen.queryByRole('dialog', { name: en.indicatorSettings })).toBeNull()
 
+    fireEvent.click(screen.getByRole('button', { name: en.indicators }))
+    expect(screen.getByRole('dialog', { name: en.indicatorSettings })).toBeTruthy()
     expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.sma }).checked).toBe(true)
     expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.kdj }).checked).toBe(false)
+
     fireEvent.click(screen.getByRole('checkbox', { name: en.kdj }))
     expect(actions.toggleIndicator).toHaveBeenCalledWith('kdj')
 
@@ -131,6 +141,11 @@ describe('FinanceDashboard', () => {
 
     // A parameterless indicator shows no inputs at all.
     expect(screen.queryByLabelText(`${en.volume} ${en.paramPeriod}`)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: en.indicatorResetAll }))
+    expect(actions.resetIndicators).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: en.indicatorClose }))
+    expect(screen.queryByRole('dialog', { name: en.indicatorSettings })).toBeNull()
   })
 
   it('renders the legend from the configured indicators only', () => {

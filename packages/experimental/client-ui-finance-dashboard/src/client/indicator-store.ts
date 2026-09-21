@@ -55,3 +55,24 @@ export function setIndicatorParameter(
   const current = preferences.parameters[id] ?? {}
   return { ...preferences, parameters: { ...preferences.parameters, [id]: { ...current, [key]: value } } }
 }
+
+/**
+ * Drop one indicator's parameter overrides, restoring its declared defaults.
+ * @param preferences - Current preferences.
+ * @param id - Indicator to reset.
+ * @returns The next preferences.
+ */
+export function resetIndicator(preferences: IndicatorPreferences, id: IndicatorId): IndicatorPreferences {
+  const parameters = Object.fromEntries(
+    Object.entries(preferences.parameters).filter(([key]) => key !== id),
+  )
+  return { ...preferences, parameters }
+}
+
+/**
+ * Restore the shipped selection and every declared parameter default.
+ * @returns The default preferences.
+ */
+export function defaultIndicatorPreferences(): IndicatorPreferences {
+  return { enabled: DEFAULT_INDICATOR_IDS, parameters: {} }
+}

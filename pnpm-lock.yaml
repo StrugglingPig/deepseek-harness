@@ -6602,6 +6602,9 @@ importers:
 
   packages/experimental/client-ui-finance-dashboard:
     dependencies:
+      '@deepseek-ai/dsh-util-values':
+        specifier: workspace:^
+        version: link:../../util/values
       lightweight-charts:
         specifier: ^5.2.1
         version: 5.2.1

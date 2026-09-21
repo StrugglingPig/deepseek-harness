@@ -10,7 +10,8 @@ import {
   type DashboardInterval,
 } from './market-data.ts'
 import type { FinanceDashboardFace, FinanceDashboardState } from './controller.ts'
-import { INDICATOR_COLORS, INDICATORS, indicatorParameterSuffix, resolveIndicatorParameters, resolveIndicators } from './indicators.ts'
+import { IndicatorSettings } from './IndicatorSettings.tsx'
+import { INDICATOR_COLORS, indicatorParameterSuffix, resolveIndicators } from './indicators.ts'
 import { TradingChart } from './TradingChart.tsx'
 import css from './FinanceDashboard.module.css'
 
@@ -105,46 +106,31 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
         <button
           type="button"
           className={css.button}
+          aria-haspopup="dialog"
           aria-expanded={showIndicators}
           onClick={() => { setShowIndicators(!showIndicators) }}
         >
           {t('indicators')}
         </button>
-        {!showIndicators ? null : (
-          <div className={css.indicatorPanel} role="group" aria-label={t('indicators')}>
-            {INDICATORS.map((spec) => {
-              const active = preferences.enabled.includes(spec.id)
-              const values = resolveIndicatorParameters(spec, preferences.parameters[spec.id])
-              return (
-                <div key={spec.id} className={css.indicatorRow}>
-                  <label className={css.indicatorToggle}>
-                    <input
-                      type="checkbox"
-                      checked={active}
-                      onChange={() => { props.toggleIndicator(spec.id) }}
-                    />
-                    <span>{t(spec.labelKey)}</span>
-                  </label>
-                  {!active ? null : spec.parameters.map(parameter => (
-                    <label key={parameter.key} className={css.indicatorParam}>
-                      <span>{t(parameter.labelKey)}</span>
-                      <input
-                        type="number"
-                        min={parameter.min}
-                        max={parameter.max}
-                        step={parameter.step}
-                        value={values[parameter.key]}
-                        aria-label={`${t(spec.labelKey)} ${t(parameter.labelKey)}`}
-                        onChange={(event) => { props.setIndicatorParameter(spec.id, parameter.key, Number(event.target.value)) }}
-                      />
-                    </label>
-                  ))}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <div className={css.legend}>
+          {indicators.map(indicator => (
+            <span key={indicator.id} style={{ color: INDICATOR_COLORS[indicator.id] }}>
+              {t(indicator.spec.labelKey)}{indicatorParameterSuffix(indicator.spec, indicator.values)}
+            </span>
+          ))}
+        </div>
       </div>
+      {!showIndicators ? null : (
+        <IndicatorSettings
+          preferences={preferences}
+          t={t}
+          onToggle={props.toggleIndicator}
+          onParameter={props.setIndicatorParameter}
+          onReset={props.resetIndicator}
+          onResetAll={props.resetIndicators}
+          onClose={() => { setShowIndicators(false) }}
+        />
+      )}
       {state.status === 'loading' && latest === undefined ? <p role="status" className={css.notice}>{t('loading')}</p> : null}
       {state.status === 'error' ? <p role="alert" className={css.error}>{t('error')}{state.error === undefined ? '' : `: ${state.error}`}</p> : null}
       {state.status === 'ready' && latest === undefined ? <p className={css.notice}>{t('empty')}</p> : null}
@@ -163,13 +149,6 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
             <article><span>{t('interval')}</span><strong>{state.interval}</strong></article>
           </div>
           <TradingChart bars={state.bars} interval={state.interval} chartLabel={t('chartLabel')} indicators={indicators} />
-          <div className={css.legend}>
-            {indicators.map(indicator => (
-              <span key={indicator.id} style={{ color: INDICATOR_COLORS[indicator.id] }}>
-                {t(indicator.spec.labelKey)}{indicatorParameterSuffix(indicator.spec, indicator.values)}
-              </span>
-            ))}
-          </div>
         </>
       )}
       <p className={css.accountNote}>{t('accountNote')}</p>

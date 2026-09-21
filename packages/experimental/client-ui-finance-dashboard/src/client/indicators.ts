@@ -3,7 +3,9 @@
 import type { FinanceDashboardLocaleKey } from './locales.ts'
 
 /** Chart indicators the dashboard can draw. */
-export type IndicatorId = 'sma' | 'ema' | 'boll' | 'volume' | 'rsi' | 'macd' | 'kdj'
+export type IndicatorId =
+  | 'sma' | 'ema' | 'boll' | 'sar' | 'vwap' | 'td'
+  | 'volume' | 'rsi' | 'macd' | 'kdj' | 'wr' | 'cci' | 'bias' | 'obv' | 'atr' | 'dmi'
 
 /** Where an indicator draws: over the candles or in its own pane. */
 export type IndicatorPlacement = 'overlay' | 'pane'
@@ -60,6 +62,30 @@ export const INDICATORS: readonly IndicatorSpec[] = [
     ],
   },
   {
+    id: 'sar',
+    labelKey: 'sar',
+    placement: 'overlay',
+    parameters: [
+      { key: 'step', labelKey: 'paramStep', min: 0.01, max: 0.2, step: 0.01, defaultValue: 0.02 },
+      { key: 'maxStep', labelKey: 'paramMaxStep', min: 0.05, max: 1, step: 0.05, defaultValue: 0.2 },
+    ],
+  },
+  {
+    id: 'vwap',
+    labelKey: 'vwap',
+    placement: 'overlay',
+    parameters: [],
+  },
+  {
+    id: 'td',
+    labelKey: 'td',
+    placement: 'overlay',
+    parameters: [
+      { key: 'lookback', labelKey: 'paramLookback', min: 1, max: 20, step: 1, defaultValue: 4 },
+      { key: 'target', labelKey: 'paramTarget', min: 5, max: 13, step: 1, defaultValue: 9 },
+    ],
+  },
+  {
     id: 'volume',
     labelKey: 'volume',
     placement: 'pane',
@@ -91,6 +117,42 @@ export const INDICATORS: readonly IndicatorSpec[] = [
       { key: 'dSmooth', labelKey: 'paramDSmooth', min: 2, max: 50, step: 1, defaultValue: 3 },
     ],
   },
+  {
+    id: 'wr',
+    labelKey: 'wr',
+    placement: 'pane',
+    parameters: [{ key: 'period', labelKey: 'paramPeriod', min: 2, max: 250, step: 1, defaultValue: 14 }],
+  },
+  {
+    id: 'cci',
+    labelKey: 'cci',
+    placement: 'pane',
+    parameters: [{ key: 'period', labelKey: 'paramPeriod', min: 2, max: 250, step: 1, defaultValue: 14 }],
+  },
+  {
+    id: 'bias',
+    labelKey: 'bias',
+    placement: 'pane',
+    parameters: [{ key: 'period', labelKey: 'paramPeriod', min: 2, max: 250, step: 1, defaultValue: 6 }],
+  },
+  {
+    id: 'obv',
+    labelKey: 'obv',
+    placement: 'pane',
+    parameters: [],
+  },
+  {
+    id: 'atr',
+    labelKey: 'atr',
+    placement: 'pane',
+    parameters: [{ key: 'period', labelKey: 'paramPeriod', min: 2, max: 250, step: 1, defaultValue: 14 }],
+  },
+  {
+    id: 'dmi',
+    labelKey: 'dmi',
+    placement: 'pane',
+    parameters: [{ key: 'period', labelKey: 'paramPeriod', min: 2, max: 250, step: 1, defaultValue: 14 }],
+  },
 ]
 
 /** Indicator selection before the user changes it. */
@@ -101,11 +163,26 @@ export const INDICATOR_COLORS: Readonly<Record<IndicatorId, string>> = {
   sma: '#2563eb',
   ema: '#f59e0b',
   boll: '#8b5cf6',
+  sar: '#0d9488',
+  vwap: '#db2777',
+  td: '#dc2626',
   volume: '#64748b',
   rsi: '#8b5cf6',
   macd: '#0ea5e9',
   kdj: '#0ea5e9',
+  wr: '#0ea5e9',
+  cci: '#f97316',
+  bias: '#8b5cf6',
+  obv: '#0d9488',
+  atr: '#f97316',
+  dmi: '#db2777',
 }
+
+/** Display groups of the indicator settings module. */
+export const INDICATOR_GROUPS: readonly { readonly placement: IndicatorPlacement; readonly labelKey: FinanceDashboardLocaleKey }[] = [
+  { placement: 'overlay', labelKey: 'indicatorOverlays' },
+  { placement: 'pane', labelKey: 'indicatorPanes' },
+]
 
 const SPEC_BY_ID = new Map<IndicatorId, IndicatorSpec>(INDICATORS.map(spec => [spec.id, spec] as const))
 
