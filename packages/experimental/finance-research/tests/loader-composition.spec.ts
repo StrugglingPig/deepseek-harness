@@ -67,6 +67,7 @@ describe('finance research real Loader composition', () => {
       'finance_coinmarketcap_quotes', 'finance_coinmarketcap_ohlcv',
       'finance_realtime_stream', 'finance_monitor_plan',
       'finance_macro_catalog', 'finance_macro_snapshot',
+      'finance_macro_report',
     ])
 
     const snapshot = await ctx.tools.execute({
@@ -142,7 +143,7 @@ describe('finance research real Loader composition', () => {
 
   it('selects the HTTP provider and exposes generic provider tools', async () => {
     const ctx = await boot(['    provider: http'])
-    expect(ctx.tools.schemas()).toHaveLength(15)
+    expect(ctx.tools.schemas()).toHaveLength(16)
     const described = await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: 'finance-provider-describe' as never,
@@ -218,7 +219,7 @@ describe('finance research real Loader composition', () => {
 
   it('removes all registered tools when the finance entry is disposed', async () => {
     const ctx = await boot()
-    expect(ctx.tools.schemas()).toHaveLength(15)
+    expect(ctx.tools.schemas()).toHaveLength(16)
     const entry = [...ctx.loader.entries()].find(
       candidate => candidate.options.name === '@deepseek-ai/dsh-experimental-finance-research',
     )

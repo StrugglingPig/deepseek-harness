@@ -3,14 +3,21 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { FinanceDataError } from './error.ts'
+import { exportResearchReport } from './export.ts'
+import { buildMacroReport } from './macro-report.ts'
+import type { ReportLanguage } from './report-language.ts'
 import {
   MACRO_CATEGORIES, MACRO_COUNTRIES, MACRO_SOURCES, macroIndicatorById, macroIndicatorsMatching, macroSourcesOf,
-  type MacroSourceId,
+  type MacroCategory, type MacroCountry, type MacroIndicator, type MacroSourceId,
 } from './macro-catalog.ts'
 import type { FinanceMacroDataProvider, MacroObservation, MacroSeries } from './macro.ts'
 
 /** Maximum catalog series one snapshot call may fan out to. */
 const MAX_MACRO_INDICATORS = 12
+/** Maximum catalog series one macro report loads. */
+const MAX_MACRO_REPORT_SERIES = 36
+/** Series one country contributes to a report, so no country can starve the others. */
+const MACRO_REPORT_PER_COUNTRY = 12
 
 /** One observation as returned to the model. */
 interface MacroObservationValue {
@@ -117,11 +124,67 @@ const SERIES_SCHEMA = {
 } as const
 
 /**
- * Register the macro catalog and snapshot tools.
+ * Load the series one macro report covers.
+ * @param provider - Macro provider that routes each series to an upstream.
+ * @param countries - Countries to cover.
+ * @param categories - Optional category narrowing.
+ * @param limit - Observations kept per series.
+ * @returns Loaded series and per-indicator failures.
+ */
+async function loadReportSeries(
+  provider: FinanceMacroDataProvider,
+  countries: readonly MacroCountry[],
+  categories: readonly MacroCategory[],
+  limit: number,
+): Promise<{ series: MacroSeries[]; failures: { indicator: string; message: string }[] }> {
+  // Catalog order is category-clustered, so a flat slice would fill a report with
+  // one country's first categories. Pick round-robin across categories instead,
+  // which keeps every report section populated and every country represented.
+  const entries = countries.flatMap((country) => {
+    const buckets = new Map<MacroCategory, MacroIndicator[]>()
+    for (const entry of macroIndicatorsMatching({ country })) {
+      if (categories.length > 0 && !categories.includes(entry.category)) continue
+      const bucket = buckets.get(entry.category) ?? []
+      bucket.push(entry)
+      buckets.set(entry.category, bucket)
+    }
+    const picked: MacroIndicator[] = []
+    let progressed = true
+    while (picked.length < MACRO_REPORT_PER_COUNTRY && progressed) {
+      progressed = false
+      for (const bucket of buckets.values()) {
+        const next = bucket.shift()
+        if (next === undefined) continue
+        picked.push(next)
+        progressed = true
+        if (picked.length >= MACRO_REPORT_PER_COUNTRY) break
+      }
+    }
+    return picked
+  }).slice(0, MAX_MACRO_REPORT_SERIES)
+  const series: MacroSeries[] = []
+  const failures: { indicator: string; message: string }[] = []
+  for (const entry of entries) {
+    try {
+      series.push(await provider.load({ indicator: entry, country: entry.country, limit }))
+    } catch (error: unknown) {
+      failures.push({ indicator: entry.id, message: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  return { series, failures }
+}
+
+/**
+ * Register the macro catalog, snapshot, and report tools.
  * @param ctx - Registrant context carrying the tool registry.
  * @param provider - Macro provider that routes each series to an upstream.
+ * @param reportLanguage - Resolves the configured report language.
  */
-export function registerMacroTools(ctx: Context, provider: FinanceMacroDataProvider): void {
+export function registerMacroTools(
+  ctx: Context,
+  provider: FinanceMacroDataProvider,
+  reportLanguage: () => ReportLanguage = () => 'en',
+): void {
   ctx.tools.register(defineTool({
     name: 'finance_macro_catalog',
     description: 'List the macro indicator catalog: category, country, unit, frequency, cycle timing, transmission reading, affected assets, and the upstreams that can serve each series. Use it before finance_macro_snapshot to pick indicator ids.',
@@ -259,4 +322,139 @@ export function registerMacroTools(ctx: Context, provider: FinanceMacroDataProvi
       return { series, errors }
     },
   }))
+
+  const reportParameters = {
+    countries: { type: 'array', items: { type: 'string' }, description: `Countries to cover; defaults to all of ${MACRO_COUNTRIES.join(', ')}.` },
+    categories: { type: 'array', items: { type: 'string' }, description: `Optional category narrowing: ${MACRO_CATEGORIES.join(', ')}.` },
+    limit: { type: 'integer', description: 'Observations kept per series. Defaults to 12.' },
+    title: { type: 'string', description: 'Optional report title override.' },
+  } as const
+  const reportSchema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      title: { type: 'string', required: true },
+      as_of: { type: 'string', required: true },
+      report_type: { type: 'string', required: true },
+      markdown: { type: 'string', required: true },
+      html: { type: 'string', required: true },
+      series_count: { type: 'integer', required: true },
+      failures: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            indicator: { type: 'string', required: true },
+            message: { type: 'string', required: true },
+          },
+        },
+      },
+    },
+  } as const
+
+  /** Resolve the countries a report call asked for. */
+  const reportCountries = (requested: readonly string[] | undefined): MacroCountry[] =>
+    requested === undefined || requested.length === 0
+      ? [...MACRO_COUNTRIES]
+      : requested.flatMap((country) => {
+        const resolved = MACRO_COUNTRIES.find(candidate => candidate === country)
+        if (resolved === undefined) {
+          throw new FinanceDataError(`unknown macro country "${country}"`, 'MACRO_UNKNOWN_COUNTRY')
+        }
+        return [resolved]
+      })
+
+  ctx.tools.register(defineTool({
+    name: 'finance_macro_report',
+    description: 'Compose a data-backed macro report for China, the United States, and global aggregates: growth, inflation, employment, demand, money and credit, fiscal, external, and market transmission sections built from the live upstream series, with a coverage and gaps section. Returns self-contained Markdown and HTML.',
+    parameters: reportParameters,
+    output: {
+      schema: reportSchema,
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args) {
+      const loaded = await loadReportSeries(
+        provider,
+        reportCountries(args.countries),
+        (args.categories ?? []) as MacroCategory[],
+        args.limit ?? 12,
+      )
+      if (loaded.series.length === 0) {
+        throw new FinanceDataError('no macro series loaded for the requested scope', 'MACRO_REPORT_EMPTY')
+      }
+      const report = buildMacroReport({
+        language: reportLanguage() === 'zh' ? 'zh' : 'en',
+        asOf: new Date().toISOString(),
+        series: loaded.series,
+        failures: loaded.failures,
+      }, args.title)
+      return {
+        title: report.title,
+        as_of: report.asOf,
+        report_type: report.reportType,
+        markdown: report.markdown,
+        html: report.html,
+        series_count: loaded.series.length,
+        failures: loaded.failures,
+      }
+    },
+  }))
+
+  ctx.inject(['fs'], (fsCtx) => {
+    ctx.tools.register(defineTool({
+      name: 'finance_macro_report_export',
+      description: 'Compose the data-backed macro report and persist both Markdown and self-contained HTML in the workspace.',
+      parameters: {
+        ...reportParameters,
+        output_dir: { type: 'string', description: 'Workspace-relative output directory.', default: '.artifacts/finance-reports' },
+        basename: { type: 'string', description: 'Optional file stem.' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            title: { type: 'string', required: true },
+            as_of: { type: 'string', required: true },
+            series_count: { type: 'integer', required: true },
+            markdown_path: { type: 'string', required: true },
+            html_path: { type: 'string', required: true },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+      },
+      async execute(args) {
+        const loaded = await loadReportSeries(
+          provider,
+          reportCountries(args.countries),
+          (args.categories ?? []) as MacroCategory[],
+          args.limit ?? 12,
+        )
+        if (loaded.series.length === 0) {
+          throw new FinanceDataError('no macro series loaded for the requested scope', 'MACRO_REPORT_EMPTY')
+        }
+        const report = buildMacroReport({
+          language: reportLanguage() === 'zh' ? 'zh' : 'en',
+          asOf: new Date().toISOString(),
+          series: loaded.series,
+          failures: loaded.failures,
+        }, args.title)
+        const files = await exportResearchReport(
+          fsCtx.fs,
+          report,
+          args.output_dir ?? '.artifacts/finance-reports',
+          args.basename,
+        )
+        return {
+          title: report.title,
+          as_of: report.asOf,
+          series_count: loaded.series.length,
+          markdown_path: files.markdown,
+          html_path: files.html,
+        }
+      },
+    }))
+  })
 }

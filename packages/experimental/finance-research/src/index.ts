@@ -1181,7 +1181,7 @@ export function apply(ctx: Context, config: Config): void {
     ref => resolveCredential(ref),
   )
   registerFinanceTools(ctx, provider, streamProvider, reportLanguage)
-  registerMacroTools(ctx, macroProvider)
+  registerMacroTools(ctx, macroProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({
       subprocess: subprocessCtx.subprocess,
