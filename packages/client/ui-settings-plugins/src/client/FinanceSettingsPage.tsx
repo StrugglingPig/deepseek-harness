@@ -269,6 +269,34 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         stateLabel={state.coinGeckoApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
         onEdit={(text) => { props.edit('coinGeckoApiKey', text) }}
       />
+      <h3 className={css.label}>{t('financeAlphaVantageTitle')}</h3>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-alphavantage">{t('financeEnableAlphaVantageRequests')}</label>
+        </div>
+        <input
+          id="finance-enable-alphavantage"
+          type="checkbox"
+          checked={state.enableAlphaVantageRequests.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableAlphaVantageRequests', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableAlphaVantageRequestsHint')}</p>
+      </div>
+      <ValueField id="finance-alphavantage-base" label={t('financeAlphaVantageBaseUrl')} hint={t('financeEndpointHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.alphaVantageBaseUrl}
+        onEdit={(text) => { props.edit('alphaVantageBaseUrl', text) }} onReset={() => { props.resetField('alphaVantageBaseUrl') }} />
+      <SecretField
+        id="finance-alphavantage-api-key"
+        label={t('financeAlphaVantageApiKey')}
+        hint={t('financeAlphaVantageApiKeyHint')}
+        disabled={!state.alphaVantageApiKeyWritable}
+        text={state.alphaVantageApiKey.text}
+        configured={state.alphaVantageApiKeyConfigured}
+        stateLabel={state.alphaVantageApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('alphaVantageApiKey', text) }}
+      />
       <SecretField
         id="finance-github-token"
         label={t('financeGithubToken')}

@@ -3,7 +3,7 @@
 import { githubSlug } from './github.ts'
 import type {
   FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote, FinanceGithubRepo, FinanceStockFundamentals,
-  FinanceStockValuation,
+  FinanceStockValuation, FinanceUsFundamentals,
 } from './types.ts'
 
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
@@ -219,6 +219,7 @@ export function cryptoMetricsFromGithub(repo: FinanceGithubRepo | undefined): As
 /** Multiples the valuation bridge reports, with their dimension and unit. */
 const VALUATION_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; readonly unit: string }>> = {
   peTtm: { group: 'valuation', unit: '' },
+  peStatic: { group: 'valuation', unit: '' },
   pb: { group: 'valuation', unit: '' },
 }
 
@@ -242,13 +243,33 @@ export function equityMetricsFromValuation(valuation: FinanceStockValuation | un
     metrics.push({ group: 'industry', key: 'industryName', value: 0, text: valuation.industry, unit: '', asOf, source: 'akshare' })
   }
   const baseline = valuation.industryPe?.weighted
-  const pe = valuation.indicators.peTtm
+  // CNINFO publishes the industry multiple on a static basis, so the comparison
+  // uses the stock's static multiple rather than its trailing one.
+  const pe = valuation.indicators.peStatic
   if (baseline !== undefined) {
     metrics.push({ group: 'industry', key: 'industryPe', value: baseline, unit: '', asOf, source: 'akshare' })
   }
   const median = valuation.industryPe?.median
   if (median !== undefined) {
     metrics.push({ group: 'industry', key: 'industryPeMedian', value: median, unit: '', asOf, source: 'akshare' })
+  }
+  const arithmetic = valuation.industryPe?.arithmetic
+  if (arithmetic !== undefined) {
+    metrics.push({ group: 'industry', key: 'industryPeArithmetic', value: arithmetic, unit: '', asOf, source: 'akshare' })
+  }
+  const companies = valuation.industryPe?.companies
+  if (companies !== undefined) {
+    metrics.push({ group: 'industry', key: 'industryPeCompanies', value: companies, unit: '', asOf, source: 'akshare' })
+  }
+  if (pe !== undefined && median !== undefined && median !== 0) {
+    metrics.push({
+      group: 'valuation',
+      key: 'peVsIndustryMedian',
+      value: (pe / median - 1) * 100,
+      unit: '%',
+      asOf,
+      source: 'akshare',
+    })
   }
   if (pe !== undefined && baseline !== undefined && baseline !== 0) {
     metrics.push({
@@ -259,6 +280,47 @@ export function equityMetricsFromValuation(valuation: FinanceStockValuation | un
       asOf,
       source: 'akshare',
     })
+  }
+  return metrics
+}
+
+/** Overview figures Alpha Vantage reports, with their dimension and unit. */
+const US_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; readonly unit: string }>> = {
+  marketCap: { group: 'valuation', unit: 'USD' },
+  peRatio: { group: 'valuation', unit: '' },
+  pegRatio: { group: 'valuation', unit: '' },
+  pbRatio: { group: 'valuation', unit: '' },
+  psRatio: { group: 'valuation', unit: '' },
+  evToEbitda: { group: 'valuation', unit: '' },
+  dividendYield: { group: 'valuation', unit: '%' },
+  analystTargetPrice: { group: 'valuation', unit: 'USD' },
+  eps: { group: 'profitability', unit: 'USD' },
+  epsTtm: { group: 'profitability', unit: 'USD' },
+  netMargin: { group: 'profitability', unit: '' },
+  operatingMargin: { group: 'profitability', unit: '' },
+  roa: { group: 'profitability', unit: '' },
+  roe: { group: 'profitability', unit: '' },
+  revenueGrowth: { group: 'growth', unit: '' },
+  revenueGrowthQoq: { group: 'growth', unit: '' },
+  earningsGrowthQoq: { group: 'growth', unit: '' },
+  beta: { group: 'market', unit: '' },
+}
+
+/**
+ * Turn one US fundamentals overview into report metrics.
+ * @param fundamentals - Normalized overview, when one loaded.
+ * @returns Valuation, profitability, growth, and industry metrics.
+ */
+export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | undefined): AssetMetric[] {
+  if (fundamentals === undefined) return []
+  const metrics: AssetMetric[] = Object.entries(fundamentals.indicators).flatMap(([key, value]) => {
+    const entry = US_METRICS[key]
+    if (entry === undefined) return []
+    return [{ group: entry.group, key, value, unit: entry.unit, asOf: '', source: 'alphavantage' }]
+  })
+  for (const [key, value] of [['sector', fundamentals.sector], ['industry', fundamentals.industry]] as const) {
+    if (value === undefined) continue
+    metrics.push({ group: 'industry', key, value: 0, text: value, unit: '', asOf: '', source: 'alphavantage' })
   }
   return metrics
 }

@@ -20,7 +20,9 @@ const SETTINGS: FinanceRuntimeSettings = {
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
   enableCoinGeckoRequests: true,
+  enableAlphaVantageRequests: true,
   githubBaseUrl: 'https://api.github.test',
+  alphaVantageBaseUrl: 'https://www.alphavantage.test',
   enableAkshare: true,
   enableIfind: false,
   ifindTransport: 'http',
@@ -71,6 +73,9 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
+    await expect(provider.loadUsFundamentals({ symbol: 'AAPL' })).rejects.toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+    })
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
@@ -88,6 +93,9 @@ describe('settings-backed finance providers', () => {
       }
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
+      }
+      if (url.includes('function=OVERVIEW')) {
+        return new Response(JSON.stringify({ Symbol: 'AAPL', Name: 'Apple Inc', PERatio: '32.5' }), { status: 200 })
       }
       if (url.includes('/repos/bitcoin/bitcoin')) {
         return new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 })
@@ -111,6 +119,8 @@ describe('settings-backed finance providers', () => {
       .resolves.toMatchObject({ id: 'bitcoin', name: 'Bitcoin' })
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' }))
       .resolves.toMatchObject({ repository: 'bitcoin/bitcoin', stars: 85_000 })
+    await expect(provider.loadUsFundamentals({ symbol: 'AAPL' }))
+      .resolves.toMatchObject({ symbol: 'AAPL', name: 'Apple Inc', indicators: { peRatio: 32.5 } })
   })
 
   it('uses the production WebSocket factory when no test carrier is supplied', async () => {

@@ -21,6 +21,8 @@ export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
 export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
 /** Credential reference for the optional GitHub token. */
 export const GITHUB_TOKEN_REF = 'FINANCE_GITHUB_TOKEN'
+/** Credential reference for the Alpha Vantage API key. */
+export const ALPHAVANTAGE_API_KEY_REF = 'FINANCE_ALPHAVANTAGE_API_KEY'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 /** Credential reference for the iFinD account. */
@@ -35,6 +37,7 @@ const API_SECRET_FIELD = 'binanceApiSecret'
 const COINMARKETCAP_API_KEY_FIELD = 'coinMarketCapApiKey'
 const COINGECKO_API_KEY_FIELD = 'coinGeckoApiKey'
 const GITHUB_TOKEN_FIELD = 'githubToken'
+const ALPHAVANTAGE_API_KEY_FIELD = 'alphaVantageApiKey'
 const FRED_API_KEY_FIELD = 'fredApiKey'
 const IFIND_USER_FIELD = 'ifindUser'
 const IFIND_PASSWORD_FIELD = 'ifindPassword'
@@ -54,10 +57,12 @@ export interface FinanceSettings {
   polymarketClobBaseUrl?: string
   coinMarketCapBaseUrl?: string
   coinGeckoBaseUrl?: string
+  alphaVantageBaseUrl?: string
   fredBaseUrl?: string
   enableSignedRequests?: boolean
   enableCoinMarketCapRequests?: boolean
   enableCoinGeckoRequests?: boolean
+  enableAlphaVantageRequests?: boolean
   enableFredRequests?: boolean
   enableAkshare?: boolean
   enableIfind?: boolean
@@ -98,10 +103,12 @@ export interface FinanceCardState extends CardShell {
   polymarketClobBaseUrl: CardFieldState
   coinMarketCapBaseUrl: CardFieldState
   coinGeckoBaseUrl: CardFieldState
+  alphaVantageBaseUrl: CardFieldState
   fredBaseUrl: CardFieldState
   enableSignedRequests: CardFieldState
   enableCoinMarketCapRequests: CardFieldState
   enableCoinGeckoRequests: CardFieldState
+  enableAlphaVantageRequests: CardFieldState
   enableFredRequests: CardFieldState
   enableAkshare: CardFieldState
   enableIfind: CardFieldState
@@ -126,6 +133,7 @@ export interface FinanceCardState extends CardShell {
   coinMarketCapApiKey: CardFieldState
   coinGeckoApiKey: CardFieldState
   githubToken: CardFieldState
+  alphaVantageApiKey: CardFieldState
   fredApiKey: CardFieldState
   ifindUser: CardFieldState
   ifindPassword: CardFieldState
@@ -135,6 +143,7 @@ export interface FinanceCardState extends CardShell {
   coinMarketCapApiKeyConfigured: boolean
   coinGeckoApiKeyConfigured: boolean
   githubTokenConfigured: boolean
+  alphaVantageApiKeyConfigured: boolean
   fredApiKeyConfigured: boolean
   ifindUserConfigured: boolean
   ifindPasswordConfigured: boolean
@@ -144,6 +153,7 @@ export interface FinanceCardState extends CardShell {
   coinMarketCapApiKeyWritable: boolean
   coinGeckoApiKeyWritable: boolean
   githubTokenWritable: boolean
+  alphaVantageApiKeyWritable: boolean
   fredApiKeyWritable: boolean
   ifindUserWritable: boolean
   ifindPasswordWritable: boolean
@@ -166,6 +176,7 @@ export class FinanceCardController {
   private coinMarketCapApiKey: CredentialState = { configured: false, writable: true }
   private coinGeckoApiKey: CredentialState = { configured: false, writable: true }
   private githubToken: CredentialState = { configured: false, writable: true }
+  private alphaVantageApiKey: CredentialState = { configured: false, writable: true }
   private fredApiKey: CredentialState = { configured: false, writable: true }
   private ifindUser: CredentialState = { configured: false, writable: true }
   private ifindPassword: CredentialState = { configured: false, writable: true }
@@ -186,9 +197,10 @@ export class FinanceCardController {
         textField('yahooBaseUrl'), textField('binanceBaseUrl'), textField('binanceUsdmBaseUrl'),
         textField('binanceCoinmBaseUrl'), textField('binanceOptionsBaseUrl'),
         textField('polymarketGammaBaseUrl'), textField('polymarketClobBaseUrl'),
-        textField('coinMarketCapBaseUrl'), textField('coinGeckoBaseUrl'), textField('fredBaseUrl'),
+        textField('coinMarketCapBaseUrl'), textField('coinGeckoBaseUrl'), textField('alphaVantageBaseUrl'),
+        textField('fredBaseUrl'),
         booleanField('enableSignedRequests'), booleanField('enableCoinMarketCapRequests'),
-        booleanField('enableCoinGeckoRequests'),
+        booleanField('enableCoinGeckoRequests'), booleanField('enableAlphaVantageRequests'),
         booleanField('enableFredRequests'),
         booleanField('enableAkshare'), booleanField('enableIfind'),
         textField('ifindTransport'), textField('ifindBaseUrl'),
@@ -206,6 +218,7 @@ export class FinanceCardController {
         { field: COINMARKETCAP_API_KEY_FIELD, write: text => this.writeCredential(COINMARKETCAP_API_KEY_REF, text) },
         { field: COINGECKO_API_KEY_FIELD, write: text => this.writeCredential(COINGECKO_API_KEY_REF, text) },
         { field: GITHUB_TOKEN_FIELD, write: text => this.writeCredential(GITHUB_TOKEN_REF, text) },
+        { field: ALPHAVANTAGE_API_KEY_FIELD, write: text => this.writeCredential(ALPHAVANTAGE_API_KEY_REF, text) },
         { field: FRED_API_KEY_FIELD, write: text => this.writeCredential(FRED_API_KEY_REF, text) },
         { field: IFIND_USER_FIELD, write: text => this.writeCredential(IFIND_USER_REF, text) },
         { field: IFIND_PASSWORD_FIELD, write: text => this.writeCredential(IFIND_PASSWORD_REF, text) },
@@ -232,10 +245,12 @@ export class FinanceCardController {
       polymarketClobBaseUrl: this.form.field('polymarketClobBaseUrl'),
       coinMarketCapBaseUrl: this.form.field('coinMarketCapBaseUrl'),
       coinGeckoBaseUrl: this.form.field('coinGeckoBaseUrl'),
+      alphaVantageBaseUrl: this.form.field('alphaVantageBaseUrl'),
       fredBaseUrl: this.form.field('fredBaseUrl'),
       enableSignedRequests: this.form.field('enableSignedRequests'),
       enableCoinMarketCapRequests: this.form.field('enableCoinMarketCapRequests'),
       enableCoinGeckoRequests: this.form.field('enableCoinGeckoRequests'),
+      enableAlphaVantageRequests: this.form.field('enableAlphaVantageRequests'),
       enableFredRequests: this.form.field('enableFredRequests'),
       enableAkshare: this.form.field('enableAkshare'),
       enableIfind: this.form.field('enableIfind'),
@@ -260,6 +275,7 @@ export class FinanceCardController {
       coinMarketCapApiKey: this.form.field(COINMARKETCAP_API_KEY_FIELD),
       coinGeckoApiKey: this.form.field(COINGECKO_API_KEY_FIELD),
       githubToken: this.form.field(GITHUB_TOKEN_FIELD),
+      alphaVantageApiKey: this.form.field(ALPHAVANTAGE_API_KEY_FIELD),
       fredApiKey: this.form.field(FRED_API_KEY_FIELD),
       ifindUser: this.form.field(IFIND_USER_FIELD),
       ifindPassword: this.form.field(IFIND_PASSWORD_FIELD),
@@ -269,6 +285,7 @@ export class FinanceCardController {
       coinMarketCapApiKeyConfigured: this.coinMarketCapApiKey.configured,
       coinGeckoApiKeyConfigured: this.coinGeckoApiKey.configured,
       githubTokenConfigured: this.githubToken.configured,
+      alphaVantageApiKeyConfigured: this.alphaVantageApiKey.configured,
       fredApiKeyConfigured: this.fredApiKey.configured,
       ifindUserConfigured: this.ifindUser.configured,
       ifindPasswordConfigured: this.ifindPassword.configured,
@@ -278,6 +295,7 @@ export class FinanceCardController {
       coinMarketCapApiKeyWritable: this.coinMarketCapApiKey.writable,
       coinGeckoApiKeyWritable: this.coinGeckoApiKey.writable,
       githubTokenWritable: this.githubToken.writable,
+      alphaVantageApiKeyWritable: this.alphaVantageApiKey.writable,
       fredApiKeyWritable: this.fredApiKey.writable,
       ifindUserWritable: this.ifindUser.writable,
       ifindPasswordWritable: this.ifindPassword.writable,
@@ -288,7 +306,7 @@ export class FinanceCardController {
   private async readCredentials(): Promise<void> {
     const response = await this.ctx.remote.credentials.describe([
       BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF, COINGECKO_API_KEY_REF,
-      GITHUB_TOKEN_REF,
+      GITHUB_TOKEN_REF, ALPHAVANTAGE_API_KEY_REF,
       FRED_API_KEY_REF,
       IFIND_USER_REF, IFIND_PASSWORD_REF, IFIND_REFRESH_TOKEN_REF,
     ])
@@ -298,6 +316,7 @@ export class FinanceCardController {
     const coinMarketCapApiKey = response.value[COINMARKETCAP_API_KEY_REF]
     const coinGeckoApiKey = response.value[COINGECKO_API_KEY_REF]
     const githubToken = response.value[GITHUB_TOKEN_REF]
+    const alphaVantageApiKey = response.value[ALPHAVANTAGE_API_KEY_REF]
     const fredApiKey = response.value[FRED_API_KEY_REF]
     const ifindUser = response.value[IFIND_USER_REF]
     const ifindPassword = response.value[IFIND_PASSWORD_REF]
@@ -310,6 +329,10 @@ export class FinanceCardController {
     }
     const nextCoinGeckoKey = { configured: coinGeckoApiKey?.configured ?? false, writable: coinGeckoApiKey?.writable ?? true }
     const nextGithubToken = { configured: githubToken?.configured ?? false, writable: githubToken?.writable ?? true }
+    const nextAlphaVantageKey = {
+      configured: alphaVantageApiKey?.configured ?? false,
+      writable: alphaVantageApiKey?.writable ?? true,
+    }
     const nextFredKey = { configured: fredApiKey?.configured ?? false, writable: fredApiKey?.writable ?? true }
     const nextIfindUser = { configured: ifindUser?.configured ?? false, writable: ifindUser?.writable ?? true }
     const nextIfindPassword = { configured: ifindPassword?.configured ?? false, writable: ifindPassword?.writable ?? true }
@@ -322,6 +345,8 @@ export class FinanceCardController {
       && nextCoinGeckoKey.writable === this.coinGeckoApiKey.writable
       && nextGithubToken.configured === this.githubToken.configured
       && nextGithubToken.writable === this.githubToken.writable
+      && nextAlphaVantageKey.configured === this.alphaVantageApiKey.configured
+      && nextAlphaVantageKey.writable === this.alphaVantageApiKey.writable
       && nextFredKey.configured === this.fredApiKey.configured && nextFredKey.writable === this.fredApiKey.writable
       && nextIfindUser.configured === this.ifindUser.configured && nextIfindUser.writable === this.ifindUser.writable
       && nextIfindPassword.configured === this.ifindPassword.configured
@@ -333,6 +358,7 @@ export class FinanceCardController {
     this.coinMarketCapApiKey = nextCoinMarketCapKey
     this.coinGeckoApiKey = nextCoinGeckoKey
     this.githubToken = nextGithubToken
+    this.alphaVantageApiKey = nextAlphaVantageKey
     this.fredApiKey = nextFredKey
     this.ifindUser = nextIfindUser
     this.ifindPassword = nextIfindPassword

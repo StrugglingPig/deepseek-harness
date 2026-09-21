@@ -808,6 +808,7 @@ def industry_pe(industry: str):
                 "date": normalize_macro_date(row.get("变动日期")),
                 "weighted": to_number(row.get("静态市盈率-加权平均")),
                 "median": to_number(row.get("静态市盈率-中位数")),
+                "arithmetic": to_number(row.get("静态市盈率-算术平均")),
                 "companies": to_number(row.get("纳入计算公司数量")),
             }
     return None
@@ -819,6 +820,40 @@ def to_number(value):
     except (TypeError, ValueError):
         return None
     return number if number == number else None
+
+
+def annual_eps(symbol: str):
+    """Read diluted EPS from the newest completed fiscal year."""
+    try:
+        frame = import_akshare().stock_financial_analysis_indicator(
+            symbol=symbol, start_year=str(date.today().year - 3),
+        )
+    except Exception:
+        return None
+    annual = [
+        row for row in rows_from_frame(frame)
+        if str(row.get("日期", "")).endswith("12-31")
+    ]
+    if not annual:
+        return None
+    annual.sort(key=lambda row: str(row.get("日期")))
+    return to_number(annual[-1].get("摊薄每股收益(元)"))
+
+
+def latest_close(symbol: str):
+    """Read the newest daily close from the Tencent history endpoint."""
+    end = date.today()
+    start = end - timedelta(days=21)
+    try:
+        frame = import_akshare().stock_zh_a_hist_tx(
+            symbol=provider_symbol(symbol),
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+        )
+    except Exception:
+        return None
+    bars = history_bars(frame)
+    return bars[-1]["close"] if bars else None
 
 
 def ak_valuation(request: dict) -> dict:
@@ -844,6 +879,12 @@ def ak_valuation(request: dict) -> dict:
     industry = str(profile.get("所属行业") or "") or None
     baseline = industry_pe(industry) if industry else None
     market_cap_yi = indicators.pop("marketCapYi", None)
+    # CNINFO publishes a static (last full year) industry P/E, so the stock side is
+    # computed on the same basis instead of comparing a trailing multiple to it.
+    eps = annual_eps(symbol)
+    close = latest_close(symbol)
+    if eps is not None and eps > 0 and close is not None:
+        indicators["peStatic"] = round(close / eps, 4)
     return {
         "symbol": symbol,
         "name": profile.get("公司名称"),

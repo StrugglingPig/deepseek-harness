@@ -29,7 +29,9 @@ const CONFIG: Required<Config> = {
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
   enableCoinGeckoRequests: true,
+  enableAlphaVantageRequests: true,
   githubBaseUrl: 'https://api.github.test',
+  alphaVantageBaseUrl: 'https://www.alphavantage.test',
   enableAkshare: true,
   enableIfind: true,
   ifindTransport: 'http',
@@ -102,6 +104,9 @@ describe('finance apply', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       requestedUrls.push(url)
+      if (url.includes('function=OVERVIEW')) {
+        return new Response(JSON.stringify({ Symbol: 'AAPL', Name: 'Apple Inc', PERatio: '32.5', Sector: 'TECHNOLOGY' }), { status: 200 })
+      }
       if (url.includes('/coins/bitcoin')) {
         return new Response(JSON.stringify({
           id: 'bitcoin',
@@ -178,7 +183,7 @@ describe('finance apply', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    const scope = { get: () => ({ ...CONFIG, enableCoinGeckoRequests: true }), watch: vi.fn() }
+    const scope = { get: () => ({ ...CONFIG, enableCoinGeckoRequests: true, enableAlphaVantageRequests: true }), watch: vi.fn() }
     ctx.provide('settings', { register: vi.fn(() => scope), get: vi.fn(() => undefined) } as never)
     const history = {
       symbol: '600519',
@@ -320,6 +325,15 @@ describe('finance apply', () => {
     expect(requestedUrls.some(url => url.includes('/coins/bitcoin'))).toBe(true)
     expect(requestedUrls.some(url => url.includes('/repos/bitcoin/bitcoin'))).toBe(true)
     expect(requestedUrls.some(url => url.includes('/v3/cryptocurrency/quotes/latest'))).toBe(true)
+
+    // A listed ticker routes through the US fundamentals context instead.
+    await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'us-report' as never,
+      name: 'finance_research_report',
+      arguments: { symbol: 'AAPL' },
+    })
+    expect(requestedUrls.some(url => url.includes('function=OVERVIEW'))).toBe(true)
     vi.unstubAllGlobals()
     await ctx.fiber.dispose()
   })

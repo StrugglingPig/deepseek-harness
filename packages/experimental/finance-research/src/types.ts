@@ -268,8 +268,26 @@ export interface FinanceStockValuation {
     readonly date?: string
     readonly weighted?: number
     readonly median?: number
+    readonly arithmetic?: number
     readonly companies?: number
   }
+}
+
+/** One Alpha Vantage company overview lookup. */
+export interface FinanceUsFundamentalsRequest {
+  /** Ticker symbol, such as `AAPL`. */
+  readonly symbol: string
+}
+
+/** One normalized US equity fundamentals snapshot. */
+export interface FinanceUsFundamentals {
+  readonly symbol: string
+  readonly name?: string
+  readonly sector?: string
+  readonly industry?: string
+  readonly exchange?: string
+  /** Reported figures keyed by normalized metric name. */
+  readonly indicators: Readonly<Record<string, number>>
 }
 
 /** One normalized mainland stock real-time quote. */
@@ -341,6 +359,11 @@ export interface FinanceMarketDataProvider {
     request: FinanceCoinGeckoCommunityRequest,
     signal?: AbortSignal,
   ): Promise<FinanceCoinGeckoCommunity | undefined>
+  /** Load one US equity fundamentals snapshot when the provider supports it. */
+  loadUsFundamentals?(
+    request: FinanceUsFundamentalsRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceUsFundamentals | undefined>
   /** Load one GitHub repository snapshot when the provider supports it. */
   loadGithubRepo?(
     request: FinanceGithubRepoRequest,

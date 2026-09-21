@@ -228,6 +228,23 @@ describe('HTTP finance market data provider', () => {
     expect(snapshot.bars).toHaveLength(60)
   })
 
+  it('loads a US fundamentals overview and treats a notice as no data', async () => {
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      alphaVantageBaseUrl: 'https://www.alphavantage.test',
+      fetch: fakeFetch({ binance: { ok: true } }),
+    })
+    // The default stub answers every other host with an empty object, which normalizes away.
+    await expect(provider.loadUsFundamentals({ symbol: 'aapl' })).resolves.toBeUndefined()
+
+    const failing = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      alphaVantageBaseUrl: 'https://www.alphavantage.test',
+      fetch: async () => new Response('rate limited', { status: 500 }),
+    })
+    await expect(failing.loadUsFundamentals({ symbol: 'AAPL' })).resolves.toBeUndefined()
+  })
+
   it('loads a GitHub repository with trailing commit activity', async () => {
     const urls: string[] = []
     const provider = createHttpFinanceMarketDataProvider({
@@ -307,7 +324,8 @@ describe('HTTP finance market data provider', () => {
     })
     expect(provider.describe().bases.map(base => base.name)).toEqual([
       'binance-spot', 'binance-usdm', 'binance-coinm', 'binance-options',
-      'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'github', 'coinmarketcap',
+      'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'github', 'alphavantage',
+      'coinmarketcap',
       'fred', 'worldbank', 'imf',
     ])
 

@@ -47,7 +47,7 @@ describe('stock valuation provider', () => {
       market: '上交所',
       indicators: { peTtm: 19.23, pb: 6.23 },
       marketCapYuan: 1_565_815_000_000,
-      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, companies: 39 },
+      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, arithmetic: 107.56, companies: 39 },
     })))
     await expect(provider.loadStockValuation({ provider: 'akshare', symbols: ['600519'] })).resolves.toEqual([{
       symbol: '600519',

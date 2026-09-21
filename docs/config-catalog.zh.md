@@ -732,6 +732,8 @@ export interface Config {
   readonly coinGeckoBaseUrl?: string
   /** GitHub API origin. */
   readonly githubBaseUrl?: string
+  /** Alpha Vantage API origin. */
+  readonly alphaVantageBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -746,6 +748,8 @@ export interface Config {
   readonly enableCoinMarketCapRequests?: boolean
   /** Whether to read CoinGecko community and developer data. */
   readonly enableCoinGeckoRequests?: boolean
+  /** Whether to read Alpha Vantage US equity fundamentals. */
+  readonly enableAlphaVantageRequests?: boolean
   /** Whether AKShare stock data is available. */
   readonly enableAkshare?: boolean
   /** Whether iFinD stock data is available. */

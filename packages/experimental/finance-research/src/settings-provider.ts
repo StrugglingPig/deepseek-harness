@@ -7,6 +7,8 @@ import { HttpFinanceMarketDataProvider } from './http.ts'
 import { BinanceWebSocketStreamProvider, CoinMarketCapWebSocketStreamProvider, type FinanceWebSocketLike, type FinanceWebSocketOptions } from './stream.ts'
 import type {
   FinanceCoinGeckoCommunity,
+  FinanceUsFundamentals,
+  FinanceUsFundamentalsRequest,
   FinanceGithubRepo,
   FinanceGithubRepoRequest,
   FinanceCoinGeckoCommunityRequest,
@@ -41,6 +43,7 @@ export interface FinanceRuntimeSettings {
   readonly coinMarketCapBaseUrl: string
   readonly coinGeckoBaseUrl: string
   readonly githubBaseUrl: string
+  readonly alphaVantageBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -50,6 +53,7 @@ export interface FinanceRuntimeSettings {
   readonly enableSignedRequests: boolean
   readonly enableCoinMarketCapRequests: boolean
   readonly enableCoinGeckoRequests: boolean
+  readonly enableAlphaVantageRequests: boolean
   readonly enableAkshare: boolean
   readonly enableIfind: boolean
   readonly ifindTransport: 'http' | 'local'
@@ -96,6 +100,7 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       coinMarketCapBaseUrl: settings.coinMarketCapBaseUrl,
       coinGeckoBaseUrl: settings.coinGeckoBaseUrl,
       githubBaseUrl: settings.githubBaseUrl,
+      alphaVantageBaseUrl: settings.alphaVantageBaseUrl,
       fredBaseUrl: settings.fredBaseUrl,
       worldBankBaseUrl: settings.worldBankBaseUrl,
       imfBaseUrl: settings.imfBaseUrl,
@@ -160,6 +165,26 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       ))
     }
     return provider.loadCoinGeckoCommunity(request, signal)
+  }
+
+  /**
+   * Load one US equity fundamentals snapshot from the current HTTP provider.
+   * @param request - Ticker symbol.
+   * @param signal - Optional caller cancellation.
+   * @returns The normalized snapshot, or undefined when the upstream cannot serve it.
+   */
+  loadUsFundamentals(
+    request: FinanceUsFundamentalsRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceUsFundamentals | undefined> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadUsFundamentals === undefined) {
+      return Promise.reject(new FinanceDataError(
+        'US equity fundamentals require the live HTTP provider',
+        'PROVIDER_UNAVAILABLE',
+      ))
+    }
+    return provider.loadUsFundamentals(request, signal)
   }
 
   /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub, cryptoMetricsFromQuote,
-  equityMetricsFromFundamentals, equityMetricsFromValuation,
+  equityMetricsFromFundamentals, equityMetricsFromValuation, usMetricsFromFundamentals,
 } from '../src/asset-context.ts'
 
 describe('asset metric context', () => {
@@ -175,9 +175,9 @@ describe('equity valuation context', () => {
       symbol: '600519',
       name: '贵州茅台酒股份有限公司',
       industry: '酒、饮料和精制茶制造业',
-      indicators: { peTtm: 19.23, pb: 6.23, unknown: 1 },
+      indicators: { peTtm: 19.23, peStatic: 18.39, pb: 6.23, unknown: 1 },
       marketCapYuan: 1_565_815_000_000,
-      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, companies: 39 },
+      industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, arithmetic: 107.56, companies: 39 },
     })
     const byKey = new Map(metrics.map(metric => [metric.key, metric]))
     expect(byKey.get('peTtm')).toMatchObject({ group: 'valuation', value: 19.23, unit: '' })
@@ -185,22 +185,48 @@ describe('equity valuation context', () => {
     expect(byKey.get('industryName')).toMatchObject({ group: 'industry', text: '酒、饮料和精制茶制造业' })
     expect(byKey.get('industryPe')).toMatchObject({ group: 'industry', value: 18.94 })
     expect(byKey.get('industryPeMedian')).toMatchObject({ value: 24.09 })
-    // P/E against the industry weighted average.
-    expect((byKey.get('peVsIndustry')?.value ?? 0)).toBeCloseTo(1.53, 1)
+    expect(byKey.get('industryPeArithmetic')).toMatchObject({ value: 107.56 })
+    expect(byKey.get('industryPeCompanies')).toMatchObject({ value: 39 })
+    expect((byKey.get('peVsIndustryMedian')?.value ?? 0)).toBeCloseTo(-23.7, 1)
+    // Static P/E against the industry weighted average, on the same basis.
+    expect((byKey.get('peVsIndustry')?.value ?? 0)).toBeCloseTo(-2.9, 1)
     expect(byKey.has('unknown')).toBe(false)
   })
 
   it('omits the premium without a baseline or a P/E, and reports nothing without a snapshot', () => {
-    const partial = equityMetricsFromValuation({ symbol: '600519', indicators: { peTtm: 19.23 } })
-    expect(partial.map(metric => metric.key)).toEqual(['peTtm'])
+    const partial = equityMetricsFromValuation({ symbol: '600519', indicators: { peStatic: 18.39 } })
+    expect(partial.map(metric => metric.key)).toEqual(['peStatic'])
     const noPe = equityMetricsFromValuation({
       symbol: '600519', indicators: {}, industryPe: { weighted: 18.94 },
     })
     expect(noPe.map(metric => metric.key)).toEqual(['industryPe'])
     expect(equityMetricsFromValuation(undefined)).toEqual([])
     const zeroBaseline = equityMetricsFromValuation({
-      symbol: '600519', indicators: { peTtm: 19.23 }, industryPe: { weighted: 0 },
+      symbol: '600519', indicators: { peStatic: 18.39 }, industryPe: { weighted: 0 },
     })
-    expect(zeroBaseline.map(metric => metric.key)).toEqual(['peTtm', 'industryPe'])
+    expect(zeroBaseline.map(metric => metric.key)).toEqual(['peStatic', 'industryPe'])
+  })
+})
+
+describe('US equity context', () => {
+  it('maps an overview into valuation, profitability, growth, and industry metrics', () => {
+    const metrics = usMetricsFromFundamentals({
+      symbol: 'AAPL',
+      name: 'Apple Inc',
+      sector: 'TECHNOLOGY',
+      industry: 'Electronic Computers',
+      indicators: { marketCap: 3e12, peRatio: 32.5, roe: 1.5, revenueGrowth: 0.08, unknown: 1 },
+    })
+    const byKey = new Map(metrics.map(metric => [metric.key, metric]))
+    expect(byKey.get('peRatio')).toMatchObject({ group: 'valuation', value: 32.5, source: 'alphavantage' })
+    expect(byKey.get('marketCap')).toMatchObject({ unit: 'USD' })
+    expect(byKey.get('roe')).toMatchObject({ group: 'profitability' })
+    expect(byKey.get('revenueGrowth')).toMatchObject({ group: 'growth' })
+    expect(byKey.get('sector')).toMatchObject({ group: 'industry', text: 'TECHNOLOGY' })
+    expect(byKey.get('industry')).toMatchObject({ group: 'industry', text: 'Electronic Computers' })
+    expect(byKey.has('unknown')).toBe(false)
+    const classification = usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, sector: 'TECHNOLOGY' })
+    expect(classification.map(metric => [metric.key, metric.text])).toEqual([['sector', 'TECHNOLOGY']])
+    expect(usMetricsFromFundamentals(undefined)).toEqual([])
   })
 })
