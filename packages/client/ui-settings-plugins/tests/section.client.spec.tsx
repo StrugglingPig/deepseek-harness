@@ -592,6 +592,13 @@ describe('FinanceSettingsPage', () => {
     expect(actions.save).toHaveBeenCalledOnce()
     expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
     expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(7)
+
+    // The FRED block sits before the A-share section and links to the free key page.
+    const fredTitle = screen.getByText(en.financeFredTitle)
+    expect(fredTitle.compareDocumentPosition(screen.getByText(en.financeStockTitle)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const keyLink = screen.getByRole('link', { name: en.financeFredApiKeyLink })
+    expect(keyLink.getAttribute('href')).toBe('https://fredaccount.stlouisfed.org/apikeys')
+    expect(keyLink.getAttribute('rel')).toBe('noreferrer')
   })
 
   it('uses provider and credential fallback branches', () => {

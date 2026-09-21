@@ -143,3 +143,9 @@
   line-height: 1.5;
   color: var(--dsw-alias-label-tertiary);
 }
+
+.keyLink {
+  color: var(--dsw-alias-text-accent, #2563eb);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
