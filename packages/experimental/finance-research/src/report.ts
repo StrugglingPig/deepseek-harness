@@ -5,6 +5,8 @@ import { buildMethodologyAnalysis, type MethodologyAnalysis } from './methodolog
 import { REPORT_COPY, formatCopy, type ReportBlockCopy, type ReportCategoryCopy, type ReportCopy } from './report-copy.ts'
 import type { ReportLanguage } from './report-language.ts'
 import { REPORT_TYPES, defaultReportType, reportTypeById, type ReportSectionId, type ReportTypeDefinition } from './report-types.ts'
+import type { MacroCategory } from './macro-catalog.ts'
+import type { MacroSeries } from './macro.ts'
 import type {
   FinanceMarketDataProvider,
   IndicatorAnalysis,
@@ -32,6 +34,34 @@ interface SectionContext {
   readonly copy: ReportCopy
   readonly category: ReportCategoryCopy
   readonly type: ReportTypeDefinition
+  /** Macro series available to this report; absent when the caller loaded none. */
+  readonly macro: readonly MacroSeries[]
+}
+
+/**
+ * Render the macro context a category block consumes.
+ * @param context - Section context carrying the loaded macro series.
+ * @param categories - Macro categories this block reports.
+ * @returns The rendered section, or the missing-input block when no series loaded.
+ */
+function macroBlock(
+  context: SectionContext,
+  id: ReportSectionId,
+  categories: readonly MacroCategory[],
+): ResearchReportSection {
+  const matched = context.macro.filter(series => categories.includes(series.category))
+  if (matched.length === 0) return inputBlock(context, id)
+  const copy = context.copy
+  return {
+    title: copy.sections[sectionKey(id)],
+    content: [
+      ...matched.map((series) => {
+        const projection = series.latest.projection === true ? ' (projection)' : ''
+        return `- ${series.country.toUpperCase()} ${series.name}: ${series.latest.value} ${series.unit} (${series.latest.date}${projection}, ${series.timing}, source ${series.source})`
+      }),
+      `- ${copy.labels.requiresInputs}${(copy.blocks[id] as ReportBlockCopy).requires.join(', ')}`,
+    ].join('\n'),
+  }
 }
 
 /** Input-demanding block: inputs the snapshot lacks, plus the questions it would answer. */
@@ -320,6 +350,10 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         ].join('\n'),
       }
     }
+    case 'macro-drivers':
+      return macroBlock(context, id, ['growth', 'inflation', 'employment', 'consumption', 'investment', 'money-credit', 'fiscal', 'external', 'policy'])
+    case 'rates-credit':
+      return macroBlock(context, id, ['market', 'money-credit', 'policy', 'fiscal'])
     default:
       return inputBlock(context, id)
   }
@@ -350,6 +384,7 @@ function sectionsFor(
   request: ResearchReportRequest,
   language: ReportLanguage,
   type: ReportTypeDefinition,
+  macro: readonly MacroSeries[],
 ): ResearchReportSection[] {
   const copy = REPORT_COPY[language]
   const context: SectionContext = {
@@ -360,6 +395,7 @@ function sectionsFor(
     copy,
     category: copy.reportCategories[type.category] as ReportCategoryCopy,
     type,
+    macro,
   }
   const sections = type.sections.map(id => renderSection(id, context))
   const prediction = predictionSection(snapshot, copy)
@@ -525,6 +561,7 @@ export function resolveReportType(request: ResearchReportRequest, snapshot: Mark
  * @param request - Symbol, optional question, horizon, and report type.
  * @param signal - Optional cancellation forwarded to the provider.
  * @param language - Report language; defaults to English.
+ * @param macro - Macro series rendered as the report precondition; empty when none loaded.
  * @returns The structured report with Markdown and interactive HTML renderings.
  */
 export async function buildResearchReport(
@@ -532,12 +569,13 @@ export async function buildResearchReport(
   request: ResearchReportRequest,
   signal?: AbortSignal,
   language: ReportLanguage = 'en',
+  macro: readonly MacroSeries[] = [],
 ): Promise<ResearchReport> {
   const copy = REPORT_COPY[language]
   const snapshot = await provider.load(request.symbol, signal)
   const analysis = buildIndicatorAnalysis(snapshot)
   const type = resolveReportType(request, snapshot)
-  const sections = sectionsFor(snapshot, analysis, request, language, type)
+  const sections = sectionsFor(snapshot, analysis, request, language, type, macro)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`

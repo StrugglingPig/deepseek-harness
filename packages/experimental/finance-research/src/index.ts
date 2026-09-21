@@ -32,7 +32,8 @@ import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
 import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
 import { SettingsFinanceMacroDataProvider } from './macro.ts'
-import { registerMacroTools } from './macro-tools.ts'
+import type { MacroSeries } from './macro.ts'
+import { loadMacroContext, registerMacroTools } from './macro-tools.ts'
 import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, analysisValue, snapshotValue } from './tool-schemas.ts'
 import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
 import { REPORT_COPY, type ReportCategoryCopy } from './report-copy.ts'
@@ -227,12 +228,14 @@ export const Config: z<Config> = z.object({
  * @param provider - Market-data provider used by the normalized tools.
  * @param streamProvider - Optional real-time market-stream provider.
  * @param reportLanguage - Resolves the report language for generated reports.
+ * @param macroContext - Loads the macro series the report quotes as its precondition.
  */
 export function registerFinanceTools(
   ctx: Context,
   provider: FinanceMarketDataProvider = fixtureProvider,
   streamProvider?: FinanceMarketStreamProvider,
   reportLanguage: () => ReportLanguage = () => 'en',
+  macroContext: () => Promise<readonly MacroSeries[]> = () => Promise.resolve([]),
 ): void {
   /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
@@ -338,7 +341,8 @@ export function registerFinanceTools(
       render: (_args, value) => [{ type: 'text', text: value.markdown }],
     },
     async execute(args, exec) {
-      return reportValue(await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage()))
+      const macro = await macroContext()
+      return reportValue(await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(), macro))
     },
   }))
 
@@ -1180,7 +1184,7 @@ export function apply(ctx: Context, config: Config): void {
     () => currentSettings,
     ref => resolveCredential(ref),
   )
-  registerFinanceTools(ctx, provider, streamProvider, reportLanguage)
+  registerFinanceTools(ctx, provider, streamProvider, reportLanguage, () => loadMacroContext(macroProvider))
   registerMacroTools(ctx, macroProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({

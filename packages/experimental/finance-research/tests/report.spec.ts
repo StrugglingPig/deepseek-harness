@@ -124,3 +124,57 @@ describe('finance research report', () => {
   })
 
 })
+
+describe('macro blocks inside an asset report', () => {
+  const macroSeries = (id: string, value: number, category: string, country: string, unit: string, date: string) => ({
+    indicator: id,
+    name: id,
+    nameZh: id,
+    category,
+    country,
+    unit,
+    frequency: 'monthly',
+    timing: 'coincident',
+    reading: 'reading',
+    affectedAssets: [],
+    source: 'fred',
+    observations: [{ date, value }],
+    latest: { date, value },
+    previous: undefined,
+    retrievedAt: '2026-09-21T00:00:00.000Z',
+  }) as const
+
+  it('renders real macro values in the macro and rates blocks when the tool supplies them', async () => {
+    const provider = fixtureProvider
+    const macro = [
+      macroSeries('us-10y-yield', 4.94, 'market', 'us', '%', '2026-09-17'),
+      macroSeries('us-hy-credit-spread', 2.7, 'market', 'us', '%', '2026-09-17'),
+      macroSeries('global-gdp-growth', 2.92, 'growth', 'global', '%', '2025'),
+      { ...macroSeries('cn-government-debt', 106.9, 'fiscal', 'cn', '%', '2026'), latest: { date: '2026', value: 106.9, projection: true } },
+    ]
+    const report = await buildResearchReport(
+      provider,
+      { symbol: 'AAPL', reportType: 'macro-deep-dive' },
+      undefined,
+      'en',
+      macro as never,
+    )
+    const blocks = report.sections.map(section => `${section.title}\n${section.content}`).join('\n')
+    expect(blocks).toContain('US us-10y-yield: 4.94 %')
+    expect(blocks).toContain('source fred')
+    expect(blocks).toContain('(projection)')
+    expect(blocks).toContain('Macro Drivers')
+  })
+
+  it('falls back to the missing-input block when no macro series were loaded', async () => {
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'macro-deep-dive' },
+      undefined,
+      'en',
+    )
+    const blocks = report.sections.map(section => `${section.title}\n${section.content}`).join('\n')
+    expect(blocks).toContain('Macro Drivers')
+    expect(blocks).not.toContain('US us-10y-yield: 4.94 %')
+  })
+})

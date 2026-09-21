@@ -7,7 +7,7 @@ import { exportResearchReport } from './export.ts'
 import { buildMacroReport } from './macro-report.ts'
 import type { ReportLanguage } from './report-language.ts'
 import {
-  MACRO_CATEGORIES, MACRO_COUNTRIES, MACRO_SOURCES, macroIndicatorById, macroIndicatorsMatching, macroSourcesOf,
+  MACRO_CATEGORIES, MACRO_COUNTRIES, MACRO_INDICATORS, MACRO_SOURCES, macroIndicatorById, macroIndicatorsMatching, macroSourcesOf,
   type MacroCategory, type MacroCountry, type MacroIndicator, type MacroSourceId,
 } from './macro-catalog.ts'
 import type { FinanceMacroDataProvider, MacroObservation, MacroSeries } from './macro.ts'
@@ -172,6 +172,38 @@ async function loadReportSeries(
     }
   }
   return { series, failures }
+}
+
+/** Series every research report carries as its macro precondition. */
+export const MACRO_REPORT_CONTEXT_IDS: readonly string[] = [
+  'us-fed-funds-rate', 'us-10y-yield', 'us-yield-curve-10y2y', 'us-hy-credit-spread',
+  'us-core-pce', 'us-unemployment-rate',
+  'cn-cpi', 'cn-ppi', 'cn-policy-rate', 'cn-social-financing',
+  'global-gdp-growth', 'global-inflation',
+]
+
+/**
+ * Load the macro series a research report quotes as its precondition.
+ * @param provider - Macro provider that routes each series to an upstream.
+ * @param limit - Observations kept per series.
+ * @returns The series that loaded; failures are dropped so a report still builds.
+ */
+export async function loadMacroContext(
+  provider: FinanceMacroDataProvider,
+  limit = 6,
+): Promise<MacroSeries[]> {
+  const wanted = new Set(MACRO_REPORT_CONTEXT_IDS)
+  const series: MacroSeries[] = []
+  for (const entry of MACRO_INDICATORS) {
+    if (!wanted.has(entry.id)) continue
+    try {
+      series.push(await provider.load({ indicator: entry, country: entry.country, limit }))
+    } catch {
+      // A macro precondition that an upstream cannot serve must not block the
+      // asset report; the missing series simply does not appear in the context.
+    }
+  }
+  return series
 }
 
 /**
