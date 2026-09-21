@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { render, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createChart } from 'lightweight-charts'
 import { TradingChart } from '../src/client/TradingChart.tsx'
+import { resolveIndicators, type IndicatorId } from '../src/client/indicators.ts'
 
 const mock = vi.hoisted(() => {
   const state = { fail: false }
-  const series = () => ({ setData: vi.fn() })
-  const panes = Array.from({ length: 4 }, () => ({ setStretchFactor: vi.fn() }))
+  // The third argument is the pane index, which the pane-assignment case asserts.
+  const series = (_definition?: unknown, _options?: unknown, _paneIndex?: number) => ({ setData: vi.fn() })
+  const panes = Array.from({ length: 6 }, () => ({ setStretchFactor: vi.fn() }))
   const api = {
     addSeries: vi.fn(series),
     timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
@@ -28,6 +30,10 @@ vi.mock('lightweight-charts', () => ({
   LineSeries: {},
 }))
 
+function indicators(...ids: IndicatorId[]) {
+  return resolveIndicators(ids, {})
+}
+
 const bars = Array.from({ length: 30 }, (_, index) => ({
   time: 1_700_000_000_000 + index * 60_000,
   open: 100 + index,
@@ -37,23 +43,30 @@ const bars = Array.from({ length: 30 }, (_, index) => ({
   volume: 10 + index,
 }))
 
+const originalCanvas = globalThis.HTMLCanvasElement
+
 beforeEach(() => {
   vi.clearAllMocks()
   mock.state.fail = false
   HTMLCanvasElement.prototype.getContext = vi.fn(() => ({})) as never
 })
 
+afterEach(() => {
+  cleanup()
+  Object.defineProperty(globalThis, 'HTMLCanvasElement', { value: originalCanvas, configurable: true })
+})
+
 describe('TradingChart', () => {
   it('renders a native chart and cleans up series', async () => {
-    const view = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" />)
+    const view = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" indicators={indicators('sma', 'volume', 'rsi', 'macd')} />)
     await waitFor(() => { expect(view.getByTestId('finance-chart').getAttribute('data-native')).toBe('true') })
     expect(mock.api.addSeries).toHaveBeenCalled()
     view.unmount()
     expect(mock.api.remove).toHaveBeenCalled()
   })
 
-  it('keeps the time axis visible and lets the price pane lead the panes', async () => {
-    const view = render(<TradingChart bars={bars} interval="1d" chartLabel="chart" />)
+  it('keeps the time axis visible, lets the page keep the wheel, and leads with the price pane', async () => {
+    const view = render(<TradingChart bars={bars} interval="1d" chartLabel="chart" indicators={indicators('sma', 'volume')} />)
     await waitFor(() => { expect(view.getByTestId('finance-chart').getAttribute('data-native')).toBe('true') })
     const options = vi.mocked(createChart).mock.calls[0]?.[1]
     expect(options?.timeScale?.borderVisible).toBe(true)
@@ -63,38 +76,65 @@ describe('TradingChart', () => {
     expect(options?.handleScroll).toMatchObject({ mouseWheel: false, vertTouchDrag: false })
     expect(options?.handleScale).toMatchObject({ mouseWheel: false })
     expect(mock.panes[0]?.setStretchFactor).toHaveBeenCalledWith(3)
-    for (const pane of mock.panes.slice(1)) expect(pane.setStretchFactor).toHaveBeenCalledWith(1)
+    expect(mock.panes[1]?.setStretchFactor).toHaveBeenCalledWith(1)
     view.unmount()
   })
 
+  it('draws overlays on the price pane and one pane per pane indicator', async () => {
+    const view = render(<TradingChart
+      bars={bars}
+      interval="1d"
+      chartLabel="chart"
+      indicators={indicators('sma', 'ema', 'boll', 'volume', 'rsi', 'macd', 'kdj')}
+    />)
+    await waitFor(() => { expect(view.getByTestId('finance-chart').getAttribute('data-native')).toBe('true') })
+    const panes = mock.api.addSeries.mock.calls.map(call => call[2])
+    // Candles, SMA, EMA, and the three BOLL bands share pane 0.
+    expect(panes.slice(0, 7)).toEqual([undefined, 0, 0, 0, 0, 0, 1])
+    // Volume, RSI, MACD, and KDJ each own a pane below the candles.
+    expect(panes.slice(7, 12)).toEqual([2, 3, 3, 4, 4])
+    expect(mock.api.addSeries).toHaveBeenCalledTimes(13)
+    expect(panes.at(-1)).toBe(4)
+    view.unmount()
+  })
+
+  it('grows the chart with the number of indicator panes', async () => {
+    const few = render(<TradingChart bars={bars} interval="1d" chartLabel="chart" indicators={indicators('sma')} />)
+    const fewHeight = few.getByTestId('finance-chart').style.minHeight
+    few.unmount()
+    const many = render(<TradingChart bars={bars} interval="1d" chartLabel="chart" indicators={indicators('volume', 'rsi', 'macd', 'kdj')} />)
+    const manyHeight = many.getByTestId('finance-chart').style.minHeight
+    expect(Number.parseInt(fewHeight, 10)).toBeLessThan(Number.parseInt(manyHeight, 10))
+    many.unmount()
+  })
+
   it('renders the SVG fallback for empty or unavailable canvas data', () => {
-    const view = render(<TradingChart bars={[]} interval="1m" chartLabel="chart" />)
+    const view = render(<TradingChart bars={[]} interval="1m" chartLabel="chart" indicators={indicators('sma')} />)
     expect(view.getByTestId('finance-chart').getAttribute('data-native')).toBe('false')
     expect(view.container.querySelector('path')).toBeTruthy()
     view.unmount()
 
     HTMLCanvasElement.prototype.getContext = vi.fn(() => { throw new Error('no canvas') }) as never
-    const thrown = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" />)
+    const thrown = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" indicators={indicators('sma')} />)
     expect(thrown.getByTestId('finance-chart').getAttribute('data-native')).toBe('false')
     thrown.unmount()
   })
 
   it('handles a canvasless environment and import failure', async () => {
-    const saved = globalThis.HTMLCanvasElement
     Object.defineProperty(globalThis, 'HTMLCanvasElement', { value: undefined, configurable: true })
-    const withoutCanvas = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" />)
+    const withoutCanvas = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" indicators={indicators('sma')} />)
     expect(withoutCanvas.getByTestId('finance-chart').getAttribute('data-native')).toBe('false')
     withoutCanvas.unmount()
-    Object.defineProperty(globalThis, 'HTMLCanvasElement', { value: saved, configurable: true })
+    Object.defineProperty(globalThis, 'HTMLCanvasElement', { value: originalCanvas, configurable: true })
 
     mock.state.fail = true
-    const failed = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" />)
+    const failed = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" indicators={indicators('sma')} />)
     await waitFor(() => { expect(failed.getByTestId('finance-chart').getAttribute('data-native')).toBe('false') })
     failed.unmount()
   })
 
   it('ignores an import that resolves after unmount', async () => {
-    const view = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" />)
+    const view = render(<TradingChart bars={bars} interval="1m" chartLabel="chart" indicators={indicators('sma')} />)
     view.unmount()
     await Promise.resolve()
   })

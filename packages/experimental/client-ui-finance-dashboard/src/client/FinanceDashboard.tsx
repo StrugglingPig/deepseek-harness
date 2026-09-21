@@ -10,6 +10,7 @@ import {
   type DashboardInterval,
 } from './market-data.ts'
 import type { FinanceDashboardFace, FinanceDashboardState } from './controller.ts'
+import { INDICATOR_COLORS, INDICATORS, indicatorParameterSuffix, resolveIndicatorParameters, resolveIndicators } from './indicators.ts'
 import { TradingChart } from './TradingChart.tsx'
 import css from './FinanceDashboard.module.css'
 
@@ -44,9 +45,12 @@ function streamLabel(status: FinanceDashboardState['streamStatus'], t: FinanceDa
 export function FinanceDashboard(props: FinanceDashboardProps) {
   const { t } = props
   const state = props.useDashboard(snapshot => snapshot)
+  const preferences = props.useIndicators(snapshot => snapshot)
   const latest = state.bars.at(-1)
   const currentAsset = state.asset
+  const indicators = resolveIndicators(preferences.enabled, preferences.parameters)
   const [draft, setDraft] = useState(state.symbol)
+  const [showIndicators, setShowIndicators] = useState(false)
   useEffect(() => { setDraft(state.symbol) }, [state.symbol, currentAsset])
   const submit = (): void => { props.setSymbol(draft) }
   return (
@@ -97,6 +101,50 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
           <button key={symbol} type="button" className={css.watchItem} onClick={() => { props.setSymbol(symbol) }}>{symbol}</button>
         ))}
       </div>
+      <div className={css.indicators}>
+        <button
+          type="button"
+          className={css.button}
+          aria-expanded={showIndicators}
+          onClick={() => { setShowIndicators(!showIndicators) }}
+        >
+          {t('indicators')}
+        </button>
+        {!showIndicators ? null : (
+          <div className={css.indicatorPanel} role="group" aria-label={t('indicators')}>
+            {INDICATORS.map((spec) => {
+              const active = preferences.enabled.includes(spec.id)
+              const values = resolveIndicatorParameters(spec, preferences.parameters[spec.id])
+              return (
+                <div key={spec.id} className={css.indicatorRow}>
+                  <label className={css.indicatorToggle}>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => { props.toggleIndicator(spec.id) }}
+                    />
+                    <span>{t(spec.labelKey)}</span>
+                  </label>
+                  {!active ? null : spec.parameters.map(parameter => (
+                    <label key={parameter.key} className={css.indicatorParam}>
+                      <span>{t(parameter.labelKey)}</span>
+                      <input
+                        type="number"
+                        min={parameter.min}
+                        max={parameter.max}
+                        step={parameter.step}
+                        value={values[parameter.key]}
+                        aria-label={`${t(spec.labelKey)} ${t(parameter.labelKey)}`}
+                        onChange={(event) => { props.setIndicatorParameter(spec.id, parameter.key, Number(event.target.value)) }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
       {state.status === 'loading' && latest === undefined ? <p role="status" className={css.notice}>{t('loading')}</p> : null}
       {state.status === 'error' ? <p role="alert" className={css.error}>{t('error')}{state.error === undefined ? '' : `: ${state.error}`}</p> : null}
       {state.status === 'ready' && latest === undefined ? <p className={css.notice}>{t('empty')}</p> : null}
@@ -114,8 +162,14 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
             <article><span>{t('volume')}</span><strong>{formatNumber(state.quote?.volume ?? latest.volume)}</strong></article>
             <article><span>{t('interval')}</span><strong>{state.interval}</strong></article>
           </div>
-          <TradingChart bars={state.bars} interval={state.interval} chartLabel={t('chartLabel')} />
-          <div className={css.legend}><span data-color="blue">{t('sma')}</span><span data-color="amber">{t('ema')}</span><span data-color="violet">{t('rsi')}</span><span data-color="sky">{t('macd')}</span></div>
+          <TradingChart bars={state.bars} interval={state.interval} chartLabel={t('chartLabel')} indicators={indicators} />
+          <div className={css.legend}>
+            {indicators.map(indicator => (
+              <span key={indicator.id} style={{ color: INDICATOR_COLORS[indicator.id] }}>
+                {t(indicator.spec.labelKey)}{indicatorParameterSuffix(indicator.spec, indicator.values)}
+              </span>
+            ))}
+          </div>
         </>
       )}
       <p className={css.accountNote}>{t('accountNote')}</p>

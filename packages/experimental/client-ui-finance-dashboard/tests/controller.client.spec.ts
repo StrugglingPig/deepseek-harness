@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FinanceDashboardController } from '../src/client/controller.ts'
 import type { FinanceDashboardSettingsScope } from '../src/client/controller.ts'
+import { DEFAULT_INDICATOR_IDS } from '../src/client/indicators.ts'
 
 function payload(overrides: Record<string, unknown> = {}): unknown {
   return {
@@ -120,6 +121,18 @@ describe('FinanceDashboardController', () => {
     expect(face.hooks.dashboard.getSnapshot().status).toBe('ready')
     controller.dispose()
     vi.useRealTimers()
+  })
+
+  it('exposes the indicator preferences through the browser face', () => {
+    const { controller } = bench()
+    const face = controller.inject()
+    expect(face.hooks.indicators.getSnapshot().enabled).toEqual([...DEFAULT_INDICATOR_IDS])
+
+    face.toggleIndicator('kdj')
+    expect(face.hooks.indicators.getSnapshot().enabled).toContain('kdj')
+    face.setIndicatorParameter('kdj', 'period', 12)
+    expect(face.hooks.indicators.getSnapshot().parameters.kdj).toEqual({ period: 12 })
+    controller.dispose()
   })
 
   it('calls fetch without rebinding the options object as this', async () => {

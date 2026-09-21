@@ -32,12 +32,12 @@ describe('finance dashboard styles', () => {
     ]))
   })
 
-  it('reserves chart height for the price, volume, RSI, and MACD panes', () => {
+  it('lets the chart fill the leftover panel height', () => {
+    // The chart's minimum height tracks the selected panes and is set inline by
+    // the component (indicators.ts chartHeight); CSS only lets it grow.
     expect(declarationsFrom('.chart')).toEqual(expect.arrayContaining([
-      // Four panes plus the time axis: below this the last panes and the axis
-      // fall outside the chart box.
       'flex: 1 1 auto',
-      'min-height: 600px',
+      'box-sizing: border-box',
     ]))
     expect(declarationsFrom('.nativeChart')).toEqual(expect.arrayContaining(['height: 100%']))
   })

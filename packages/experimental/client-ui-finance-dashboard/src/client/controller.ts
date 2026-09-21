@@ -3,6 +3,9 @@
 import { DASHBOARD_MARKET_PATH } from '@deepseek-ai/dsh-experimental-finance-research/shared'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { createIndicatorStore, setIndicatorParameter, toggleIndicator } from './indicator-store.ts'
+import type { IndicatorPreferences } from './indicator-store.ts'
+import type { IndicatorId } from './indicators.ts'
 import {
   defaultSymbol,
   intervalsFor,
@@ -52,12 +55,26 @@ export interface FinanceDashboardActions {
    * @param interval - Selected chart interval.
    */
   setInterval(interval: DashboardInterval): void
+  /**
+   * Add or remove one chart indicator.
+   * @param id - Indicator to toggle.
+   */
+  toggleIndicator(id: IndicatorId): void
+  /**
+   * Store one indicator parameter override.
+   * @param id - Indicator owning the parameter.
+   * @param key - Parameter name.
+   * @param value - Requested value.
+   */
+  setIndicatorParameter(id: IndicatorId, key: string, value: number): void
 }
 
 /** Browser face injected into the dashboard component. */
 export interface FinanceDashboardFace extends FinanceDashboardActions {
   readonly hooks: {
     readonly dashboard: SnapshotStore<FinanceDashboardState>
+    /** Persisted indicator selection and parameter overrides. */
+    readonly indicators: SnapshotStore<IndicatorPreferences>
   }
 }
 
@@ -111,6 +128,7 @@ async function hostError(response: Response): Promise<string> {
 /** Owns one dashboard's Host request, polling, and refresh lifecycle. */
 export class FinanceDashboardController {
   private readonly store: SnapshotStore<FinanceDashboardState>
+  private readonly indicators: SnapshotStore<IndicatorPreferences>
   private readonly options: ResolvedOptions
   private timer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
@@ -142,6 +160,7 @@ export class FinanceDashboardController {
       streamStatus: 'disconnected',
       error: undefined,
     })
+    this.indicators = createIndicatorStore()
     this.unsubscribe = scope.subscribe(() => { this.refresh() })
   }
 
@@ -271,7 +290,13 @@ export class FinanceDashboardController {
       setSymbol: (symbol) => { this.setSymbol(symbol) },
       setAsset: (asset) => { this.setAsset(asset) },
       setInterval: (interval) => { this.setInterval(interval) },
-      hooks: { dashboard: this.store },
+      toggleIndicator: (id) => {
+        this.indicators.set(toggleIndicator(this.indicators.getSnapshot(), id))
+      },
+      setIndicatorParameter: (id, key, value) => {
+        this.indicators.set(setIndicatorParameter(this.indicators.getSnapshot(), id, key, value))
+      },
+      hooks: { dashboard: this.store, indicators: this.indicators },
     }
   }
 

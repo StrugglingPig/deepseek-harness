@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This browser plugin adds a **Finance dashboard** global panel to the Web Client. The panel reads the served `finance-research` settings namespace and polls the Host market route on the authenticated `/api` channel, so provider calls, provider credentials, and cross-origin policy stay on the Host. It renders crypto, mainland A-share, and US-equity candlesticks with volume plus SMA20, EMA12, RSI14, and MACD panes through `lightweight-charts`, falling back to an inline SVG line when canvas is unavailable. The package registers no model-facing input and never receives provider credentials; private account data remains available only through the Host-side `finance_private_account` tool.
+This browser plugin adds a **Finance dashboard** global panel to the Web Client. The panel reads the served `finance-research` settings namespace and polls the Host market route on the authenticated `/api` channel, so provider calls, provider credentials, and cross-origin policy stay on the Host. It renders crypto, mainland A-share, and US-equity candlesticks with selectable SMA, EMA, BOLL, volume, RSI, MACD, and KDJ panes through `lightweight-charts`, falling back to an inline SVG line when canvas is unavailable. The package registers no model-facing input and never receives provider credentials; private account data remains available only through the Host-side `finance_private_account` tool.
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ The dashboard follows the served `finance-research` settings namespace: a namesp
 
 ### Read the panel
 
-The header selects the asset family, symbol, and interval and exposes an explicit refresh. Tabs cover crypto pairs, mainland A-shares, and US equities, each with a quick-symbol list. Metrics show the latest price, the change against the previous bar, and the latest bar volume. The chart renders K-line, volume, SMA20, EMA12, RSI14, and MACD panes through `lightweight-charts`, with an inline SVG line when canvas is unavailable. The request badge reports connecting, live, or error state; the controller re-polls every 15 seconds, stops polling when the panel is disposed, and drops responses that arrive after the selection changed.
+The header selects the asset family, symbol, and interval and exposes an explicit refresh. Tabs cover crypto pairs, mainland A-shares, and US equities, each with a quick-symbol list. Metrics show the latest price, the change against the previous bar, and the latest bar volume. The chart renders the selected indicators through `lightweight-charts`, with an inline SVG line when canvas is unavailable. The indicator control selects SMA, EMA, BOLL, volume, RSI, MACD, and KDJ and edits each one's periods; the selection and parameters persist in browser storage under `dsh.finance.dashboard.indicators.v1`. The request badge reports connecting, live, or error state; the controller re-polls every 15 seconds, stops polling when the panel is disposed, and drops responses that arrive after the selection changed.
 
 -----
 
@@ -57,6 +57,8 @@ The package registers one `main` keyed panel and one matching `sidebar.panellist
 | [`src/client/index.ts`](src/client/index.ts) | Finance namespace gating, panel registration, and locale registration |
 | [`src/client/controller.ts`](src/client/controller.ts) | Host market polling, refresh lifecycle, and dashboard state |
 | [`src/client/market-data.ts`](src/client/market-data.ts) | Host response parsing, indicator series, and SVG chart geometry |
+| [`src/client/indicators.ts`](src/client/indicators.ts) | Selectable indicator catalog, parameter ranges, and chart sizing |
+| [`src/client/indicator-store.ts`](src/client/indicator-store.ts) | Persisted indicator selection and parameter overrides |
 | [`src/client/TradingChart.tsx`](src/client/TradingChart.tsx) | `lightweight-charts` rendering with the SVG fallback |
 | [`src/client/FinanceDashboard.tsx`](src/client/FinanceDashboard.tsx) | Dashboard controls, metrics, chart, and status presentation |
 | [`src/client/locales.ts`](src/client/locales.ts) | English and Chinese panel copy |

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-这个浏览器插件为 Web Client 增加一个 **金融仪表盘** 全局面板。面板读取已提供的 `finance-research` 设置命名空间，并轮询认证 `/api` 通道上的 Host 行情路由，因此 Provider 调用、凭据和跨域策略都留在 Host。面板通过 `lightweight-charts` 渲染加密货币、A 股和美股 K 线、成交量以及 SMA20、EMA12、RSI14、MACD 副图，Canvas 不可用时回退为内联 SVG 折线。本包不注册模型可见输入，也不会收到 Provider 凭据；私有账户数据仍只通过 Host 侧 `finance_private_account` 工具提供。
+这个浏览器插件为 Web Client 增加一个 **金融仪表盘** 全局面板。面板读取已提供的 `finance-research` 设置命名空间，并轮询认证 `/api` 通道上的 Host 行情路由，因此 Provider 调用、凭据和跨域策略都留在 Host。面板通过 `lightweight-charts` 渲染加密货币、A 股和美股 K 线，以及可选的 SMA、EMA、BOLL、成交量、RSI、MACD 和 KDJ 副图，Canvas 不可用时回退为内联 SVG 折线。本包不注册模型可见输入，也不会收到 Provider 凭据；私有账户数据仍只通过 Host 侧 `finance_private_account` 工具提供。
 
 ## 目录
 
@@ -40,7 +40,7 @@ dsh plugin --profile web add @deepseek-ai/dsh-experimental-client-ui-finance-das
 
 ### 阅读面板
 
-顶部可选择资产类别、标的和周期，并提供显式刷新。标签页覆盖加密货币、A 股和美股，每个都带快捷标的列表。指标区显示最新价、相对上一根 K 线的涨跌幅和最新成交量。图表通过 `lightweight-charts` 渲染 K 线、成交量、SMA20、EMA12、RSI14 和 MACD 副图，Canvas 不可用时改用内联 SVG 折线。请求徽标显示连接中、实时或错误状态；控制器每 15 秒重新轮询，面板释放时停止轮询，并丢弃切换选择后才返回的响应。
+顶部可选择资产类别、标的和周期，并提供显式刷新。标签页覆盖加密货币、A 股和美股，每个都带快捷标的列表。指标区显示最新价、相对上一根 K 线的涨跌幅和最新成交量。图表通过 `lightweight-charts` 渲染所选指标，Canvas 不可用时改用内联 SVG 折线。指标控件可选择 SMA、EMA、BOLL、成交量、RSI、MACD 和 KDJ 并编辑各自参数；选择与参数持久化在浏览器存储的 `dsh.finance.dashboard.indicators.v1` 下。请求徽标显示连接中、实时或错误状态；控制器每 15 秒重新轮询，面板释放时停止轮询，并丢弃切换选择后才返回的响应。
 
 -----
 
@@ -57,6 +57,8 @@ dsh plugin --profile web add @deepseek-ai/dsh-experimental-client-ui-finance-das
 | [`src/client/index.ts`](src/client/index.ts) | 金融命名空间门控、面板注册和 locale 注册 |
 | [`src/client/controller.ts`](src/client/controller.ts) | Host 行情轮询、刷新生命周期和仪表盘状态 |
 | [`src/client/market-data.ts`](src/client/market-data.ts) | Host 响应解析、指标序列和 SVG 图表几何 |
+| [`src/client/indicators.ts`](src/client/indicators.ts) | 可选指标目录、参数范围与图表高度 |
+| [`src/client/indicator-store.ts`](src/client/indicator-store.ts) | 持久化的指标选择与参数覆盖 |
 | [`src/client/TradingChart.tsx`](src/client/TradingChart.tsx) | `lightweight-charts` 渲染与 SVG 回退 |
 | [`src/client/FinanceDashboard.tsx`](src/client/FinanceDashboard.tsx) | 仪表盘控件、指标、图表和状态展示 |
 | [`src/client/locales.ts`](src/client/locales.ts) | 中英文面板文案 |

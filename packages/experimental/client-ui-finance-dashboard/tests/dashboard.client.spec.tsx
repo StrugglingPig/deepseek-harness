@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FinanceDashboard, type FinanceDashboardProps } from '../src/client/FinanceDashboard.tsx'
 import { FinanceDashboardPanelIcon } from '../src/client/FinanceDashboardPanelIcon.tsx'
 import type { FinanceDashboardState } from '../src/client/controller.ts'
+import { DEFAULT_INDICATOR_IDS, type IndicatorId, type IndicatorParameterMap } from '../src/client/indicators.ts'
+import type { IndicatorPreferences } from '../src/client/indicator-store.ts'
 import type { DashboardQuote } from '../src/client/market-data.ts'
 import { en } from '../src/client/locales.ts'
 
@@ -28,22 +30,34 @@ const state: FinanceDashboardState = {
   error: undefined,
 }
 
-function renderDashboard(patch: Partial<FinanceDashboardState> = {}) {
+function renderDashboard(
+  patch: Partial<FinanceDashboardState> = {},
+  preferences: IndicatorPreferences = { enabled: DEFAULT_INDICATOR_IDS, parameters: {} },
+) {
   const current = { ...state, ...patch }
   const refresh = vi.fn()
   const setSymbol = vi.fn()
   const setAsset = vi.fn()
   const setInterval = vi.fn()
+  const toggleIndicator = vi.fn()
+  const setIndicatorParameter = vi.fn()
   const props = {
     useDashboard: <T,>(selector: (value: FinanceDashboardState) => T): T => selector(current),
+    useIndicators: <T,>(selector: (value: IndicatorPreferences) => T): T => selector(preferences),
     refresh,
     setSymbol,
     setAsset,
     setInterval,
+    toggleIndicator,
+    setIndicatorParameter,
     t: (key: keyof typeof en) => en[key],
   } as unknown as FinanceDashboardProps
   const view = render(<FinanceDashboard {...props} />)
-  return { ...view, refresh, setSymbol, setAsset, setInterval }
+  return { ...view, refresh, setSymbol, setAsset, setInterval, toggleIndicator, setIndicatorParameter }
+}
+
+function indicatorPreferences(enabled: readonly IndicatorId[], parameters: IndicatorParameterMap = {}): IndicatorPreferences {
+  return { enabled, parameters }
 }
 
 afterEach(() => {
@@ -101,6 +115,29 @@ describe('FinanceDashboard', () => {
     renderDashboard({ status: 'error', error: 'offline', streamStatus: 'error' })
     expect(screen.getByRole('alert').textContent).toContain('offline')
     expect(screen.getByTestId('finance-chart')).toBeTruthy()
+  })
+
+  it('lists every indicator and forwards selections and parameter edits', () => {
+    const actions = renderDashboard()
+    fireEvent.click(screen.getByRole('button', { name: en.indicators }))
+
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.sma }).checked).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.kdj }).checked).toBe(false)
+    fireEvent.click(screen.getByRole('checkbox', { name: en.kdj }))
+    expect(actions.toggleIndicator).toHaveBeenCalledWith('kdj')
+
+    fireEvent.change(screen.getByLabelText(`${en.rsi} ${en.paramPeriod}`), { target: { value: '7' } })
+    expect(actions.setIndicatorParameter).toHaveBeenCalledWith('rsi', 'period', 7)
+
+    // A parameterless indicator shows no inputs at all.
+    expect(screen.queryByLabelText(`${en.volume} ${en.paramPeriod}`)).toBeNull()
+  })
+
+  it('renders the legend from the configured indicators only', () => {
+    renderDashboard({}, indicatorPreferences(['boll', 'kdj'], { boll: { period: 10, multiplier: 3 } }))
+    expect(screen.getByText('BOLL(10,3)')).toBeTruthy()
+    expect(screen.getByText('KDJ(9,3,3)')).toBeTruthy()
+    expect(screen.queryByText('SMA20')).toBeNull()
   })
 
   it('falls back to the latest bar when quote metrics are absent', () => {

@@ -248,6 +248,74 @@ export function macd(
   return { macd: macdValues, signal: signalValues }
 }
 
+/**
+ * Bollinger band values around a moving average.
+ * @param bars - Bars to measure.
+ * @param period - Moving-average length.
+ * @param multiplier - Band width in standard deviations.
+ * @returns Middle, upper, and lower series.
+ */
+export function bollinger(
+  bars: readonly DashboardBar[],
+  period = 20,
+  multiplier = 2,
+): { readonly middle: IndicatorPoint[]; readonly upper: IndicatorPoint[]; readonly lower: IndicatorPoint[] } {
+  const middle: IndicatorPoint[] = []
+  const upper: IndicatorPoint[] = []
+  const lower: IndicatorPoint[] = []
+  if (period < 1) return { middle, upper, lower }
+  bars.forEach((bar, index) => {
+    if (index + 1 < period) return
+    const window = bars.slice(index + 1 - period, index + 1)
+    const mean = window.reduce((sum, item) => sum + item.close, 0) / period
+    const variance = window.reduce((sum, item) => sum + (item.close - mean) ** 2, 0) / period
+    const deviation = Math.sqrt(variance) * multiplier
+    middle.push({ time: bar.time, value: mean })
+    upper.push({ time: bar.time, value: mean + deviation })
+    lower.push({ time: bar.time, value: mean - deviation })
+  })
+  return { middle, upper, lower }
+}
+
+/**
+ * KDJ stochastic values.
+ * @param bars - Bars to measure.
+ * @param period - Lookback for the raw stochastic value.
+ * @param kSmooth - Smoothing length for K.
+ * @param dSmooth - Smoothing length for D.
+ * @returns K, D, and J series.
+ */
+export function kdj(
+  bars: readonly DashboardBar[],
+  period = 9,
+  kSmooth = 3,
+  dSmooth = 3,
+): { readonly k: IndicatorPoint[]; readonly d: IndicatorPoint[]; readonly j: IndicatorPoint[] } {
+  const k: IndicatorPoint[] = []
+  const d: IndicatorPoint[] = []
+  const j: IndicatorPoint[] = []
+  if (period < 1 || bars.length < period) return { k, d, j }
+  let previousK = 50
+  let previousD = 50
+  for (let index = period - 1; index < bars.length; index += 1) {
+    const window = bars.slice(index + 1 - period, index + 1)
+    const highest = Math.max(...window.map(bar => bar.high))
+    const lowest = Math.min(...window.map(bar => bar.low))
+    const range = highest - lowest
+    const close = (bars[index] as DashboardBar).close
+    const rsv = range === 0 ? 50 : (close - lowest) / range * 100
+    const currentK = previousK + (rsv - previousK) / kSmooth
+    const currentD = previousD + (currentK - previousD) / dSmooth
+    const time = (bars[index] as DashboardBar).time
+    k.push({ time, value: currentK })
+    d.push({ time, value: currentD })
+    j.push({ time, value: 3 * currentK - 2 * currentD })
+    previousK = currentK
+    previousD = currentD
+  }
+  return { k, d, j }
+}
+
 function formatCoordinate(value: number): string {
   return Number(value.toFixed(4)).toString()
 }

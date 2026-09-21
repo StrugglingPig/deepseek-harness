@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bollinger,
   chartPath,
   ema,
+  kdj,
   intervalsFor,
   macd,
   parseDashboardMarket,
@@ -20,6 +22,39 @@ const bars = [
 ]
 
 describe('finance dashboard market data', () => {
+  it('bands closes around a moving average', () => {
+    const series = [100, 110, 90, 120]
+    const filled = series.map((close, index) => ({ time: index + 1, open: close, high: close, low: close, close, volume: 1 }))
+    const bands = bollinger(filled, 3, 2)
+    expect(bands.middle).toHaveLength(2)
+    expect(bands.middle[0]?.value).toBeCloseTo(100)
+    // Two-sigma on a {90,100,110} window is 16.33, so the bands sit well clear of it.
+    expect(bands.upper[0]?.value).toBeCloseTo(116.33, 2)
+    expect(bands.lower[0]?.value).toBeCloseTo(83.67, 2)
+    expect(bollinger(filled, 0)).toEqual({ middle: [], upper: [], lower: [] })
+  })
+
+  it('smoothes KDJ from the raw stochastic value', () => {
+    const filled = Array.from({ length: 6 }, (_, index) => ({
+      time: index + 1,
+      open: 100,
+      high: 110 + index,
+      low: 90 - index,
+      close: 100 + index,
+      volume: 1,
+    }))
+    const values = kdj(filled, 3, 3, 3)
+    expect(values.k).toHaveLength(4)
+    expect(values.k[0]?.value).toBeGreaterThan(50)
+    expect(values.d[0]?.value).toBeGreaterThan(50)
+    expect(values.j[0]?.value).toBeCloseTo(3 * (values.k[0]?.value as number) - 2 * (values.d[0]?.value as number))
+    // A window with no price range reads as a neutral 50 rather than NaN.
+    const flat = filled.map(bar => ({ ...bar, high: 100, low: 100 }))
+    expect(kdj(flat, 3, 3, 3).k[0]?.value).toBeCloseTo(50)
+    expect(kdj(filled, 9, 3, 3)).toEqual({ k: [], d: [], j: [] })
+    expect(kdj(filled, 0)).toEqual({ k: [], d: [], j: [] })
+  })
+
   it('normalizes common crypto symbols to Binance Spot pairs', () => {
     expect(toBinanceSymbol('btc')).toBe('BTCUSDT')
     expect(toBinanceSymbol('ETHUSDT')).toBe('ETHUSDT')
