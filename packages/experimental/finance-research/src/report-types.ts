@@ -18,7 +18,7 @@ export type ReportForm = typeof REPORT_FORMS[number]
 
 /** Section blocks a report type can compose. */
 export const REPORT_SECTION_IDS = [
-  'summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis',
+  'investment-view', 'summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis',
   'methodology-coverage', 'investor-lenses', 'valuation-framework', 'financial-quality', 'earnings-review',
   'event-context', 'industry-landscape', 'competitive-position', 'macro-drivers', 'rates-credit',
   'commodity-balance', 'fx-drivers', 'fund-flows', 'onchain-tokenomics', 'allocation', 'scenario-analysis',
@@ -63,62 +63,75 @@ const CATEGORY_BLOCKS: Readonly<Record<ReportCategory, readonly ReportSectionId[
 }
 
 /**
- * Form-shaped section plans: core blocks, then category blocks, then the tail.
- * `flash` and `daily` stay short, so the macro precondition the longer forms
- * carry is not part of their core.
+ * Form-shaped section plans: a head, the category blocks, a body, and a tail.
+ * The head opens with the investment view and the macro backdrop, the category
+ * blocks carry fundamentals, the body carries the technical read, and the tail
+ * carries scenarios and monitoring. `flash` and `daily` stay short, so they omit
+ * the macro backdrop and the category blocks.
  */
 const FORM_PLANS: Readonly<Record<ReportForm, {
-  readonly core: readonly ReportSectionId[]
+  readonly head: readonly ReportSectionId[]
+  readonly body: readonly ReportSectionId[]
   readonly tail: readonly ReportSectionId[]
   readonly categoryBlocks: boolean
 }>> = {
   flash: {
-    core: ['summary', 'market-snapshot', 'price-action', 'synthesis'],
+    head: ['investment-view', 'summary', 'market-snapshot', 'price-action'],
+    body: ['synthesis'],
     tail: ['risk-and-limitations'],
     categoryBlocks: false,
   },
   daily: {
-    core: ['summary', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis'],
+    head: ['investment-view', 'summary', 'market-snapshot', 'price-action'],
+    body: ['technical-indicators', 'synthesis'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: false,
   },
   weekly: {
-    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
+    head: ['investment-view', 'summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['technical-indicators', 'synthesis', 'methodology-coverage'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   monthly: {
-    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
+    head: ['investment-view', 'summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['technical-indicators', 'synthesis', 'methodology-coverage'],
     tail: ['scenario-analysis', 'monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   'deep-dive': {
-    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis', 'methodology-coverage'],
+    head: ['investment-view', 'summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['technical-indicators', 'synthesis', 'methodology-coverage'],
     tail: ['investor-lenses', 'scenario-analysis', 'strategy-gaps', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   thematic: {
-    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'synthesis', 'methodology-coverage'],
+    head: ['investment-view', 'summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['synthesis', 'methodology-coverage'],
     tail: ['scenario-analysis', 'catalysts', 'strategy-gaps', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   event: {
-    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'event-context', 'synthesis'],
+    head: ['investment-view', 'summary', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['event-context', 'synthesis'],
     tail: ['catalysts', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   earnings: {
-    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'earnings-review', 'synthesis'],
+    head: ['investment-view', 'summary', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['earnings-review', 'synthesis'],
     tail: ['catalysts', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   allocation: {
-    core: ['summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action', 'synthesis', 'methodology-coverage'],
+    head: ['investment-view', 'summary', 'research-question', 'macro-drivers', 'market-snapshot', 'price-action'],
+    body: ['synthesis', 'methodology-coverage'],
     tail: ['allocation', 'scenario-analysis', 'investor-lenses', 'strategy-gaps', 'risk-and-limitations'],
     categoryBlocks: true,
   },
   data: {
-    core: ['summary', 'macro-drivers', 'market-snapshot', 'technical-indicators', 'data-requirements'],
+    head: ['investment-view', 'summary', 'macro-drivers', 'market-snapshot'],
+    body: ['technical-indicators', 'data-requirements'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: false,
   },
@@ -127,9 +140,9 @@ const FORM_PLANS: Readonly<Record<ReportForm, {
 /** Section plan of one category and form pair. */
 function planFor(category: ReportCategory, form: ReportForm): readonly ReportSectionId[] {
   const plan = FORM_PLANS[form]
-  const owned = [...plan.core, ...plan.tail]
+  const owned = [...plan.head, ...plan.body, ...plan.tail]
   const blocks = plan.categoryBlocks ? CATEGORY_BLOCKS[category].filter(id => !owned.includes(id)) : []
-  return [...plan.core, ...blocks, ...plan.tail]
+  return [...plan.head, ...blocks, ...plan.body, ...plan.tail]
 }
 
 /** Every report type this package can render. */

@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureProvider } from '../src/data.ts'
 import { buildResearchReport } from '../src/report.ts'
+import type { FinanceMarketDataProvider } from '../src/types.ts'
+
+/** Provider over a fixed close series, so trend bands can be exercised directly. */
+function closeProvider(closes: readonly number[]): FinanceMarketDataProvider {
+  return {
+    id: 'closes',
+    async load() {
+      return {
+        instrument: { symbol: 'X', name: 'X', assetClass: 'equity' as const, currency: 'USD' },
+        asOf: '2026-09-21T00:00:00.000Z',
+        source: { provider: 'closes', retrievedAt: '2026-09-21T00:00:00.000Z', synthetic: false },
+        quote: { price: closes[closes.length - 1] as number, changePercent: 0 },
+        bars: closes.map((close, index) => ({
+          timestamp: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+          open: close, high: close * 1.01, low: close * 0.99, close, volume: 1_000 + index,
+        })),
+      }
+    },
+  }
+}
+
+function sectionOf(report: { readonly sections: readonly { readonly title: string; readonly content: string }[] }, title: string): string {
+  return report.sections.find(section => section.title === title)?.content ?? ''
+}
 
 describe('finance research report', () => {
   it('builds an equity report with defaults', async () => {
@@ -8,9 +32,10 @@ describe('finance research report', () => {
     expect(report.symbol).toBe('AAPL')
     expect(report.reportType).toBe('equity-deep-dive')
     expect(report.sections.map(section => section.title)).toEqual([
-      'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action', 'Technical Indicators',
-      'Multi-Indicator Synthesis', 'Methodology Coverage', 'Valuation Framework', 'Financial Quality',
-      'Competitive Position', 'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
+      'Investment View', 'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action',
+      'Valuation Framework', 'Financial Quality', 'Competitive Position', 'Technical Indicators',
+      'Multi-Indicator Synthesis', 'Methodology Coverage', 'Investor Lenses', 'Scenario Analysis',
+      'Strategy Gaps', 'Risk And Limitations',
     ])
     expect(report.markdown).toContain('# Apple Inc. (AAPL) · Equity Deep dive')
     expect(report.html).toContain('<title>Apple Inc. (AAPL) · Equity Deep dive</title>')
@@ -82,6 +107,28 @@ describe('finance research report', () => {
     expect(report.markdown).not.toContain('deterministic fixture data')
   })
 
+  it('reads a falling series as a reduce stance with bearish technical context', async () => {
+    // Flat, then an accelerating decline, so both the mean-reversion and MACD reads turn bearish.
+    const closes = Array.from({ length: 60 }, (_, index) => index < 45 ? 200 : 200 - (index - 44) * 6)
+    const report = await buildResearchReport(closeProvider(closes), { symbol: 'X' })
+    expect(sectionOf(report, 'Investment View')).toContain('Reduce')
+    const technical = sectionOf(report, 'Technical Indicators')
+    expect(technical).toContain('oversold')
+    expect(technical).toContain('MACD below its signal line')
+  })
+
+  it('reads a flat series as a watch stance with a neutral stack', async () => {
+    const report = await buildResearchReport(closeProvider(Array.from({ length: 60 }, () => 100)), { symbol: 'X' })
+    expect(sectionOf(report, 'Investment View')).toContain('Watch')
+    expect(sectionOf(report, 'Technical Indicators')).toContain('Moving-average stack: neutral')
+  })
+
+  it('flags an overbought reading on a steep advance', async () => {
+    const closes = Array.from({ length: 60 }, (_, index) => 100 * 1.02 ** index)
+    const report = await buildResearchReport(closeProvider(closes), { symbol: 'X' })
+    expect(sectionOf(report, 'Technical Indicators')).toContain('overbought')
+  })
+
   it('escapes HTML and script terminators in interactive report data', async () => {
     const report = await buildResearchReport({
       id: 'external',
@@ -115,8 +162,9 @@ describe('finance research report', () => {
     const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'zh')
     expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
-      '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为', '技术指标', '多指标综合', '方法论覆盖',
-      '估值框架', '财务质量', '竞争格局', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
+      '投资结论', '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为',
+      '估值框架', '财务质量', '竞争格局', '技术指标', '多指标综合', '方法论覆盖',
+      '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')
     expect(report.markdown).toContain('综合评分：')

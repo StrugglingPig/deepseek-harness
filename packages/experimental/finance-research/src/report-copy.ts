@@ -7,6 +7,7 @@ import type { MethodologyCategory } from './methodology.ts'
 export type ReportSectionKey =
   | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'priceAction' | 'technicalIndicators' | 'synthesis'
   | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'valuationFramework' | 'financialQuality'
+  | 'investmentView'
   | 'earningsReview' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
   | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
   | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
@@ -19,11 +20,16 @@ export type ReportLabelKey =
   | 'notAdvice' | 'defaultQuestion' | 'defaultHorizon' | 'returnWindow' | 'rangePosition' | 'drawdown'
   | 'volumeTrend' | 'scenarioBull' | 'scenarioBase' | 'scenarioBear' | 'riskBudget' | 'atrStop'
   | 'positionSize' | 'monitoringCadence' | 'requiresInputs' | 'focus' | 'blockMissing'
+  | 'stanceAccumulate' | 'stanceWatch' | 'stanceReduce' | 'viewStance' | 'viewConfidence'
+  | 'viewReasons' | 'viewInvalidation' | 'viewGaps' | 'maStack' | 'rsiOverbought' | 'rsiOversold'
+  | 'rsiNeutral' | 'macdBullish' | 'macdBearish'
+  | 'riskBars' | 'gapCount' | 'obvAverage'
 
 /** Interpolated line templates owned by the report writer. */
 export type ReportTemplateKey =
   | 'summary' | 'signal' | 'reading' | 'investor' | 'investorRisk' | 'gap' | 'reportTitle'
   | 'htmlMeta' | 'htmlPill' | 'htmlRange' | 'htmlTooltip'
+  | 'invalidation' | 'invalidationInverse' | 'viewBreadth' | 'viewStrongest' | 'viewRisk'
 
 /** Chrome labels of the interactive HTML report. */
 export type ReportHtmlKey =
@@ -90,6 +96,7 @@ const EN: ReportCopy = {
   htmlLang: 'en',
   titleSuffix: 'research report',
   sections: {
+    investmentView: 'Investment View',
     summary: 'Summary',
     researchQuestion: 'Research Question',
     marketSnapshot: 'Market Snapshot',
@@ -120,6 +127,23 @@ const EN: ReportCopy = {
     riskAndLimitations: 'Risk And Limitations',
   },
   labels: {
+    stanceAccumulate: 'Accumulate — the structure supports adding',
+    stanceWatch: 'Watch — wait for a cleaner signal',
+    stanceReduce: 'Reduce — the evidence has turned against the position',
+    viewStance: 'Stance: ',
+    viewConfidence: 'Conviction: ',
+    viewReasons: 'What supports this view',
+    viewInvalidation: 'What would change this view',
+    viewGaps: 'What this report still cannot see',
+    maStack: 'Moving-average stack: {direction}',
+    rsiOverbought: 'overbought, so late entries carry more risk',
+    rsiOversold: 'oversold, so reversal and breakdown risk both apply',
+    rsiNeutral: 'mid-range',
+    macdBullish: 'MACD above its signal line',
+    macdBearish: 'MACD below its signal line',
+    riskBars: 'size the position from the ATR stop below',
+    gapCount: 'Missing inputs: ',
+    obvAverage: '20-bar average ',
     asOf: 'As-of: ',
     price: 'Price: ',
     change: 'Change: ',
@@ -171,6 +195,11 @@ const EN: ReportCopy = {
     htmlPill: '{direction} · {confidence}% confidence',
     htmlRange: '{count} bars',
     htmlTooltip: '<strong>{time}</strong><br>Close {close}<br>Volume {volume}',
+    invalidation: 'A close above {level} (SMA 20) would invalidate the bearish read.',
+    invalidationInverse: 'A close below {level} (SMA 20) would invalidate the bullish read.',
+    viewBreadth: '{aligned}/{total} weighted signals point {direction}',
+    viewStrongest: '{name}: {direction}, weight {weight}',
+    viewRisk: 'Risk budget: ATR is {atr} of price; {risk}',
   },
   html: {
     eyebrow: 'DeepSeek Harness · Finance Research',
@@ -268,6 +297,7 @@ const ZH: ReportCopy = {
   htmlLang: 'zh',
   titleSuffix: '研究报告',
   sections: {
+    investmentView: '投资结论',
     summary: '摘要',
     researchQuestion: '研究问题',
     marketSnapshot: '行情快照',
@@ -298,6 +328,23 @@ const ZH: ReportCopy = {
     riskAndLimitations: '风险与限制',
   },
   labels: {
+    stanceAccumulate: '可增持 — 结构支持继续加仓',
+    stanceWatch: '观望 — 等待更清晰的信号',
+    stanceReduce: '减仓 — 证据已转向不利',
+    viewStance: '立场：',
+    viewConfidence: '置信度：',
+    viewReasons: '支撑该结论的证据',
+    viewInvalidation: '结论推翻条件',
+    viewGaps: '本报告暂时看不到的维度',
+    maStack: '均线排列：{direction}',
+    rsiOverbought: '偏超买，此处追高的风险收益变差',
+    rsiOversold: '偏超卖，反弹与破位风险并存',
+    rsiNeutral: '中性区间',
+    macdBullish: 'MACD 在信号线上方',
+    macdBearish: 'MACD 在信号线下方',
+    riskBars: '仓位应按下方 ATR 止损设定',
+    gapCount: '缺少输入：',
+    obvAverage: '20 根均值 ',
     asOf: '截至：',
     price: '价格：',
     change: '涨跌幅：',
@@ -339,6 +386,11 @@ const ZH: ReportCopy = {
   },
   templates: {
     summary: '{label} 呈{direction}。{aligned} 个信号与综合方向一致。',
+    invalidation: '收盘站上 {level}（20 日均线）将推翻看跌结论。',
+    invalidationInverse: '收盘跌破 {level}（20 日均线）将推翻看涨结论。',
+    viewBreadth: '{aligned}/{total} 个加权信号指向{direction}',
+    viewStrongest: '最强信号 {name}：{direction}，权重 {weight}',
+    viewRisk: '风险预算：ATR 占价格 {atr}；{risk}',
     signal: '- {name}：{direction}（权重 {weight}，数值 {value}）',
     reading: '- {name}：{direction}，置信度 {confidence}%，状态 {status}。{note}',
     investor: '- {name}（{school}）：{stance}。',

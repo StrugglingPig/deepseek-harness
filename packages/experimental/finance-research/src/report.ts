@@ -26,6 +26,25 @@ function percent(value: number): string {
   return `${value.toFixed(2)}%`
 }
 
+/**
+ * Round a plain number for report display, with thousands separators.
+ * @param value - Value to render.
+ * @param digits - Fixed decimal places.
+ * @returns The formatted number.
+ */
+function number(value: number, digits = 2): string {
+  return value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}
+
+/**
+ * Abbreviate a large number the way market data is quoted (1.71T, 37.9B).
+ * @param value - Value to render.
+ * @returns The abbreviated number.
+ */
+function compact(value: number): string {
+  return value.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })
+}
+
 interface SectionContext {
   readonly snapshot: MarketSnapshot
   readonly analysis: IndicatorAnalysis
@@ -54,13 +73,10 @@ function macroBlock(
   const copy = context.copy
   return {
     title: copy.sections[sectionKey(id)],
-    content: [
-      ...matched.map((series) => {
-        const projection = series.latest.projection === true ? ' (projection)' : ''
-        return `- ${series.country.toUpperCase()} ${series.name}: ${series.latest.value} ${series.unit} (${series.latest.date}${projection}, ${series.timing}, source ${series.source})`
-      }),
-      `- ${copy.labels.requiresInputs}${(copy.blocks[id] as ReportBlockCopy).requires.join(', ')}`,
-    ].join('\n'),
+    content: matched.map((series) => {
+      const projection = series.latest.projection === true ? ' (projection)' : ''
+      return `- ${series.country.toUpperCase()} ${series.name}: ${number(series.latest.value)} ${series.unit} (${series.latest.date}${projection}, ${series.timing}, source ${series.source})`
+    }).join('\n'),
   }
 }
 
@@ -81,6 +97,7 @@ function inputBlock(context: SectionContext, id: ReportSectionId, extras: readon
 
 /** Copy keys of the composed section blocks. */
 const sectionIdKeys: Record<ReportSectionId, keyof ReportCopy['sections']> = {
+  'investment-view': 'investmentView',
   summary: 'summary',
   'research-question': 'researchQuestion',
   'market-snapshot': 'marketSnapshot',
@@ -138,6 +155,49 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
   switch (id) {
+    case 'investment-view': {
+      const composite = analysis.composite
+      const strongest = [...analysis.signals].sort((left, right) => right.weight - left.weight).slice(0, 1)
+      const stance = composite.direction === 'bullish'
+        ? copy.labels.stanceAccumulate
+        : composite.direction === 'bearish' ? copy.labels.stanceReduce : copy.labels.stanceWatch
+      const gaps = category.requirements
+      const invalidation = composite.direction === 'bearish'
+        ? formatCopy(copy.templates.invalidation, { level: number(analysis.indicators.sma20) })
+        : formatCopy(copy.templates.invalidationInverse, { level: number(analysis.indicators.sma20) })
+      return {
+        title: copy.sections.investmentView,
+        content: [
+          `**${stance}**`,
+          '',
+          `- ${copy.labels.compositeScore}${number(composite.score)} · ${copy.labels.viewConfidence}${String(composite.confidence)}%`,
+          '',
+          `**${copy.labels.viewReasons}**`,
+          `- ${formatCopy(copy.templates.viewBreadth, {
+            direction: direction(composite.direction),
+            aligned: String(analysis.signals.length - analysis.conflicts.length),
+            total: String(analysis.signals.length),
+          })}`,
+          ...strongest.map(signal => `- ${formatCopy(copy.templates.viewStrongest, {
+            name: word(copy.signals, signal.name),
+            direction: direction(signal.direction),
+            weight: String(signal.weight),
+          })}`),
+          `- ${formatCopy(copy.templates.viewRisk, {
+            atr: percent(analysis.risk.atrPercent),
+            risk: copy.labels.riskBars,
+          })}`,
+          '',
+          `**${copy.labels.viewInvalidation}**`,
+          `- ${invalidation}`,
+          '',
+          `**${copy.labels.viewGaps}**`,
+          `- ${copy.labels.gapCount}${gaps.join('; ')}`,
+          '',
+          `- ${copy.labels.notAdvice}`,
+        ].join('\n'),
+      }
+    }
     case 'summary': {
       const aligned = analysis.signals.length - analysis.conflicts.length
       return {
@@ -167,7 +227,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         title: copy.sections.marketSnapshot,
         content: [
           `- ${copy.labels.asOf}${snapshot.asOf}`,
-          `- ${copy.labels.price}${snapshot.quote.price} ${snapshot.instrument.currency}`,
+          `- ${copy.labels.price}${number(snapshot.quote.price)} ${snapshot.instrument.currency}`,
           `- ${copy.labels.change}${percent(snapshot.quote.changePercent)}`,
           `- ${copy.labels.bars}${snapshot.bars.length}`,
           `- ${copy.labels.source}${snapshot.source.provider}${snapshot.source.synthetic ? copy.labels.syntheticSuffix : ''}`,
@@ -191,7 +251,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         title: copy.sections.priceAction,
         content: [
           `- ${copy.labels.returnWindow}${percent(twenty)}`,
-          `- ${copy.labels.rangePosition}${percent(position)} (${low} - ${high})`,
+          `- ${copy.labels.rangePosition}${percent(position)} (${number(low)} - ${number(high)})`,
           `- ${copy.labels.drawdown}${percent(drawdown)}`,
           `- ${copy.labels.volumeTrend}${(recentVolume / Math.max(meanVolume, Number.EPSILON)).toFixed(2)}x`,
           `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
@@ -199,19 +259,25 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         ].join('\n'),
       }
     }
-    case 'technical-indicators':
+    case 'technical-indicators': {
+      const values = analysis.indicators
+      const stack = values.sma20 > values.sma50 ? 'bullish' : values.sma20 < values.sma50 ? 'bearish' : 'neutral'
+      const rsiNote = values.rsi14 >= 70
+        ? copy.labels.rsiOverbought
+        : values.rsi14 <= 30 ? copy.labels.rsiOversold : copy.labels.rsiNeutral
       return {
         title: copy.sections.technicalIndicators,
         content: [
-          `- SMA 20 / 50: ${analysis.indicators.sma20} / ${analysis.indicators.sma50}`,
-          `- EMA 12 / 26: ${analysis.indicators.ema12} / ${analysis.indicators.ema26}`,
-          `- RSI 14: ${analysis.indicators.rsi14}`,
-          `- MACD / signal / histogram: ${analysis.indicators.macd} / ${analysis.indicators.macdSignal} / ${analysis.indicators.macdHistogram}`,
-          `- ATR 14: ${analysis.indicators.atr14}`,
-          `- Bollinger bands: ${analysis.indicators.bollingerLower} / ${analysis.indicators.bollingerMiddle} / ${analysis.indicators.bollingerUpper}`,
-          `- OBV / 20-bar average: ${analysis.indicators.obv} / ${analysis.indicators.obvSma20}`,
+          `- ${formatCopy(copy.labels.maStack, { direction: direction(stack) })} (SMA 20 ${number(values.sma20)} / SMA 50 ${number(values.sma50)})`,
+          `- RSI 14: ${number(values.rsi14, 1)} — ${rsiNote}`,
+          `- ${values.macdHistogram >= 0 ? copy.labels.macdBullish : copy.labels.macdBearish}: ${number(values.macd, 3)} / ${number(values.macdSignal, 3)} (${number(values.macdHistogram, 3)})`,
+          `- ATR 14: ${number(values.atr14)} (${percent(analysis.risk.atrPercent)})`,
+          `- Bollinger: ${number(values.bollingerLower)} / ${number(values.bollingerMiddle)} / ${number(values.bollingerUpper)}`,
+          `- EMA 12 / 26: ${number(values.ema12)} / ${number(values.ema26)}`,
+          `- OBV: ${compact(values.obv)} (${copy.labels.obvAverage}${compact(values.obvSma20)})`,
         ].join('\n'),
       }
+    }
     case 'synthesis': {
       const signals = analysis.signals
         .map(signal => formatCopy(copy.templates.signal, {
@@ -270,9 +336,9 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return {
         title: copy.sections.scenarioAnalysis,
         content: [
-          `- ${copy.labels.scenarioBull}${bull.toFixed(2)} (${percent((bull - close) / Math.max(close, Number.EPSILON) * 100)})`,
-          `- ${copy.labels.scenarioBase}${close.toFixed(2)}`,
-          `- ${copy.labels.scenarioBear}${bear.toFixed(2)} (${percent((bear - close) / Math.max(close, Number.EPSILON) * 100)})`,
+          `- ${copy.labels.scenarioBull}${number(bull)} (${percent((bull - close) / Math.max(close, Number.EPSILON) * 100)})`,
+          `- ${copy.labels.scenarioBase}${number(close)}`,
+          `- ${copy.labels.scenarioBear}${number(bear)} (${percent((bear - close) / Math.max(close, Number.EPSILON) * 100)})`,
           `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
         ].join('\n'),
       }
@@ -344,7 +410,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return {
         title: copy.sections.riskAndLimitations,
         content: [
-          `- ${copy.labels.atrPercent}${analysis.risk.atrPercent.toFixed(4)}%`,
+          `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
           sourceLimitation,
           `- ${copy.labels.notAdvice}`,
         ].join('\n'),
