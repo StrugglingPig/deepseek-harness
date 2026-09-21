@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { FinanceHttpTransport } from '../src/transport.ts'
+import { FinanceHttpTransport, redactCredentials } from '../src/transport.ts'
 import type { FinanceJsonValue } from '../src/types.ts'
 
 interface Clock {
@@ -206,6 +206,25 @@ describe('FinanceHttpTransport', () => {
     })
     await expect(transport.request({ url: 'https://failed.test/data', method: 'GET' }))
       .rejects.toMatchObject({ code: 'REQUEST_FAILED' })
+  })
+
+  it('keeps credentials out of request failure messages', async () => {
+    const transport = new FinanceHttpTransport({
+      fetch: async () => { throw new Error('socket closed') },
+      maxRetries: 0,
+    })
+    const url = 'https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=secret-key&file_type=json'
+    await expect(transport.request({ url, method: 'GET' }))
+      .rejects.toThrow(/api_key=\[redacted\]/)
+    await expect(transport.request({ url, method: 'GET' }))
+      .rejects.not.toThrow(/secret-key/)
+  })
+
+  it('redacts every credential parameter and leaves other URLs untouched', () => {
+    expect(redactCredentials('https://a.test/x?api_key=k&b=1')).toBe('https://a.test/x?api_key=[redacted]&b=1')
+    expect(redactCredentials('https://a.test/x?apiKey=k#frag')).toBe('https://a.test/x?apiKey=[redacted]#frag')
+    expect(redactCredentials('https://a.test/x?token=k&signature=s')).toBe('https://a.test/x?token=[redacted]&signature=[redacted]')
+    expect(redactCredentials('https://a.test/x?symbol=AAPL')).toBe('https://a.test/x?symbol=AAPL')
   })
 
   it('surfaces non-retryable HTTP failures with a stable code', async () => {

@@ -13,6 +13,18 @@ const DEFAULT_RETRY_MAX_DELAY_MS = 4_000
 const DEFAULT_REQUESTS_PER_MINUTE = 120
 const DEFAULT_REQUEST_BURST = 10
 
+/** Query parameters that carry credentials; their values must never reach a message. */
+const CREDENTIAL_QUERY_PATTERN = /([?&](?:api_key|apikey|access_token|token|signature)=)[^&#]*/gi
+
+/**
+ * Replace credential values so a request URL or error detail can be surfaced.
+ * @param text - URL or upstream error text that may embed an API key or signature.
+ * @returns The same text with every credential value replaced by `[redacted]`.
+ */
+export function redactCredentials(text: string): string {
+  return text.replace(CREDENTIAL_QUERY_PATTERN, '$1[redacted]')
+}
+
 /** Options for the shared finance HTTP transport. */
 export interface FinanceHttpTransportOptions {
   /** Fetch implementation. */
@@ -141,7 +153,7 @@ export class FinanceHttpTransport {
         await this.waitForToken(request.url, request.signal)
       } catch (error: unknown) {
         if (request.signal?.aborted === true) {
-          throw new FinanceDataError(`request aborted for ${request.url}`, 'ABORTED')
+          throw new FinanceDataError(`request aborted for ${redactCredentials(request.url)}`, 'ABORTED')
         }
         throw error
       }
@@ -149,7 +161,7 @@ export class FinanceHttpTransport {
         const response = await this.fetchOnce(request)
         if (!response.ok) {
           const failure = new FinanceDataError(
-            `request failed for ${request.url}: HTTP ${response.status}`,
+            `request failed for ${redactCredentials(request.url)}: HTTP ${response.status}`,
             'HTTP_ERROR',
           )
           if (attempt < this.options.maxRetries && isRetryableStatus(response.status)) {
@@ -162,7 +174,7 @@ export class FinanceHttpTransport {
         try {
           data = await response.json() as FinanceJsonValue
         } catch (error: unknown) {
-          throw new FinanceDataError(`invalid JSON from ${request.url}: ${errorMessage(error)}`, 'INVALID_JSON')
+          throw new FinanceDataError(`invalid JSON from ${redactCredentials(request.url)}: ${redactCredentials(errorMessage(error))}`, 'INVALID_JSON')
         }
         const result = { status: response.status, data }
         if (cacheKey !== undefined) this.store(cacheKey, result)
@@ -180,9 +192,9 @@ export class FinanceHttpTransport {
       }
     }
     if (request.signal?.aborted === true) {
-      throw new FinanceDataError(`request aborted for ${request.url}`, 'ABORTED')
+      throw new FinanceDataError(`request aborted for ${redactCredentials(request.url)}`, 'ABORTED')
     }
-    throw new FinanceDataError(`request failed for ${request.url}: ${errorMessage(lastFailure)}`, 'REQUEST_FAILED')
+    throw new FinanceDataError(`request failed for ${redactCredentials(request.url)}: ${redactCredentials(errorMessage(lastFailure))}`, 'REQUEST_FAILED')
   }
 
   private async fetchOnce(request: FinanceTransportRequest): Promise<Response> {
