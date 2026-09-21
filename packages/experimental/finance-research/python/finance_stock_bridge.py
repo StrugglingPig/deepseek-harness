@@ -209,7 +209,7 @@ def normalize_macro_date(value):
         return None
     match = re.fullmatch(r"(\d{4})年第([1-4])-([1-4])季度", text)
     if match:
-        return f"{match.group(1)}-H{1 if int(match.group(3)) <= 2 else 2}"
+        return f"{match.group(1)}-Q{match.group(3)}"
     match = re.fullmatch(r"(\d{4})年第([1-4])季度", text)
     if match:
         return f"{match.group(1)}-Q{match.group(2)}"
@@ -218,7 +218,7 @@ def normalize_macro_date(value):
         if match.group(3) is not None:
             return f"{match.group(1)}-{int(match.group(2)):02d}-{int(match.group(3)):02d}"
         return f"{match.group(1)}-{int(match.group(2)):02d}"
-    match = re.fullmatch(r"(\d{4})[-/](\d{1,2})", text)
+    match = re.fullmatch(r"(\d{4})[./-](\d{1,2})", text)
     if match:
         return f"{match.group(1)}-{int(match.group(2)):02d}"
     match = re.fullmatch(r"(\d{4})(\d{2})(\d{2})", text)
