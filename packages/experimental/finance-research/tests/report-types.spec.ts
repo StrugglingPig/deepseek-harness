@@ -30,9 +30,10 @@ describe('finance report types', () => {
     }
   })
 
-  it('gives every report type the macro precondition block', () => {
+  it('carries the macro precondition in every form but the short ones', () => {
     for (const type of REPORT_TYPES) {
-      expect(type.sections).toContain('macro-drivers')
+      const shortForm = type.form === 'flash' || type.form === 'daily'
+      expect(type.sections.includes('macro-drivers')).toBe(!shortForm)
     }
   })
 

@@ -62,19 +62,23 @@ const CATEGORY_BLOCKS: Readonly<Record<ReportCategory, readonly ReportSectionId[
   strategy: ['allocation', 'industry-landscape'],
 }
 
-/** Form-shaped section plans: core blocks, then category blocks, then the tail. */
+/**
+ * Form-shaped section plans: core blocks, then category blocks, then the tail.
+ * `flash` and `daily` stay short, so the macro precondition the longer forms
+ * carry is not part of their core.
+ */
 const FORM_PLANS: Readonly<Record<ReportForm, {
   readonly core: readonly ReportSectionId[]
   readonly tail: readonly ReportSectionId[]
   readonly categoryBlocks: boolean
 }>> = {
   flash: {
-    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'synthesis'],
+    core: ['summary', 'market-snapshot', 'price-action', 'synthesis'],
     tail: ['risk-and-limitations'],
     categoryBlocks: false,
   },
   daily: {
-    core: ['summary', 'macro-drivers', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis'],
+    core: ['summary', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis'],
     tail: ['monitoring-plan', 'risk-and-limitations'],
     categoryBlocks: false,
   },
