@@ -1,17 +1,20 @@
 // @vitest-environment jsdom
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createChart } from 'lightweight-charts'
 import { TradingChart } from '../src/client/TradingChart.tsx'
 
 const mock = vi.hoisted(() => {
   const state = { fail: false }
   const series = () => ({ setData: vi.fn() })
+  const panes = Array.from({ length: 4 }, () => ({ setStretchFactor: vi.fn() }))
   const api = {
     addSeries: vi.fn(series),
     timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
+    panes: vi.fn(() => panes),
     remove: vi.fn(),
   }
-  return { state, api }
+  return { state, api, panes }
 })
 
 vi.mock('lightweight-charts', () => ({
@@ -47,6 +50,17 @@ describe('TradingChart', () => {
     expect(mock.api.addSeries).toHaveBeenCalled()
     view.unmount()
     expect(mock.api.remove).toHaveBeenCalled()
+  })
+
+  it('keeps the time axis visible and lets the price pane lead the panes', async () => {
+    const view = render(<TradingChart bars={bars} interval="1d" chartLabel="chart" />)
+    await waitFor(() => { expect(view.getByTestId('finance-chart').getAttribute('data-native')).toBe('true') })
+    const options = vi.mocked(createChart).mock.calls[0]?.[1]
+    expect(options?.timeScale?.borderVisible).toBe(true)
+    expect(options?.timeScale?.timeVisible).toBe(true)
+    expect(mock.panes[0]?.setStretchFactor).toHaveBeenCalledWith(3)
+    for (const pane of mock.panes.slice(1)) expect(pane.setStretchFactor).toHaveBeenCalledWith(1)
+    view.unmount()
   })
 
   it('renders the SVG fallback for empty or unavailable canvas data', () => {

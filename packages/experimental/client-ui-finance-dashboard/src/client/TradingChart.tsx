@@ -50,7 +50,7 @@ export function TradingChart(props: TradingChartProps) {
         },
         crosshair: { mode: charts.CrosshairMode.Normal },
         rightPriceScale: { borderVisible: false },
-        timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+        timeScale: { borderVisible: true, timeVisible: true, secondsVisible: false, rightOffset: 2 },
       })
       const candle = chart.addSeries(charts.CandlestickSeries, {
         upColor: '#16a34a',
@@ -88,6 +88,10 @@ export function TradingChart(props: TradingChartProps) {
       const signalLine = chart.addSeries(charts.LineSeries, { color: '#f97316', lineWidth: 2, priceLineVisible: false }, 3)
       macdLine.setData(macdValues.macd.map(point => ({ time: Math.floor(point.time / 1_000) as never, value: point.value })))
       signalLine.setData(macdValues.signal.map(point => ({ time: Math.floor(point.time / 1_000) as never, value: point.value })))
+      // The price pane carries the candles; indicator panes below need axis room only.
+      const panes = chart.panes()
+      panes[0]?.setStretchFactor(3)
+      for (const pane of panes.slice(1)) pane.setStretchFactor(1)
       chart.timeScale().fitContent()
       setNative(true)
       remove = () => { chart.remove() }
