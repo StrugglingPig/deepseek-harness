@@ -1,6 +1,6 @@
 /** Market and fundamental metrics a report quotes about its instrument. */
 
-import type { FinanceCoinMarketCapQuote, FinanceStockFundamentals } from './types.ts'
+import type { FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote, FinanceStockFundamentals } from './types.ts'
 
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
 export const ASSET_METRIC_GROUPS = [
@@ -119,20 +119,58 @@ export interface ReportAssetRequest {
 export type ReportAssetContext = (request: ReportAssetRequest) => Promise<readonly AssetMetric[]>
 
 /**
- * Build crypto metrics for one quoted pair.
+ * Build crypto metrics for one quoted pair from its market quote and community page.
  * @param symbol - Snapshot symbol such as `BTC-USD`.
  * @param loadQuotes - Loader that returns quotes for the given ticker symbols.
- * @returns Market and supply metrics, empty for a non-pair symbol or a failed lookup.
+ * @param loadCommunity - Loader for a CoinGecko coin id, addressed by the quote slug.
+ * @returns Market and supply metrics, plus community and development metrics when the
+ * community source answers.
  */
 export async function cryptoMetricsForSymbol(
   symbol: string,
   loadQuotes: (symbols: readonly string[]) => Promise<readonly FinanceCoinMarketCapQuote[]>,
+  loadCommunity?: (id: string) => Promise<FinanceCoinGeckoCommunity | undefined>,
 ): Promise<readonly AssetMetric[]> {
   const [base] = symbol.split('-')
   if (base === undefined || base === symbol) return []
+  let quote: FinanceCoinMarketCapQuote | undefined
   try {
-    return cryptoMetricsFromQuote((await loadQuotes([base]))[0])
+    [quote] = await loadQuotes([base])
   } catch {
-    return []
+    quote = undefined
   }
+  const market = cryptoMetricsFromQuote(quote)
+  const id = quote?.slug
+  if (id === undefined || loadCommunity === undefined) return market
+  try {
+    return [...market, ...cryptoMetricsFromCommunity(await loadCommunity(id))]
+  } catch {
+    return market
+  }
+}
+
+/** Community and developer counts a CoinGecko snapshot contributes. */
+const COMMUNITY_METRICS: readonly (readonly [AssetMetricGroup, string, string])[] = [
+  ['community', 'twitterFollowers', ''],
+  ['community', 'redditSubscribers', ''],
+  ['community', 'telegramUsers', ''],
+  ['community', 'sentimentUp', '%'],
+  ['development', 'githubStars', ''],
+  ['development', 'githubForks', ''],
+  ['development', 'githubSubscribers', ''],
+  ['development', 'githubCommits4w', ''],
+  ['development', 'githubClosedIssues', ''],
+]
+
+/**
+ * Turn one CoinGecko snapshot into report metrics.
+ * @param community - Normalized snapshot, when one loaded.
+ * @returns Community and development metrics; counts the upstream omitted are skipped.
+ */
+export function cryptoMetricsFromCommunity(community: FinanceCoinGeckoCommunity | undefined): AssetMetric[] {
+  if (community === undefined) return []
+  return COMMUNITY_METRICS.flatMap(([group, key, unit]) => {
+    const value = community[key as keyof FinanceCoinGeckoCommunity]
+    return typeof value === 'number' ? [{ group, key, value, unit, asOf: '', source: 'coingecko' }] : []
+  })
 }

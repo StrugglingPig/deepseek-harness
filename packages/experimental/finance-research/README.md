@@ -79,7 +79,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 With `provider: http`, call `finance_provider_describe` to discover configured bases, authentication mode, and upstream documentation. Then call `finance_provider_request` with a base, an upstream path, a method, and provider-native query or body parameters.
 
-The provider does not enforce an endpoint whitelist. What can be obtained is limited by the upstream API, credentials, rate limits, account permissions, network policy, and applicable terms. Binance Spot, USD-M Futures, COIN-M Futures, Options, Yahoo Finance, Polymarket Gamma, Polymarket CLOB, and CoinMarketCap Pro are configured as separate bases. CoinMarketCap REST and WebSocket requests use the stored `FINANCE_COINMARKETCAP_API_KEY` credential; the key is sent only by the Host.
+The provider does not enforce an endpoint whitelist. What can be obtained is limited by the upstream API, credentials, rate limits, account permissions, network policy, and applicable terms. Binance Spot, USD-M Futures, COIN-M Futures, Options, Yahoo Finance, Polymarket Gamma, Polymarket CLOB, CoinMarketCap Pro, and CoinGecko are configured as separate bases. CoinMarketCap REST and WebSocket requests use the stored `FINANCE_COINMARKETCAP_API_KEY` credential and CoinGecko community reads use `FINANCE_COINGECKO_API_KEY`; both keys are sent only by the Host, and the CoinGecko switch is off by default.
 
 Examples:
 
@@ -155,6 +155,7 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Private account data is read-only** — signed Binance requests are limited to GET/query endpoints; order placement, cancellation, and withdrawal operations are not provided.
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
 - **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
+- **CoinGecko community data needs a free demo key** — enable it and store the key in Finance settings; without it the crypto report keeps its market section and reports the community inputs it still needs.
 - **Stock data depends on provider access** — AKShare requires the Python package `akshare`. iFinD HTTP uses an authorized account refresh token; iFinD local uses the vendor `iFinDPy` SDK and account credentials. Missing dependencies, credentials, permissions, or data quotas fail explicitly.
 - **Report languages are `en` and `zh`** — `auto` resolves any other locale tag to English; a new language needs its own report dictionary before it can be selected.
 - **The Web dashboard is a separate plugin** — the dashboard reads `/api/finance-dashboard/market` from Connection's authenticated exact-route registry and renders crypto, A-share, and US-equity charts through `lightweight-charts`; the route registers only when the composition provides Connection, and private account data remains Host-only.

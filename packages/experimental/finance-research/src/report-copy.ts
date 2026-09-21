@@ -7,7 +7,7 @@ import type { MethodologyCategory } from './methodology.ts'
 export type ReportSectionKey =
   | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'priceAction' | 'technicalIndicators' | 'synthesis'
   | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'valuationFramework' | 'financialQuality'
-  | 'investmentView'
+  | 'investmentView' | 'projectAndCommunity'
   | 'earningsReview' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
   | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
   | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
@@ -120,6 +120,7 @@ const EN: ReportCopy = {
     fxDrivers: 'FX Drivers',
     fundFlows: 'Fund Flows And Positioning',
     onchainTokenomics: 'On-chain And Tokenomics',
+    projectAndCommunity: 'Project And Community',
     allocation: 'Allocation And Risk Budget',
     scenarioAnalysis: 'Scenario Analysis',
     catalysts: 'Catalysts',
@@ -280,6 +281,15 @@ const EN: ReportCopy = {
     circulatingSupply: 'Circulating supply',
     totalSupply: 'Total supply',
     maxSupply: 'Max supply',
+    twitterFollowers: 'Twitter followers',
+    redditSubscribers: 'Reddit subscribers',
+    telegramUsers: 'Telegram users',
+    sentimentUp: 'Community sentiment (up)',
+    githubStars: 'GitHub stars',
+    githubForks: 'GitHub forks',
+    githubSubscribers: 'GitHub watchers',
+    githubCommits4w: 'GitHub commits (4 weeks)',
+    githubClosedIssues: 'GitHub closed issues',
   },
   requirements: {},
   reportCategories: {
@@ -317,6 +327,7 @@ const EN: ReportCopy = {
     'fx-drivers': { requires: ['rate differentials', 'balance of payments', 'positioning'], checks: ['Which leg drives the pair?', 'Is the move carry, terms of trade, or risk sentiment?', 'What policy shift would break the trend?'] },
     'fund-flows': { requires: ['fund holdings', 'flows and premium-discount', 'benchmark and fees'], checks: ['What exposure does the fund actually carry?', 'How do flows interact with the price trend?', 'What tracking or liquidity cost applies?'] },
     'onchain-tokenomics': { requires: ['on-chain activity metrics', 'token unlock schedule', 'exchange and ETF flows'], checks: ['Is network usage growing with price?', 'What supply pressure comes from unlocks?', 'Which venue or issuer concentrates flow?'] },
+    'project-and-community': { requires: ['developer activity', 'community size', 'sentiment'], checks: ['Is development still active?', 'Is the community growing or fading?', 'Does sentiment diverge from price?'] },
   },
 }
 
@@ -346,6 +357,7 @@ const ZH: ReportCopy = {
     fxDrivers: '汇率驱动',
     fundFlows: '资金与持仓',
     onchainTokenomics: '链上与代币经济',
+    projectAndCommunity: '项目进展与社区',
     allocation: '配置与风险预算',
     scenarioAnalysis: '情景分析',
     catalysts: '催化剂',
@@ -600,6 +612,7 @@ const ZH: ReportCopy = {
     'fx-drivers': { requires: ['利差', '国际收支', '仓位'], checks: ['哪一条腿主导该货币对？', '驱动来自 carry、贸易条件还是风险偏好？', '什么政策变化会打破趋势？'] },
     'fund-flows': { requires: ['基金持仓', '资金流与折溢价', '基准与费率'], checks: ['基金实际承担了什么暴露？', '资金流与价格趋势如何相互影响？', '跟踪误差或流动性成本是多少？'] },
     'onchain-tokenomics': { requires: ['链上活跃度指标', '代币解锁计划', '交易所与 ETF 资金流'], checks: ['网络使用量是否与价格同步增长？', '解锁带来多大的供应压力？', '资金流集中在哪些交易所或发行方？'] },
+    'project-and-community': { requires: ['开发活跃度', '社区规模', '情绪'], checks: ['开发是否仍然活跃？', '社区在增长还是流失？', '情绪与价格是否背离？'] },
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -625,6 +638,15 @@ const ZH: ReportCopy = {
     circulatingSupply: '流通量',
     totalSupply: '总供应量',
     maxSupply: '最大供应量',
+    twitterFollowers: 'Twitter 关注数',
+    redditSubscribers: 'Reddit 订阅数',
+    telegramUsers: 'Telegram 用户数',
+    sentimentUp: '社区看多比例',
+    githubStars: 'GitHub Star',
+    githubForks: 'GitHub Fork',
+    githubSubscribers: 'GitHub 关注者',
+    githubCommits4w: 'GitHub 近 4 周提交',
+    githubClosedIssues: 'GitHub 已关闭 issue',
   },
   requirements: {
     'daily OHLCV': '日线 OHLCV',

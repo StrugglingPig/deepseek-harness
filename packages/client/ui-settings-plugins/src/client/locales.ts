@@ -36,6 +36,8 @@ export type PluginsSettingsLocaleKey =
   | 'financeCoinMarketCapTitle' | 'financeEnableCoinMarketCapRequests' | 'financeEnableCoinMarketCapRequestsHint'
   | 'financeCoinMarketCapBaseUrl' | 'financeCoinMarketCapWebSocketBaseUrl'
   | 'financeCoinMarketCapApiKey' | 'financeCoinMarketCapApiKeyHint'
+  | 'financeCoinGeckoTitle' | 'financeEnableCoinGeckoRequests' | 'financeEnableCoinGeckoRequestsHint'
+  | 'financeCoinGeckoBaseUrl' | 'financeCoinGeckoApiKey' | 'financeCoinGeckoApiKeyHint'
   | 'financeFredTitle' | 'financeEnableFredRequests' | 'financeEnableFredRequestsHint'
   | 'financeFredBaseUrl' | 'financeFredApiKey' | 'financeFredApiKeyHint' | 'financeFredApiKeyLink'
   | 'financeStockTitle' | 'financeEnableAkshare' | 'financeEnableAkshareHint'
@@ -153,6 +155,13 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinMarketCapBaseUrl: 'CoinMarketCap Pro REST base URL',
   financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
   financeCoinMarketCapApiKey: 'CoinMarketCap API key',
+  financeCoinGeckoTitle: 'CoinGecko community data',
+  financeEnableCoinGeckoRequests: 'Read CoinGecko community and developer data',
+  financeEnableCoinGeckoRequestsHint: 'Requires a free CoinGecko demo API key. Reports quote community and developer counts for crypto instruments only.',
+  financeCoinGeckoBaseUrl: 'CoinGecko API origin',
+  financeCoinGeckoApiKey: 'CoinGecko demo API key',
+  financeCoinGeckoApiKeyHint: 'Free key from coingecko.com/en/developers/dashboard. Stored like every other finance credential.',
+
   financeFredTitle: 'Macro data (FRED)',
   financeEnableFredRequests: 'Allow FRED macro requests',
   financeEnableFredRequestsHint: 'FRED carries the long US macro history: rates, credit spreads, PCE, payrolls, and the dollar. It needs a free FRED API key.',
@@ -303,6 +312,13 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinMarketCapBaseUrl: 'CoinMarketCap Pro REST Base URL',
   financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
   financeCoinMarketCapApiKey: 'CoinMarketCap API Key',
+  financeCoinGeckoTitle: 'CoinGecko 社区数据',
+  financeEnableCoinGeckoRequests: '读取 CoinGecko 社区与开发数据',
+  financeEnableCoinGeckoRequestsHint: '需要 CoinGecko 免费 demo API Key。仅对加密标的引用社区与开发数据。',
+  financeCoinGeckoBaseUrl: 'CoinGecko API 地址',
+  financeCoinGeckoApiKey: 'CoinGecko demo API Key',
+  financeCoinGeckoApiKeyHint: '在 coingecko.com/zh/developers/dashboard 免费申请。与其他金融凭据一样加密存储。',
+
   financeFredTitle: '宏观数据（FRED）',
   financeEnableFredRequests: '允许 FRED 宏观请求',
   financeEnableFredRequestsHint: 'FRED 提供美国宏观长序列：利率、信用利差、PCE、非农与美元指数。需要免费的 FRED API Key。',

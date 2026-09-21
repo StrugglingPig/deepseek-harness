@@ -21,6 +21,7 @@ export const REPORT_SECTION_IDS = [
   'investment-view', 'summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis',
   'methodology-coverage', 'investor-lenses', 'valuation-framework', 'financial-quality', 'earnings-review',
   'event-context', 'industry-landscape', 'competitive-position', 'macro-drivers', 'rates-credit',
+  'project-and-community',
   'commodity-balance', 'fx-drivers', 'fund-flows', 'onchain-tokenomics', 'allocation', 'scenario-analysis',
   'catalysts', 'monitoring-plan', 'data-requirements', 'strategy-gaps', 'risk-and-limitations',
 ] as const
@@ -58,7 +59,7 @@ const CATEGORY_BLOCKS: Readonly<Record<ReportCategory, readonly ReportSectionId[
   fund: ['fund-flows', 'valuation-framework'],
   'fixed-income': ['rates-credit', 'macro-drivers'],
   'commodity-fx': ['commodity-balance', 'fx-drivers'],
-  crypto: ['onchain-tokenomics', 'fund-flows'],
+  crypto: ['onchain-tokenomics', 'project-and-community', 'fund-flows'],
   strategy: ['allocation', 'industry-landscape'],
 }
 

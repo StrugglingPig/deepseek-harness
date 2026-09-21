@@ -6,6 +6,8 @@ import { FinanceDataError } from './error.ts'
 import { HttpFinanceMarketDataProvider } from './http.ts'
 import { BinanceWebSocketStreamProvider, CoinMarketCapWebSocketStreamProvider, type FinanceWebSocketLike, type FinanceWebSocketOptions } from './stream.ts'
 import type {
+  FinanceCoinGeckoCommunity,
+  FinanceCoinGeckoCommunityRequest,
   FinanceCoinMarketCapOhlcvRequest,
   FinanceCoinMarketCapOhlcvSeries,
   FinanceCoinMarketCapQuote,
@@ -35,6 +37,7 @@ export interface FinanceRuntimeSettings {
   readonly binanceCoinmBaseUrl: string
   readonly binanceOptionsBaseUrl: string
   readonly coinMarketCapBaseUrl: string
+  readonly coinGeckoBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -43,6 +46,7 @@ export interface FinanceRuntimeSettings {
   readonly polymarketClobBaseUrl: string
   readonly enableSignedRequests: boolean
   readonly enableCoinMarketCapRequests: boolean
+  readonly enableCoinGeckoRequests: boolean
   readonly enableAkshare: boolean
   readonly enableIfind: boolean
   readonly ifindTransport: 'http' | 'local'
@@ -87,6 +91,7 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       binanceCoinmBaseUrl: settings.binanceCoinmBaseUrl,
       binanceOptionsBaseUrl: settings.binanceOptionsBaseUrl,
       coinMarketCapBaseUrl: settings.coinMarketCapBaseUrl,
+      coinGeckoBaseUrl: settings.coinGeckoBaseUrl,
       fredBaseUrl: settings.fredBaseUrl,
       worldBankBaseUrl: settings.worldBankBaseUrl,
       imfBaseUrl: settings.imfBaseUrl,
@@ -134,11 +139,32 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
   }
 
   /**
+   * Load one CoinGecko community snapshot from the current HTTP provider.
+   * @param request - CoinGecko coin id.
+   * @param signal - Optional caller cancellation.
+   * @returns The normalized snapshot, or undefined when CoinGecko omits the coin.
+   */
+  loadCoinGeckoCommunity(
+    request: FinanceCoinGeckoCommunityRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceCoinGeckoCommunity | undefined> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadCoinGeckoCommunity === undefined) {
+      return Promise.reject(new FinanceDataError(
+        'CoinGecko community data requires the live HTTP provider',
+        'PROVIDER_UNAVAILABLE',
+      ))
+    }
+    return provider.loadCoinGeckoCommunity(request, signal)
+  }
+
+  /**
    * Load normalized CoinMarketCap quotes from the current HTTP provider.
    * @param request - IDs or symbols and conversion currency.
    * @param signal - Optional caller cancellation.
    * @returns Normalized quote records.
    */
+
   loadCoinMarketCapQuotes(
     request: FinanceCoinMarketCapQuoteRequest,
     signal?: AbortSignal,

@@ -5,11 +5,14 @@ export { FinanceDataError } from './error.ts'
 import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
+import { normalizeCoinGeckoCommunity } from './coingecko.ts'
 import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
 import { isFuturesScope, normalizeFuturesAccount, normalizeSpotAccount } from './private.ts'
 import { FinanceHttpTransport } from './transport.ts'
 import type {
+  FinanceCoinGeckoCommunity,
+  FinanceCoinGeckoCommunityRequest,
   FinanceCoinMarketCapOhlcvRequest,
   FinanceCoinMarketCapOhlcvSeries,
   FinanceCoinMarketCapQuote,
@@ -35,6 +38,7 @@ const DEFAULT_WORLDBANK_BASE_URL = 'https://api.worldbank.org'
 const DEFAULT_IMF_BASE_URL = 'https://www.imf.org/external/datamapper/api/v1'
 const DEFAULT_BINANCE_BASE_URL = 'https://api.binance.com'
 const DEFAULT_COINMARKETCAP_BASE_URL = 'https://pro-api.coinmarketcap.com'
+const DEFAULT_COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = 'https://gamma-api.polymarket.com'
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = 'https://clob.polymarket.com'
 const USER_AGENT = 'deepseek-harness-finance-research/0.0.1'
@@ -115,6 +119,8 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly polymarketClobBaseUrl?: string
   /** CoinMarketCap Pro REST origin. */
   readonly coinMarketCapBaseUrl?: string
+  /** CoinGecko API origin. */
+  readonly coinGeckoBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -154,6 +160,7 @@ interface ResolvedOptions {
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
   readonly coinMarketCapBaseUrl: string
+  readonly coinGeckoBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -174,6 +181,7 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'yahoo', description: 'Yahoo Finance public chart and quote endpoints', auth: 'none', docs: 'https://query1.finance.yahoo.com' },
   { name: 'polymarket-gamma', description: 'Polymarket Gamma public catalog API', auth: 'none', docs: 'https://gamma-api.polymarket.com' },
   { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
+  { name: 'coingecko', description: 'CoinGecko community and developer data', auth: 'api-key', docs: 'https://docs.coingecko.com/reference/coins-id' },
   { name: 'coinmarketcap', description: 'CoinMarketCap Pro REST API', auth: 'api-key', docs: 'https://coinmarketcap.com/api/documentation/' },
   { name: 'fred', description: 'Federal Reserve Economic Data (FRED) series and observations', auth: 'api-key', docs: 'https://fred.stlouisfed.org/docs/api/fred/' },
   { name: 'worldbank', description: 'World Bank indicator API', auth: 'none', docs: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392' },
@@ -188,6 +196,7 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   yahoo: 'yahooBaseUrl',
   'polymarket-gamma': 'polymarketGammaBaseUrl',
   'polymarket-clob': 'polymarketClobBaseUrl',
+  coingecko: 'coinGeckoBaseUrl',
   coinmarketcap: 'coinMarketCapBaseUrl',
   fred: 'fredBaseUrl',
   worldbank: 'worldBankBaseUrl',
@@ -255,6 +264,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       polymarketGammaBaseUrl: options.polymarketGammaBaseUrl ?? DEFAULT_POLYMARKET_GAMMA_BASE_URL,
       polymarketClobBaseUrl: options.polymarketClobBaseUrl ?? DEFAULT_POLYMARKET_CLOB_BASE_URL,
       coinMarketCapBaseUrl: options.coinMarketCapBaseUrl ?? DEFAULT_COINMARKETCAP_BASE_URL,
+      coinGeckoBaseUrl: options.coinGeckoBaseUrl ?? DEFAULT_COINGECKO_BASE_URL,
       fredBaseUrl: options.fredBaseUrl ?? DEFAULT_FRED_BASE_URL,
       worldBankBaseUrl: options.worldBankBaseUrl ?? DEFAULT_WORLDBANK_BASE_URL,
       imfBaseUrl: options.imfBaseUrl ?? DEFAULT_IMF_BASE_URL,
@@ -385,6 +395,32 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       },
     }, signal)
     return normalizeCoinMarketCapQuotes(response.data, convert)
+  }
+
+  /**
+   * Load one CoinGecko community and developer snapshot.
+   * @param request - CoinGecko coin id, such as `bitcoin`.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized snapshot, or undefined when CoinGecko omits the coin.
+   */
+  async loadCoinGeckoCommunity(
+    request: FinanceCoinGeckoCommunityRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceCoinGeckoCommunity | undefined> {
+    const response = await this.request({
+      base: 'coingecko',
+      path: `/coins/${encodeURIComponent(request.id)}`,
+      auth: 'api-key',
+      query: {
+        localization: false,
+        tickers: false,
+        market_data: false,
+        community_data: true,
+        developer_data: true,
+        sparkline: false,
+      },
+    }, signal)
+    return normalizeCoinGeckoCommunity(response.data)
   }
 
   /**

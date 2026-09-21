@@ -10,7 +10,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
-  createCoinMarketCapRequestAuthorizer, createFredRequestAuthorizer,
+  createCoinGeckoRequestAuthorizer, createCoinMarketCapRequestAuthorizer, createFredRequestAuthorizer,
   type FinanceCredentialResolver,
 } from './auth.ts'
 import { FinanceDataError } from './error.ts'
@@ -128,6 +128,8 @@ export interface Config {
   readonly polymarketClobBaseUrl?: string
   /** CoinMarketCap Pro REST origin. */
   readonly coinMarketCapBaseUrl?: string
+  /** CoinGecko API origin. */
+  readonly coinGeckoBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -140,6 +142,8 @@ export interface Config {
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
   readonly enableCoinMarketCapRequests?: boolean
+  /** Whether to read CoinGecko community and developer data. */
+  readonly enableCoinGeckoRequests?: boolean
   /** Whether AKShare stock data is available. */
   readonly enableAkshare?: boolean
   /** Whether iFinD stock data is available. */
@@ -196,12 +200,14 @@ export const Config: z<Config> = z.object({
   polymarketGammaBaseUrl: z.string().default('https://gamma-api.polymarket.com'),
   polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
   coinMarketCapBaseUrl: z.string().default('https://pro-api.coinmarketcap.com'),
+  coinGeckoBaseUrl: z.string().default('https://api.coingecko.com/api/v3'),
   fredBaseUrl: z.string().default('https://api.stlouisfed.org'),
   worldBankBaseUrl: z.string().default('https://api.worldbank.org'),
   imfBaseUrl: z.string().default('https://www.imf.org/external/datamapper/api/v1'),
   enableFredRequests: z.boolean().default(false),
   enableSignedRequests: z.boolean().default(false),
   enableCoinMarketCapRequests: z.boolean().default(false),
+  enableCoinGeckoRequests: z.boolean().default(false),
   enableAkshare: z.boolean().default(true),
   enableIfind: z.boolean().default(false),
   ifindTransport: z.union(['http', 'local'] as const).default('http'),
@@ -1134,12 +1140,14 @@ export function apply(ctx: Context, config: Config): void {
     polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
     polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
     coinMarketCapBaseUrl: resolved.coinMarketCapBaseUrl,
+    coinGeckoBaseUrl: resolved.coinGeckoBaseUrl,
     fredBaseUrl: resolved.fredBaseUrl,
     worldBankBaseUrl: resolved.worldBankBaseUrl,
     imfBaseUrl: resolved.imfBaseUrl,
     enableFredRequests: resolved.enableFredRequests,
     enableSignedRequests: resolved.enableSignedRequests,
     enableCoinMarketCapRequests: resolved.enableCoinMarketCapRequests,
+    enableCoinGeckoRequests: resolved.enableCoinGeckoRequests,
     enableAkshare: resolved.enableAkshare,
     enableIfind: resolved.enableIfind,
     ifindTransport: resolved.ifindTransport,
@@ -1174,6 +1182,10 @@ export function apply(ctx: Context, config: Config): void {
       resolveCredential: ref => resolveCredential(ref),
       enabled: () => currentSettings.enableCoinMarketCapRequests,
     }),
+    createCoinGeckoRequestAuthorizer({
+      resolveCredential: ref => resolveCredential(ref),
+      enabled: () => currentSettings.enableCoinGeckoRequests,
+    }),
     createFredRequestAuthorizer({
       resolveCredential: ref => resolveCredential(ref),
       enabled: () => currentSettings.enableFredRequests,
@@ -1190,7 +1202,11 @@ export function apply(ctx: Context, config: Config): void {
     ref => resolveCredential(ref),
   )
   registerFinanceTools(ctx, provider, streamProvider, reportLanguage, () => loadMacroContext(macroProvider),
-    request => cryptoMetricsForSymbol(request.symbol, symbols => provider.loadCoinMarketCapQuotes({ symbols })))
+    request => cryptoMetricsForSymbol(
+      request.symbol,
+      symbols => provider.loadCoinMarketCapQuotes({ symbols }),
+      id => provider.loadCoinGeckoCommunity({ id }),
+    ))
   registerMacroTools(ctx, macroProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({

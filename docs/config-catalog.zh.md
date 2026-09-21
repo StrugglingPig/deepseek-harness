@@ -728,6 +728,8 @@ export interface Config {
   readonly polymarketClobBaseUrl?: string
   /** CoinMarketCap Pro REST origin. */
   readonly coinMarketCapBaseUrl?: string
+  /** CoinGecko API origin. */
+  readonly coinGeckoBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -740,6 +742,8 @@ export interface Config {
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
   readonly enableCoinMarketCapRequests?: boolean
+  /** Whether to read CoinGecko community and developer data. */
+  readonly enableCoinGeckoRequests?: boolean
   /** Whether AKShare stock data is available. */
   readonly enableAkshare?: boolean
   /** Whether iFinD stock data is available. */

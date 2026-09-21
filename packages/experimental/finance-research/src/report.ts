@@ -138,6 +138,7 @@ function inputBlock(context: SectionContext, id: ReportSectionId, extras: readon
 /** Copy keys of the composed section blocks. */
 const sectionIdKeys: Record<ReportSectionId, keyof ReportCopy['sections']> = {
   'investment-view': 'investmentView',
+  'project-and-community': 'projectAndCommunity',
   summary: 'summary',
   'research-question': 'researchQuestion',
   'market-snapshot': 'marketSnapshot',
@@ -466,6 +467,8 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return metricBlock(context, id, ['industry'])
     case 'onchain-tokenomics':
       return metricBlock(context, id, ['supply', 'development'])
+    case 'project-and-community':
+      return metricBlock(context, id, ['development', 'community'])
     case 'fund-flows':
       return metricBlock(context, id, ['market'])
     case 'macro-drivers':

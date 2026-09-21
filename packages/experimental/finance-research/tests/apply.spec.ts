@@ -28,6 +28,7 @@ const CONFIG: Required<Config> = {
   polymarketClobBaseUrl: 'https://clob.test',
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
+  enableCoinGeckoRequests: true,
   enableAkshare: true,
   enableIfind: true,
   ifindTransport: 'http',
@@ -36,6 +37,7 @@ const CONFIG: Required<Config> = {
   stockBridgeTimeoutMs: 60_000,
   stockBridgeMaxOutputBytes: 4 * 1024 * 1024,
   coinMarketCapBaseUrl: 'https://pro-api.test',
+  coinGeckoBaseUrl: 'https://api.coingecko.test/v3',
   fredBaseUrl: 'https://fred.test',
   worldBankBaseUrl: 'https://worldbank.test',
   imfBaseUrl: 'https://imf.test',
@@ -95,14 +97,24 @@ describe('finance apply', () => {
       coinMarketCapWebSocketBaseUrl: `ws://127.0.0.1:${String(cmcAddress.port)}`,
     }
     current = config
+    const requestedUrls: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      requestedUrls.push(url)
+      if (url.includes('/coins/bitcoin')) {
+        return new Response(JSON.stringify({
+          id: 'bitcoin',
+          name: 'Bitcoin',
+          community_data: { twitter_followers: 7_100_000 },
+          developer_data: { stars: 85_000 },
+        }), { status: 200 })
+      }
       if (url.includes('/fred/series/observations')) {
         expect(url).toContain('api_key=fred-key')
         return new Response(JSON.stringify({ observations: [{ date: '2026-01-01', value: '4.5' }, { date: '2026-02-01', value: '4.7' }] }), { status: 200 })
       }
       if (url.includes('/quotes/latest')) {
-        return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
+        return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', slug: 'bitcoin', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
       }
       return new Response(JSON.stringify({ balances: [] }), { status: 200 })
     }))
@@ -165,7 +177,7 @@ describe('finance apply', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    const scope = { get: () => CONFIG, watch: vi.fn() }
+    const scope = { get: () => ({ ...CONFIG, enableCoinGeckoRequests: true }), watch: vi.fn() }
     ctx.provide('settings', { register: vi.fn(() => scope), get: vi.fn(() => undefined) } as never)
     const history = {
       symbol: '600519',
@@ -202,6 +214,22 @@ describe('finance apply', () => {
       },
     } as never)
     ctx.provide('credentials', { resolve: async () => ({ value: 'credential' }) } as never)
+    const requestedUrls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      requestedUrls.push(url)
+      if (url.includes('/coins/bitcoin')) {
+        return new Response(JSON.stringify({
+          id: 'bitcoin', name: 'Bitcoin', community_data: { twitter_followers: 7_100_000 },
+        }), { status: 200 })
+      }
+      if (url.includes('/quotes/latest')) {
+        return new Response(JSON.stringify({
+          data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', slug: 'bitcoin', quote: { USD: { price: 60_000 } } }],
+        }), { status: 200 })
+      }
+      return new Response(JSON.stringify({}), { status: 200 })
+    }))
     let route: { fetch: (request: Request) => Promise<Response> } | undefined
     ctx.provide('connection', {
       fetch: { register: (value: typeof route) => { route = value; return () => Promise.resolve() } },
@@ -262,14 +290,16 @@ describe('finance apply', () => {
     expect(withoutFundamentals.isError).toBe(false)
     expect(textOfReport(withoutFundamentals)).toContain('Valuation Framework')
 
-    // A quoted crypto pair routes through the market-quote context loader. The market
-    // provider has no network here, so only the routing is observable.
+    // A quoted crypto pair routes through the market quote and then its community page.
     await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: 'crypto-report' as never,
       name: 'finance_research_report',
       arguments: { symbol: 'BTC-USD' },
     })
+    expect(requestedUrls.some(url => url.includes('/coins/bitcoin'))).toBe(true)
+    expect(requestedUrls.some(url => url.includes('/v3/cryptocurrency/quotes/latest'))).toBe(true)
+    vi.unstubAllGlobals()
     await ctx.fiber.dispose()
   })
 

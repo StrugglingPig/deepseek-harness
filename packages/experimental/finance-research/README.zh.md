@@ -79,7 +79,7 @@ English | [中文](README.md)
 
 使用 `provider: http` 时，先调用 `finance_provider_describe` 发现已配置 base、认证模式和上游文档；再调用 `finance_provider_request`，传入 base、上游 path、method 和 Provider 原生 query/body 参数。
 
-Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API、凭据、限流、账户权限、网络策略和适用条款。Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma 和 Polymarket CLOB 被配置为不同 base。
+Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API、凭据、限流、账户权限、网络策略和适用条款。Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma、Polymarket CLOB、CoinMarketCap Pro 与 CoinGecko 被配置为不同 base。CoinMarketCap 的 REST 与 WebSocket 请求使用存储的 `FINANCE_COINMARKETCAP_API_KEY`，CoinGecko 社区数据使用 `FINANCE_COINGECKO_API_KEY`；两个密钥都只由 Host 发送，且 CoinGecko 开关默认关闭。
 
 示例：
 
@@ -155,6 +155,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **私有账户只读** — 签名 Binance 请求限制为 GET/query 端点；不提供下单、撤单或提现操作。
 - **监控采用规划器模式** — `finance_monitor_plan` 返回可持久化的 `schedule_create` 参数；盘前和盘后是一次性检查，报告后请求下一时段。
 - **CoinMarketCap 受套餐和 Credits 限制** — API Key 必须在金融设置中启用，WebSocket 能力取决于账户套餐和 Credits。
+- **CoinGecko 社区数据需要免费 demo Key** — 在金融设置中打开开关并保存密钥；未配置时币圈报告保留市场章节，并列出仍缺少的社区输入。
 - **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
 - **报告语言目前只有 `en` 和 `zh`** — `auto` 会把其他语言标签解析为英文；新增语言需要先提供对应报告词典。
 - **Web 仪表盘是独立插件** — 仪表盘从 Connection 的认证精确路由注册表读取 `/api/finance-dashboard/market`，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表；只有组合提供 Connection 时该路由才注册，私有账户数据仍只保留在 Host。

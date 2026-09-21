@@ -19,6 +19,7 @@ const SETTINGS: FinanceRuntimeSettings = {
   polymarketClobBaseUrl: 'https://clob.test',
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
+  enableCoinGeckoRequests: true,
   enableAkshare: true,
   enableIfind: false,
   ifindTransport: 'http',
@@ -27,6 +28,7 @@ const SETTINGS: FinanceRuntimeSettings = {
   stockBridgeTimeoutMs: 60_000,
   stockBridgeMaxOutputBytes: 4 * 1024 * 1024,
   coinMarketCapBaseUrl: 'https://pro-api.test',
+  coinGeckoBaseUrl: 'https://api.coingecko.test/v3',
   fredBaseUrl: 'https://fred.test',
   worldBankBaseUrl: 'https://worldbank.test',
   imfBaseUrl: 'https://imf.test',
@@ -65,6 +67,9 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadCoinMarketCapOhlcv({ id: 1 })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
+    await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' })).rejects.toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+    })
     expect(provider.describe()).toMatchObject({ id: 'fixture', bases: [] })
   })
 
@@ -80,6 +85,9 @@ describe('settings-backed finance providers', () => {
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
       }
+      if (url.includes('/coins/bitcoin')) {
+        return new Response(JSON.stringify({ id: 'bitcoin', name: 'Bitcoin', github_stars_placeholder: true }), { status: 200 })
+      }
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }))
     const provider = new SettingsFinanceMarketDataProvider(() => SETTINGS, async () => undefined)
@@ -92,6 +100,8 @@ describe('settings-backed finance providers', () => {
       .resolves.toMatchObject([{ symbol: 'BTC', price: 60_000 }])
     await expect(provider.loadCoinMarketCapOhlcv({ id: 1 }))
       .resolves.toMatchObject([{ symbol: 'BTC', bars: [] }])
+    await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' }))
+      .resolves.toMatchObject({ id: 'bitcoin', name: 'Bitcoin' })
   })
 
   it('uses the production WebSocket factory when no test carrier is supplied', async () => {

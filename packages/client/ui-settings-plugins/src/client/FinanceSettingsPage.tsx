@@ -241,6 +241,34 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         stateLabel={state.coinMarketCapApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
         onEdit={(text) => { props.edit('coinMarketCapApiKey', text) }}
       />
+      <h3 className={css.label}>{t('financeCoinGeckoTitle')}</h3>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-coingecko">{t('financeEnableCoinGeckoRequests')}</label>
+        </div>
+        <input
+          id="finance-enable-coingecko"
+          type="checkbox"
+          checked={state.enableCoinGeckoRequests.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableCoinGeckoRequests', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableCoinGeckoRequestsHint')}</p>
+      </div>
+      <ValueField id="finance-coingecko-base" label={t('financeCoinGeckoBaseUrl')} hint={t('financeEndpointHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.coinGeckoBaseUrl}
+        onEdit={(text) => { props.edit('coinGeckoBaseUrl', text) }} onReset={() => { props.resetField('coinGeckoBaseUrl') }} />
+      <SecretField
+        id="finance-coingecko-api-key"
+        label={t('financeCoinGeckoApiKey')}
+        hint={t('financeCoinGeckoApiKeyHint')}
+        disabled={!state.coinGeckoApiKeyWritable}
+        text={state.coinGeckoApiKey.text}
+        configured={state.coinGeckoApiKeyConfigured}
+        stateLabel={state.coinGeckoApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('coinGeckoApiKey', text) }}
+      />
       <h3 className={css.label}>{t('financeDeliveryTitle')}</h3>
       <ValueField id="finance-ws-base" label={t('financeBinanceWebSocketBaseUrl')} hint={t('financeEndpointHint')}
         overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}

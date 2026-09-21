@@ -465,9 +465,11 @@ describe('FinanceSettingsPage', () => {
       polymarketGammaBaseUrl: field('https://gamma.test'),
       polymarketClobBaseUrl: field('https://clob.test'),
       coinMarketCapBaseUrl: field('https://pro-api.test'),
+      coinGeckoBaseUrl: field('https://api.coingecko.test/v3'),
       fredBaseUrl: field('https://fred.test'),
       enableSignedRequests: field('true'),
       enableCoinMarketCapRequests: field('true'),
+      enableCoinGeckoRequests: field('true'),
       enableFredRequests: field('true'),
       enableAkshare: field('true'),
       enableIfind: field('true'),
@@ -490,6 +492,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiKey: field(''),
       binanceApiSecret: field(''),
       coinMarketCapApiKey: field(''),
+      coinGeckoApiKey: field(''),
       fredApiKey: field(''),
       ifindUser: field(''),
       ifindPassword: field(''),
@@ -497,6 +500,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiKeyConfigured: true,
       binanceApiSecretConfigured: true,
       coinMarketCapApiKeyConfigured: true,
+      coinGeckoApiKeyConfigured: true,
       fredApiKeyConfigured: true,
       ifindUserConfigured: true,
       ifindPasswordConfigured: true,
@@ -504,6 +508,7 @@ describe('FinanceSettingsPage', () => {
       binanceApiKeyWritable: true,
       binanceApiSecretWritable: true,
       coinMarketCapApiKeyWritable: true,
+      coinGeckoApiKeyWritable: true,
       fredApiKeyWritable: true,
       ifindUserWritable: true,
       ifindPasswordWritable: true,
@@ -591,7 +596,7 @@ describe('FinanceSettingsPage', () => {
     ]))
     expect(actions.save).toHaveBeenCalledOnce()
     expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
-    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(7)
+    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(8)
 
     // The FRED block sits before the A-share section and links to the free key page.
     const fredTitle = screen.getByText(en.financeFredTitle)
@@ -606,12 +611,14 @@ describe('FinanceSettingsPage', () => {
       provider: field(''),
       enableSignedRequests: field('false'),
       enableCoinMarketCapRequests: field('false'),
+      enableCoinGeckoRequests: field('false'),
       enableAkshare: field('false'),
       enableIfind: field('false'),
       ifindTransport: field(''),
       binanceApiKeyConfigured: false,
       binanceApiSecretConfigured: false,
       coinMarketCapApiKeyConfigured: false,
+      coinGeckoApiKeyConfigured: false,
       ifindUserConfigured: false,
       ifindPasswordConfigured: false,
       ifindRefreshTokenConfigured: false,
@@ -629,7 +636,7 @@ describe('FinanceSettingsPage', () => {
     fireEvent.change(screen.getByLabelText(en.financeIfindPassword), { target: { value: 'ifind-password' } })
     expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('value', 'fixture')
     expect(screen.getByLabelText(en.financeIfindTransport)).toHaveProperty('value', 'http')
-    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(6)
+    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(7)
   })
 
   it('disables settings and credential controls when their owners are read-only', () => {

@@ -6,7 +6,9 @@ import {
   COINMARKETCAP_API_KEY_REF,
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
+  createCoinGeckoRequestAuthorizer,
   createCoinMarketCapRequestAuthorizer,
+  COINGECKO_API_KEY_REF,
   createFredRequestAuthorizer,
   FRED_API_KEY_REF,
 } from '../src/auth.ts'
@@ -184,5 +186,42 @@ describe('Binance request authorizer', () => {
     const headers: Record<string, string> = {}
     await authorize({ base: 'coinmarketcap', path: '/v3/cryptocurrency/quotes/latest', auth: 'api-key' }, new URL('https://pro-api.test'), headers)
     expect(headers).toEqual({ 'X-CMC_PRO_API_KEY': 'cmc-key' })
+  })
+})
+
+describe('CoinGecko request authorizer', () => {
+  const request = { base: 'coingecko', path: '/coins/bitcoin', auth: 'api-key' as const }
+
+  it('adds the demo key header and leaves other bases to their own authorizers', async () => {
+    const authorize = createCoinGeckoRequestAuthorizer({
+      resolveCredential: async ref => ref === COINGECKO_API_KEY_REF ? 'cg-key' : undefined,
+      enabled: () => true,
+    })
+    const headers: Record<string, string> = {}
+    await authorize(request, new URL('https://api.coingecko.test/v3'), headers)
+    expect(headers).toEqual({ 'x-cg-demo-api-key': 'cg-key' })
+
+    // Bases owned by another authorizer pass through untouched.
+    const fredHeaders: Record<string, string> = {}
+    await authorize({ base: 'fred', path: '/fred/series', auth: 'api-key' }, new URL('https://fred.test'), fredHeaders)
+    expect(fredHeaders).toEqual({})
+  })
+
+  it('rejects disabled requests, a missing key, unowned bases, and unauthenticated modes', async () => {
+    const disabled = createCoinGeckoRequestAuthorizer({ resolveCredential: async () => 'cg-key', enabled: () => false })
+    await expect(disabled(request, new URL('https://api.coingecko.test/v3'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_DISABLED' })
+
+    const missing = createCoinGeckoRequestAuthorizer({ resolveCredential: async () => undefined, enabled: () => true })
+    await expect(missing(request, new URL('https://api.coingecko.test/v3'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
+
+    const unowned = createCoinGeckoRequestAuthorizer({ resolveCredential: async () => 'cg-key', enabled: () => true })
+    await expect(unowned({ base: 'unknown', path: '/x', auth: 'api-key' }, new URL('https://x.test'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_UNSUPPORTED' })
+
+    const unsigned = createCoinGeckoRequestAuthorizer({ resolveCredential: async () => 'cg-key', enabled: () => false })
+    await expect(unsigned({ base: 'coingecko', path: '/coins/bitcoin', auth: 'none' }, new URL('https://x.test'), {}))
+      .resolves.toBeUndefined()
   })
 })

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { cryptoMetricsForSymbol, cryptoMetricsFromQuote, equityMetricsFromFundamentals } from '../src/asset-context.ts'
+import {
+  cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromQuote, equityMetricsFromFundamentals,
+} from '../src/asset-context.ts'
 
 describe('asset metric context', () => {
   it('maps the newest reported period into report metrics', () => {
@@ -79,5 +81,49 @@ describe('crypto market context', () => {
     await expect(cryptoMetricsForSymbol('BTC-USD', async () => {
       throw new Error('cmc down')
     })).resolves.toEqual([])
+  })
+})
+
+describe('crypto community context', () => {
+  it('turns a community snapshot into community and development metrics', () => {
+    const metrics = cryptoMetricsFromCommunity({
+      id: 'bitcoin',
+      name: 'Bitcoin',
+      twitterFollowers: 7_100_000,
+      sentimentUp: 78.5,
+      githubCommits4w: 210,
+    })
+    expect(metrics).toEqual([
+      { group: 'community', key: 'twitterFollowers', value: 7_100_000, unit: '', asOf: '', source: 'coingecko' },
+      { group: 'community', key: 'sentimentUp', value: 78.5, unit: '%', asOf: '', source: 'coingecko' },
+      { group: 'development', key: 'githubCommits4w', value: 210, unit: '', asOf: '', source: 'coingecko' },
+    ])
+    expect(cryptoMetricsFromCommunity(undefined)).toEqual([])
+  })
+
+  it('adds community metrics when the quote exposes a CoinGecko id', async () => {
+    const community = { id: 'bitcoin', name: 'Bitcoin', githubStars: 85_000 }
+    await expect(cryptoMetricsForSymbol('BTC-USD', async () => [{
+      id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', slug: 'bitcoin', rank: 1,
+    }], async (id) => {
+      expect(id).toBe('bitcoin')
+      return community
+    })).resolves.toEqual([
+      { group: 'market', key: 'rank', value: 1, unit: '', asOf: '', source: 'coinmarketcap' },
+      { group: 'development', key: 'githubStars', value: 85_000, unit: '', asOf: '', source: 'coingecko' },
+    ])
+
+    // Without a slug, or without a community loader, only the market metrics remain.
+    await expect(cryptoMetricsForSymbol('BTC-USD', async () => [{
+      id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', rank: 1,
+    }], async () => community)).resolves.toHaveLength(1)
+    await expect(cryptoMetricsForSymbol('BTC-USD', async () => [{
+      id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', slug: 'bitcoin',
+    }])).resolves.toEqual([])
+
+    // A failing community read keeps the market metrics.
+    await expect(cryptoMetricsForSymbol('BTC-USD', async () => [{
+      id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', slug: 'bitcoin', rank: 1,
+    }], async () => { throw new Error('coingecko down') })).resolves.toHaveLength(1)
   })
 })

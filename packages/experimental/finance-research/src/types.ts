@@ -143,6 +143,29 @@ export interface FinanceCoinMarketCapQuote {
   readonly lastUpdated?: string
 }
 
+/** One CoinGecko community lookup. */
+export interface FinanceCoinGeckoCommunityRequest {
+  /** CoinGecko coin id, such as `bitcoin`. */
+  readonly id: string
+}
+
+/** One normalized CoinGecko community and developer snapshot. */
+export interface FinanceCoinGeckoCommunity {
+  readonly id: string
+  readonly name: string
+  readonly symbol?: string
+  readonly categories?: readonly string[]
+  readonly twitterFollowers?: number
+  readonly redditSubscribers?: number
+  readonly telegramUsers?: number
+  readonly githubStars?: number
+  readonly githubForks?: number
+  readonly githubSubscribers?: number
+  readonly githubCommits4w?: number
+  readonly githubClosedIssues?: number
+  readonly sentimentUp?: number
+}
+
 /** One CoinMarketCap OHLCV request. */
 export interface FinanceCoinMarketCapOhlcvRequest {
   /** One CoinMarketCap numeric ID. */
@@ -274,6 +297,11 @@ export interface FinanceMarketDataProvider {
   request?(request: FinanceProviderRequest, signal?: AbortSignal): Promise<FinanceProviderResponse>
   /** Load normalized read-only private account data when the provider supports it. */
   loadPrivateAccount?(request: FinancePrivateAccountRequest, signal?: AbortSignal): Promise<FinancePrivateAccountSnapshot>
+  /** Load one CoinGecko community and developer snapshot when the provider supports it. */
+  loadCoinGeckoCommunity?(
+    request: FinanceCoinGeckoCommunityRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceCoinGeckoCommunity | undefined>
   /** Load normalized CoinMarketCap latest quotes when the provider supports it. */
   loadCoinMarketCapQuotes?(
     request: FinanceCoinMarketCapQuoteRequest,

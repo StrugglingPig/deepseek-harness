@@ -30,11 +30,13 @@ export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
 /** Credential reference for the CoinMarketCap API key. */
 export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
+/** Credential reference for the CoinGecko demo API key. */
+export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 
 /** Bases whose requests carry an API key; each has exactly one owning authorizer. */
-const API_KEY_BASES: ReadonlySet<string> = new Set(['coinmarketcap', 'fred'])
+const API_KEY_BASES: ReadonlySet<string> = new Set(['coingecko', 'coinmarketcap', 'fred'])
 
 /** Options for CoinMarketCap API-key authorization. */
 export interface CoinMarketCapRequestAuthorizerOptions {
@@ -42,6 +44,38 @@ export interface CoinMarketCapRequestAuthorizerOptions {
   readonly resolveCredential: FinanceCredentialResolver
   /** Whether the user enabled CoinMarketCap API requests in settings. */
   readonly enabled: () => boolean
+}
+
+/** Options for CoinGecko API-key authorization. */
+export interface CoinGeckoRequestAuthorizerOptions {
+  /** Resolve the stored API key at request time. */
+  readonly resolveCredential: FinanceCredentialResolver
+  /** Whether the user enabled CoinGecko API requests in settings. */
+  readonly enabled: () => boolean
+}
+
+/**
+ * Create the CoinGecko request authorizer.
+ * @param options - credential resolver and feature switch.
+ * @returns an authorizer that adds the demo API key header for CoinGecko requests.
+ */
+export function createCoinGeckoRequestAuthorizer(
+  options: CoinGeckoRequestAuthorizerOptions,
+): FinanceRequestAuthorizer {
+  return async (request, _url, headers) => {
+    if (request.auth !== 'api-key') return
+    if (request.base !== 'coingecko') {
+      // Another authorizer owns the remaining api-key bases.
+      if (API_KEY_BASES.has(request.base)) return
+      throw new FinanceDataError('api-key requests are configured only for the CoinGecko, CoinMarketCap, and FRED bases', 'AUTH_UNSUPPORTED')
+    }
+    if (!options.enabled()) throw new FinanceDataError('CoinGecko requests are disabled in settings', 'AUTH_DISABLED')
+    const apiKey = await options.resolveCredential(COINGECKO_API_KEY_REF)
+    if (apiKey === undefined || apiKey.length === 0) {
+      throw new FinanceDataError('CoinGecko API key is not configured', 'AUTH_REQUIRED')
+    }
+    headers['x-cg-demo-api-key'] = apiKey
+  }
 }
 
 /**
@@ -86,13 +120,13 @@ export function createCoinMarketCapRequestAuthorizer(
 ): FinanceRequestAuthorizer {
   return async (request, _url, headers) => {
     if (request.auth !== 'api-key') return
-    if (!options.enabled()) throw new FinanceDataError('CoinMarketCap requests are disabled in settings', 'AUTH_DISABLED')
     if (request.base !== 'coinmarketcap') {
       // Another authorizer owns the remaining api-key bases; an unknown base is
       // still a misconfiguration rather than a silently unauthenticated call.
       if (API_KEY_BASES.has(request.base)) return
-      throw new FinanceDataError('api-key requests are configured only for the CoinMarketCap and FRED bases', 'AUTH_UNSUPPORTED')
+      throw new FinanceDataError('api-key requests are configured only for the CoinGecko, CoinMarketCap, and FRED bases', 'AUTH_UNSUPPORTED')
     }
+    if (!options.enabled()) throw new FinanceDataError('CoinMarketCap requests are disabled in settings', 'AUTH_DISABLED')
     const apiKey = await options.resolveCredential(COINMARKETCAP_API_KEY_REF)
     if (apiKey === undefined || apiKey.length === 0) {
       throw new FinanceDataError('CoinMarketCap API key is not configured', 'AUTH_REQUIRED')
