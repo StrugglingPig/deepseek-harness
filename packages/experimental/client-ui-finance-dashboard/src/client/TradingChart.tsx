@@ -49,6 +49,11 @@ export function TradingChart(props: TradingChartProps) {
           horzLines: { color: 'rgba(148, 163, 184, 0.22)' },
         },
         crosshair: { mode: charts.CrosshairMode.Normal },
+        // The chart fills most of the panel, so a wheel over it must scroll the
+        // panel rather than being swallowed for chart zoom. Panning (drag) and
+        // axis scaling stay available.
+        handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+        handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: true, timeVisible: true, secondsVisible: false, rightOffset: 2 },
       })

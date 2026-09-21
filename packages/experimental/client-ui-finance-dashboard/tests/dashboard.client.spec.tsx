@@ -88,6 +88,21 @@ describe('FinanceDashboard', () => {
     expect(screen.getByText(en.offline)).toBeTruthy()
   })
 
+  it('keeps the snapshot mounted while a background poll or failure is pending', () => {
+    renderDashboard({ status: 'loading', streamStatus: 'connecting' })
+    // A poll still has bars to draw: showing the loading notice and unmounting
+    // the chart would reset the panel's scroll position every interval.
+    expect(screen.getByTestId('finance-chart')).toBeTruthy()
+    expect(screen.getByText('112.00')).toBeTruthy()
+    expect(screen.queryByText(en.loading)).toBeNull()
+    expect(screen.getByText(en.connecting)).toBeTruthy()
+    cleanup()
+
+    renderDashboard({ status: 'error', error: 'offline', streamStatus: 'error' })
+    expect(screen.getByRole('alert').textContent).toContain('offline')
+    expect(screen.getByTestId('finance-chart')).toBeTruthy()
+  })
+
   it('falls back to the latest bar when quote metrics are absent', () => {
     renderDashboard({ quote: undefined })
     expect(screen.getByText('112.00')).toBeTruthy()

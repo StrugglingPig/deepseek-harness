@@ -72,6 +72,56 @@ describe('FinanceDashboardController', () => {
     controller.dispose()
   })
 
+  it('drops the loaded snapshot when the requested identity changes', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify(payload()), { status: 200 }))
+    const { controller } = bench({ fetch })
+    const face = controller.inject()
+    face.refresh()
+    await vi.waitFor(() => { expect(face.hooks.dashboard.getSnapshot().status).toBe('ready') })
+
+    face.setAsset('stock')
+    // The next render must not draw the previous instrument's bars under the
+    // newly selected symbol.
+    expect(face.hooks.dashboard.getSnapshot().bars).toEqual([])
+    expect(face.hooks.dashboard.getSnapshot().quote).toBeUndefined()
+    await vi.waitFor(() => { expect(face.hooks.dashboard.getSnapshot().status).toBe('ready') })
+    controller.dispose()
+  })
+
+  it('keeps the loaded snapshot while a background poll is in flight', async () => {
+    vi.useFakeTimers()
+    const listeners = new Set<() => void>()
+    const scope: FinanceDashboardSettingsScope = {
+      getSnapshot: () => ({ value: undefined }),
+      subscribe: (listener) => {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+    }
+    let release: ((value: Response) => void) | undefined
+    const pending = new Promise<Response>((resolve) => { release = resolve })
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(payload()), { status: 200 }))
+      .mockReturnValueOnce(pending)
+    const controller = new FinanceDashboardController(scope, { fetch, pollMs: 1_000 })
+    const face = controller.inject()
+    face.refresh()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(face.hooks.dashboard.getSnapshot().status).toBe('ready')
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    // The poll drops the request into `loading`; the snapshot stays mounted so
+    // the panel keeps its chart and the reader's scroll position.
+    expect(face.hooks.dashboard.getSnapshot().status).toBe('loading')
+    expect(face.hooks.dashboard.getSnapshot().bars).toHaveLength(2)
+
+    release?.(new Response(JSON.stringify(payload()), { status: 200 }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(face.hooks.dashboard.getSnapshot().status).toBe('ready')
+    controller.dispose()
+    vi.useRealTimers()
+  })
+
   it('calls fetch without rebinding the options object as this', async () => {
     const fetch = vi.fn(async function (this: unknown) {
       expect(this).toBeUndefined()
@@ -82,6 +132,31 @@ describe('FinanceDashboardController', () => {
     face.refresh()
     await vi.waitFor(() => { expect(face.hooks.dashboard.getSnapshot().status).toBe('ready') })
     controller.dispose()
+  })
+
+  it('surfaces the Host failure message instead of only the status code', async () => {
+    const hostMessage = 'request failed for https://query1.finance.yahoo.com/v8/finance/chart/AAPL: HTTP 403'
+    const described = bench({
+      fetch: async () => new Response(JSON.stringify({ error: { code: 'HTTP_ERROR', message: hostMessage } }), { status: 400 }),
+    })
+    described.controller.refresh()
+    await vi.waitFor(() => { expect(described.controller.inject().hooks.dashboard.getSnapshot().error).toBe(hostMessage) })
+
+    const named = bench({ fetch: async () => new Response(JSON.stringify({ error: 'provider disabled' }), { status: 400 }) })
+    named.controller.refresh()
+    await vi.waitFor(() => { expect(named.controller.inject().hooks.dashboard.getSnapshot().error).toBe('provider disabled') })
+
+    const blank = bench({ fetch: async () => new Response(JSON.stringify({ error: {} }), { status: 400 }) })
+    blank.controller.refresh()
+    await vi.waitFor(() => { expect(blank.controller.inject().hooks.dashboard.getSnapshot().error).toBe('HTTP 400') })
+
+    const empty = bench({ fetch: async () => new Response('null', { status: 400 }) })
+    empty.controller.refresh()
+    await vi.waitFor(() => { expect(empty.controller.inject().hooks.dashboard.getSnapshot().error).toBe('HTTP 400') })
+
+    const unstructured = bench({ fetch: async () => new Response('nope', { status: 502 }) })
+    unstructured.controller.refresh()
+    await vi.waitFor(() => { expect(unstructured.controller.inject().hooks.dashboard.getSnapshot().error).toBe('HTTP 502') })
   })
 
   it('reports HTTP, invalid-data, and non-Error failures', async () => {

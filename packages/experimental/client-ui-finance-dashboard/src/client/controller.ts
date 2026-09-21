@@ -89,6 +89,25 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * Read the Host's failure message from a non-OK dashboard response, so a
+ * provider failure reports why it failed instead of only the status code.
+ * @param response - Non-OK response from the dashboard route.
+ * @returns The Host message, or the status line when the body carries none.
+ */
+async function hostError(response: Response): Promise<string> {
+  try {
+    const body: unknown = await response.json()
+    const failure = typeof body === 'object' && body !== null ? (body as { error?: unknown }).error : undefined
+    if (typeof failure === 'string' && failure.length > 0) return failure
+    const message = typeof failure === 'object' && failure !== null ? (failure as { message?: unknown }).message : undefined
+    if (typeof message === 'string' && message.length > 0) return message
+  } catch {
+    // A non-JSON failure body carries no message; the status line is all that remains.
+  }
+  return `HTTP ${String(response.status)}`
+}
+
 /** Owns one dashboard's Host request, polling, and refresh lifecycle. */
 export class FinanceDashboardController {
   private readonly store: SnapshotStore<FinanceDashboardState>
@@ -162,7 +181,7 @@ export class FinanceDashboardController {
       const response = await request(`${DASHBOARD_MARKET_PATH}?${query.toString()}`, {
         headers: { accept: 'application/json' },
       })
-      if (!response.ok) throw new Error(`HTTP ${String(response.status)}`)
+      if (!response.ok) throw new Error(await hostError(response))
       const parsed = parseDashboardMarket(await response.json())
       if (parsed === undefined) throw new Error('dashboard response was invalid')
       if (requestId !== this.requestId || this.disposed) return
@@ -187,6 +206,16 @@ export class FinanceDashboardController {
     }
   }
 
+  /**
+   * Snapshot fields that only the loaded request identity owns. Changing the
+   * asset, symbol, or interval clears them so the next render cannot draw one
+   * instrument's bars under another instrument's name.
+   * @returns Cleared bars, quote, and instrument metadata.
+   */
+  private clearedSnapshot(): Partial<FinanceDashboardState> {
+    return { bars: [], quote: undefined, name: undefined, source: undefined, asOf: undefined }
+  }
+
   /** Start the initial load once. */
   ensure(): void {
     const state = this.store.getSnapshot()
@@ -206,7 +235,7 @@ export class FinanceDashboardController {
   setSymbol(symbol: string): void {
     const normalized = symbol.trim().toUpperCase()
     if (normalized.length === 0) return
-    this.update({ symbol: normalized })
+    this.update({ symbol: normalized, ...this.clearedSnapshot() })
     this.refresh()
   }
 
@@ -218,7 +247,7 @@ export class FinanceDashboardController {
     const state = this.store.getSnapshot()
     const intervals = intervalsFor(asset)
     const interval = intervals.includes(state.interval) ? state.interval : intervals[0] as DashboardInterval
-    this.update({ asset, symbol: defaultSymbol(asset), interval })
+    this.update({ asset, symbol: defaultSymbol(asset), interval, ...this.clearedSnapshot() })
     this.refresh()
   }
 
@@ -227,7 +256,7 @@ export class FinanceDashboardController {
    * @param interval - Selected chart interval.
    */
   setInterval(interval: DashboardInterval): void {
-    this.update({ interval })
+    this.update({ interval, ...this.clearedSnapshot() })
     this.refresh()
   }
 

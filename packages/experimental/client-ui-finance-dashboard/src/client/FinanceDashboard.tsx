@@ -97,10 +97,12 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
           <button key={symbol} type="button" className={css.watchItem} onClick={() => { props.setSymbol(symbol) }}>{symbol}</button>
         ))}
       </div>
-      {state.status === 'loading' ? <p role="status" className={css.notice}>{t('loading')}</p> : null}
+      {state.status === 'loading' && latest === undefined ? <p role="status" className={css.notice}>{t('loading')}</p> : null}
       {state.status === 'error' ? <p role="alert" className={css.error}>{t('error')}{state.error === undefined ? '' : `: ${state.error}`}</p> : null}
       {state.status === 'ready' && latest === undefined ? <p className={css.notice}>{t('empty')}</p> : null}
-      {state.status === 'ready' && latest !== undefined ? (
+      {/* A poll or a failed reload keeps the last snapshot mounted: unmounting it
+          would drop the reader's scroll position on every interval. */}
+      {latest === undefined ? null : (
         <>
           <div className={css.instrument}>
             <strong>{state.name ?? state.symbol}</strong>
@@ -115,7 +117,7 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
           <TradingChart bars={state.bars} interval={state.interval} chartLabel={t('chartLabel')} />
           <div className={css.legend}><span data-color="blue">{t('sma')}</span><span data-color="amber">{t('ema')}</span><span data-color="violet">{t('rsi')}</span><span data-color="sky">{t('macd')}</span></div>
         </>
-      ) : null}
+      )}
       <p className={css.accountNote}>{t('accountNote')}</p>
     </section>
   )

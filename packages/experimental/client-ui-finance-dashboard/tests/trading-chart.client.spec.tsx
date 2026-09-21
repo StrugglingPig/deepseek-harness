@@ -58,6 +58,10 @@ describe('TradingChart', () => {
     const options = vi.mocked(createChart).mock.calls[0]?.[1]
     expect(options?.timeScale?.borderVisible).toBe(true)
     expect(options?.timeScale?.timeVisible).toBe(true)
+    // The chart fills most of the panel: a wheel or vertical touch drag over it
+    // must scroll the panel instead of being consumed for chart zoom.
+    expect(options?.handleScroll).toMatchObject({ mouseWheel: false, vertTouchDrag: false })
+    expect(options?.handleScale).toMatchObject({ mouseWheel: false })
     expect(mock.panes[0]?.setStretchFactor).toHaveBeenCalledWith(3)
     for (const pane of mock.panes.slice(1)) expect(pane.setStretchFactor).toHaveBeenCalledWith(1)
     view.unmount()
