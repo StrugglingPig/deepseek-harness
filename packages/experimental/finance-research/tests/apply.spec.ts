@@ -29,6 +29,7 @@ const CONFIG: Required<Config> = {
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
   enableCoinGeckoRequests: true,
+  githubBaseUrl: 'https://api.github.test',
   enableAkshare: true,
   enableIfind: true,
   ifindTransport: 'http',
@@ -220,8 +221,14 @@ describe('finance apply', () => {
       requestedUrls.push(url)
       if (url.includes('/coins/bitcoin')) {
         return new Response(JSON.stringify({
-          id: 'bitcoin', name: 'Bitcoin', community_data: { twitter_followers: 7_100_000 },
+          id: 'bitcoin',
+          name: 'Bitcoin',
+          community_data: { twitter_followers: 7_100_000 },
+          links: { repos_url: { github: ['https://github.com/bitcoin/bitcoin'], bitbucket: [] } },
         }), { status: 200 })
+      }
+      if (url.includes('/repos/bitcoin/bitcoin')) {
+        return new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000, forks_count: 36_000 }), { status: 200 })
       }
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({
@@ -298,6 +305,7 @@ describe('finance apply', () => {
       arguments: { symbol: 'BTC-USD' },
     })
     expect(requestedUrls.some(url => url.includes('/coins/bitcoin'))).toBe(true)
+    expect(requestedUrls.some(url => url.includes('/repos/bitcoin/bitcoin'))).toBe(true)
     expect(requestedUrls.some(url => url.includes('/v3/cryptocurrency/quotes/latest'))).toBe(true)
     vi.unstubAllGlobals()
     await ctx.fiber.dispose()

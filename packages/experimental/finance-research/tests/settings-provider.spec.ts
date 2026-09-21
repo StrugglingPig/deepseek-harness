@@ -20,6 +20,7 @@ const SETTINGS: FinanceRuntimeSettings = {
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
   enableCoinGeckoRequests: true,
+  githubBaseUrl: 'https://api.github.test',
   enableAkshare: true,
   enableIfind: false,
   ifindTransport: 'http',
@@ -70,6 +71,9 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
+    await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).rejects.toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+    })
     expect(provider.describe()).toMatchObject({ id: 'fixture', bases: [] })
   })
 
@@ -84,6 +88,9 @@ describe('settings-backed finance providers', () => {
       }
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
+      }
+      if (url.includes('/repos/bitcoin/bitcoin')) {
+        return new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 })
       }
       if (url.includes('/coins/bitcoin')) {
         return new Response(JSON.stringify({ id: 'bitcoin', name: 'Bitcoin', github_stars_placeholder: true }), { status: 200 })
@@ -102,6 +109,8 @@ describe('settings-backed finance providers', () => {
       .resolves.toMatchObject([{ symbol: 'BTC', bars: [] }])
     await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' }))
       .resolves.toMatchObject({ id: 'bitcoin', name: 'Bitcoin' })
+    await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' }))
+      .resolves.toMatchObject({ repository: 'bitcoin/bitcoin', stars: 85_000 })
   })
 
   it('uses the production WebSocket factory when no test carrier is supplied', async () => {

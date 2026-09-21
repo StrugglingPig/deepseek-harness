@@ -130,6 +130,8 @@ export interface Config {
   readonly coinMarketCapBaseUrl?: string
   /** CoinGecko API origin. */
   readonly coinGeckoBaseUrl?: string
+  /** GitHub API origin. */
+  readonly githubBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -201,6 +203,7 @@ export const Config: z<Config> = z.object({
   polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
   coinMarketCapBaseUrl: z.string().default('https://pro-api.coinmarketcap.com'),
   coinGeckoBaseUrl: z.string().default('https://api.coingecko.com/api/v3'),
+  githubBaseUrl: z.string().default('https://api.github.com'),
   fredBaseUrl: z.string().default('https://api.stlouisfed.org'),
   worldBankBaseUrl: z.string().default('https://api.worldbank.org'),
   imfBaseUrl: z.string().default('https://www.imf.org/external/datamapper/api/v1'),
@@ -1141,6 +1144,7 @@ export function apply(ctx: Context, config: Config): void {
     polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
     coinMarketCapBaseUrl: resolved.coinMarketCapBaseUrl,
     coinGeckoBaseUrl: resolved.coinGeckoBaseUrl,
+    githubBaseUrl: resolved.githubBaseUrl,
     fredBaseUrl: resolved.fredBaseUrl,
     worldBankBaseUrl: resolved.worldBankBaseUrl,
     imfBaseUrl: resolved.imfBaseUrl,
@@ -1206,6 +1210,7 @@ export function apply(ctx: Context, config: Config): void {
       request.symbol,
       symbols => provider.loadCoinMarketCapQuotes({ symbols }),
       id => provider.loadCoinGeckoCommunity({ id }),
+      repository => provider.loadGithubRepo({ repository }),
     ))
   registerMacroTools(ctx, macroProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {

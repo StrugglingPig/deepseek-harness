@@ -9,6 +9,10 @@ describe('CoinGecko normalization', () => {
       name: 'Bitcoin',
       categories: ['Cryptocurrency', 'Layer 1 (L1)'],
       sentiment_votes_up_percentage: 78.5,
+      sentiment_votes_down_percentage: 21.5,
+      watchlist_portfolio_users: 2_452_826,
+      genesis_date: '2009-01-03',
+      links: { repos_url: { github: ['https://github.com/bitcoin/bitcoin'], bitbucket: [] } },
       community_data: {
         twitter_followers: 7_100_000,
         reddit_subscribers: 5_200_000,
@@ -36,6 +40,10 @@ describe('CoinGecko normalization', () => {
       githubCommits4w: 210,
       githubClosedIssues: 9_000,
       sentimentUp: 78.5,
+      sentimentDown: 21.5,
+      watchlistUsers: 2_452_826,
+      genesisDate: '2009-01-03',
+      githubRepos: ['https://github.com/bitcoin/bitcoin'],
     })
   })
 
@@ -49,6 +57,12 @@ describe('CoinGecko normalization', () => {
     expect(community?.categories).toEqual(['Layer 1 (L1)'])
     const empty = normalizeCoinGeckoCommunity({ id: 'bitcoin', name: 'Bitcoin', categories: [] })
     expect(empty?.categories).toBeUndefined()
+    const noRepos = normalizeCoinGeckoCommunity({ id: 'bitcoin', name: 'Bitcoin', links: { homepage: ['https://bitcoin.org'] } })
+    expect(noRepos?.githubRepos).toBeUndefined()
+    const mixedRepos = normalizeCoinGeckoCommunity({
+      id: 'bitcoin', name: 'Bitcoin', links: { repos_url: { github: [7, 'https://github.com/bitcoin/bips'] } },
+    })
+    expect(mixedRepos?.githubRepos).toEqual(['https://github.com/bitcoin/bips'])
   })
 
   it('rejects a payload without a coin id', () => {

@@ -228,6 +228,65 @@ describe('HTTP finance market data provider', () => {
     expect(snapshot.bars).toHaveLength(60)
   })
 
+  it('loads a GitHub repository with trailing commit activity', async () => {
+    const urls: string[] = []
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      githubBaseUrl: 'https://api.github.test',
+      fetch: async (input: string | URL | Request) => {
+        const url = urlOf(input)
+        urls.push(url)
+        if (url.includes('/stats/commit_activity')) {
+          return new Response(JSON.stringify([{ total: 10 }, { total: 20 }, { total: 30 }, { total: 40 }, { total: 50 }]), { status: 200 })
+        }
+        return new Response(JSON.stringify({
+          name: 'bitcoin', stargazers_count: 85_000, forks_count: 36_000, subscribers_count: 4_000, open_issues_count: 600,
+        }), { status: 200 })
+      },
+    })
+    await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).resolves.toEqual({
+      repository: 'bitcoin/bitcoin', stars: 85_000, forks: 36_000, watchers: 4_000, openIssues: 600, commits4w: 140,
+    })
+    expect(urls.some(url => url.includes('/repos/bitcoin/bitcoin'))).toBe(true)
+
+    // While GitHub computes the activity series it answers without usable totals.
+    const computing = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      githubBaseUrl: 'https://api.github.test',
+      fetch: async (input: string | URL | Request) => urlOf(input).includes('/stats/commit_activity')
+        ? new Response(JSON.stringify([]), { status: 200 })
+        : new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 }),
+    })
+    await expect(computing.loadGithubRepo({ repository: 'bitcoin/bitcoin' }))
+      .resolves.toEqual({ repository: 'bitcoin/bitcoin', stars: 85_000 })
+
+    // A repository the API cannot serve contributes nothing.
+    const missing = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      githubBaseUrl: 'https://api.github.test',
+      fetch: async () => new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 }),
+    })
+    await expect(missing.loadGithubRepo({ repository: 'nope/nope' })).resolves.toBeUndefined()
+
+    // A response that is not a repository, and an activity call that fails.
+    const notARepo = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      githubBaseUrl: 'https://api.github.test',
+      fetch: async () => new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 200 }),
+    })
+    await expect(notARepo.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).resolves.toBeUndefined()
+
+    const activityFails = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      githubBaseUrl: 'https://api.github.test',
+      fetch: async (input: string | URL | Request) => urlOf(input).includes('/stats/commit_activity')
+        ? new Response('server error', { status: 500 })
+        : new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 }),
+    })
+    await expect(activityFails.loadGithubRepo({ repository: 'bitcoin/bitcoin' }))
+      .resolves.toEqual({ repository: 'bitcoin/bitcoin', stars: 85_000 })
+  })
+
   it('describes bases and sends arbitrary provider-native requests', async () => {
     const urls: string[] = []
     const provider = createHttpFinanceMarketDataProvider({
@@ -248,7 +307,7 @@ describe('HTTP finance market data provider', () => {
     })
     expect(provider.describe().bases.map(base => base.name)).toEqual([
       'binance-spot', 'binance-usdm', 'binance-coinm', 'binance-options',
-      'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'coinmarketcap',
+      'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'github', 'coinmarketcap',
       'fred', 'worldbank', 'imf',
     ])
 

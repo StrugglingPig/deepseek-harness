@@ -728,6 +728,8 @@ export interface Config {
   readonly coinMarketCapBaseUrl?: string
   /** CoinGecko API origin. */
   readonly coinGeckoBaseUrl?: string
+  /** GitHub API origin. */
+  readonly githubBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */

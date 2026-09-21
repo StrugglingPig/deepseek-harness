@@ -7,6 +7,8 @@ import { HttpFinanceMarketDataProvider } from './http.ts'
 import { BinanceWebSocketStreamProvider, CoinMarketCapWebSocketStreamProvider, type FinanceWebSocketLike, type FinanceWebSocketOptions } from './stream.ts'
 import type {
   FinanceCoinGeckoCommunity,
+  FinanceGithubRepo,
+  FinanceGithubRepoRequest,
   FinanceCoinGeckoCommunityRequest,
   FinanceCoinMarketCapOhlcvRequest,
   FinanceCoinMarketCapOhlcvSeries,
@@ -38,6 +40,7 @@ export interface FinanceRuntimeSettings {
   readonly binanceOptionsBaseUrl: string
   readonly coinMarketCapBaseUrl: string
   readonly coinGeckoBaseUrl: string
+  readonly githubBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -92,6 +95,7 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       binanceOptionsBaseUrl: settings.binanceOptionsBaseUrl,
       coinMarketCapBaseUrl: settings.coinMarketCapBaseUrl,
       coinGeckoBaseUrl: settings.coinGeckoBaseUrl,
+      githubBaseUrl: settings.githubBaseUrl,
       fredBaseUrl: settings.fredBaseUrl,
       worldBankBaseUrl: settings.worldBankBaseUrl,
       imfBaseUrl: settings.imfBaseUrl,
@@ -156,6 +160,26 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       ))
     }
     return provider.loadCoinGeckoCommunity(request, signal)
+  }
+
+  /**
+   * Load one GitHub repository snapshot from the current HTTP provider.
+   * @param request - Repository in `owner/name` form.
+   * @param signal - Optional caller cancellation.
+   * @returns The normalized snapshot, or undefined when GitHub cannot serve it.
+   */
+  loadGithubRepo(
+    request: FinanceGithubRepoRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceGithubRepo | undefined> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadGithubRepo === undefined) {
+      return Promise.reject(new FinanceDataError(
+        'GitHub repository data requires the live HTTP provider',
+        'PROVIDER_UNAVAILABLE',
+      ))
+    }
+    return provider.loadGithubRepo(request, signal)
   }
 
   /**

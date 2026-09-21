@@ -177,6 +177,7 @@ describe('Binance private account data', () => {
       enableSignedRequests: false,
       enableCoinMarketCapRequests: false,
       enableCoinGeckoRequests: false,
+      githubBaseUrl: 'https://api.github.test',
       enableAkshare: true,
       enableIfind: false,
       ifindTransport: 'http',

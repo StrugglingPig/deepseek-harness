@@ -24,13 +24,14 @@ function text(value: unknown): string | undefined {
  */
 export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoCommunity | undefined {
   const coin = record(payload)
-  const id = text(coin?.id)
-  const name = text(coin?.name)
+  if (coin === undefined) return undefined
+  const id = text(coin.id)
+  const name = text(coin.name)
   if (id === undefined || name === undefined) return undefined
-  const community = record(coin?.community_data)
-  const developer = record(coin?.developer_data)
-  const symbol = text(coin?.symbol)
-  const categories = Array.isArray(coin?.categories)
+  const community = record(coin.community_data)
+  const developer = record(coin.developer_data)
+  const symbol = text(coin.symbol)
+  const categories = Array.isArray(coin.categories)
     ? coin.categories.flatMap(entry => text(entry) === undefined ? [] : [text(entry) as string])
     : undefined
   const twitterFollowers = finite(community?.twitter_followers)
@@ -41,7 +42,16 @@ export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoC
   const githubSubscribers = finite(developer?.subscribers)
   const githubCommits4w = finite(developer?.commit_count_4_weeks)
   const githubClosedIssues = finite(developer?.closed_issues)
-  const sentimentUp = finite(coin?.sentiment_votes_up_percentage)
+  const sentimentUp = finite(coin.sentiment_votes_up_percentage)
+  const sentimentDown = finite(coin.sentiment_votes_down_percentage)
+  const watchlistUsers = finite(coin.watchlist_portfolio_users)
+  const genesisDate = text(coin.genesis_date)
+  const links = record(coin.links)
+  const reposUrl = links === undefined ? undefined : record(links.repos_url)
+  const repoLinks = reposUrl === undefined ? undefined : reposUrl.github
+  const githubRepos = Array.isArray(repoLinks)
+    ? repoLinks.flatMap(entry => text(entry) === undefined ? [] : [text(entry) as string])
+    : undefined
   return {
     id,
     name,
@@ -56,5 +66,9 @@ export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoC
     ...githubCommits4w === undefined ? {} : { githubCommits4w },
     ...githubClosedIssues === undefined ? {} : { githubClosedIssues },
     ...sentimentUp === undefined ? {} : { sentimentUp },
+    ...sentimentDown === undefined ? {} : { sentimentDown },
+    ...watchlistUsers === undefined ? {} : { watchlistUsers },
+    ...genesisDate === undefined ? {} : { genesisDate },
+    ...githubRepos === undefined ? {} : { githubRepos },
   }
 }

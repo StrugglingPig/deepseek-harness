@@ -1,6 +1,9 @@
 /** Market and fundamental metrics a report quotes about its instrument. */
 
-import type { FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote, FinanceStockFundamentals } from './types.ts'
+import { githubSlug } from './github.ts'
+import type {
+  FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote, FinanceGithubRepo, FinanceStockFundamentals,
+} from './types.ts'
 
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
 export const ASSET_METRIC_GROUPS = [
@@ -123,6 +126,7 @@ export type ReportAssetContext = (request: ReportAssetRequest) => Promise<readon
  * @param symbol - Snapshot symbol such as `BTC-USD`.
  * @param loadQuotes - Loader that returns quotes for the given ticker symbols.
  * @param loadCommunity - Loader for a CoinGecko coin id, addressed by the quote slug.
+ * @param loadGithub - Loader for the repository the community snapshot links.
  * @returns Market and supply metrics, plus community and development metrics when the
  * community source answers.
  */
@@ -130,6 +134,7 @@ export async function cryptoMetricsForSymbol(
   symbol: string,
   loadQuotes: (symbols: readonly string[]) => Promise<readonly FinanceCoinMarketCapQuote[]>,
   loadCommunity?: (id: string) => Promise<FinanceCoinGeckoCommunity | undefined>,
+  loadGithub?: (repository: string) => Promise<FinanceGithubRepo | undefined>,
 ): Promise<readonly AssetMetric[]> {
   const [base] = symbol.split('-')
   if (base === undefined || base === symbol) return []
@@ -142,10 +147,19 @@ export async function cryptoMetricsForSymbol(
   const market = cryptoMetricsFromQuote(quote)
   const id = quote?.slug
   if (id === undefined || loadCommunity === undefined) return market
+  let community: FinanceCoinGeckoCommunity | undefined
   try {
-    return [...market, ...cryptoMetricsFromCommunity(await loadCommunity(id))]
+    community = await loadCommunity(id)
   } catch {
     return market
+  }
+  const project = cryptoMetricsFromCommunity(community)
+  const repository = githubSlug(community?.githubRepos)
+  if (repository === undefined || loadGithub === undefined) return [...market, ...project]
+  try {
+    return [...market, ...project, ...cryptoMetricsFromGithub(await loadGithub(repository))]
+  } catch {
+    return [...market, ...project]
   }
 }
 
@@ -155,6 +169,8 @@ const COMMUNITY_METRICS: readonly (readonly [AssetMetricGroup, string, string])[
   ['community', 'redditSubscribers', ''],
   ['community', 'telegramUsers', ''],
   ['community', 'sentimentUp', '%'],
+  ['community', 'sentimentDown', '%'],
+  ['community', 'watchlistUsers', ''],
   ['development', 'githubStars', ''],
   ['development', 'githubForks', ''],
   ['development', 'githubSubscribers', ''],
@@ -172,5 +188,27 @@ export function cryptoMetricsFromCommunity(community: FinanceCoinGeckoCommunity 
   return COMMUNITY_METRICS.flatMap(([group, key, unit]) => {
     const value = community[key as keyof FinanceCoinGeckoCommunity]
     return typeof value === 'number' ? [{ group, key, value, unit, asOf: '', source: 'coingecko' }] : []
+  })
+}
+
+/** Repository fields a GitHub snapshot contributes, all in the development dimension. */
+const GITHUB_METRICS: readonly (readonly [string, keyof FinanceGithubRepo])[] = [
+  ['githubStars', 'stars'],
+  ['githubForks', 'forks'],
+  ['githubWatchers', 'watchers'],
+  ['githubOpenIssues', 'openIssues'],
+  ['githubCommits4w', 'commits4w'],
+]
+
+/**
+ * Turn one GitHub repository snapshot into report metrics.
+ * @param repo - Normalized repository, when one loaded.
+ * @returns Development metrics; counts GitHub omitted are skipped.
+ */
+export function cryptoMetricsFromGithub(repo: FinanceGithubRepo | undefined): AssetMetric[] {
+  if (repo === undefined) return []
+  return GITHUB_METRICS.flatMap(([key, field]) => {
+    const value = repo[field]
+    return typeof value === 'number' ? [{ group: 'development' as const, key, value, unit: '', asOf: '', source: 'github' }] : []
   })
 }

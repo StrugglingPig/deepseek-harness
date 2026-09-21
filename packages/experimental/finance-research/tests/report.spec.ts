@@ -145,6 +145,9 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Earnings Review')).toContain('Net profit growth (YoY): -2.03%')
     // A category block with no matching metric still reports what it needs.
     const crypto = await buildResearchReport(fixtureProvider, { symbol: 'BTC' }, undefined, 'en', [], metrics)
+    const community = await buildResearchReport(fixtureProvider, { symbol: 'BTC', reportType: 'crypto-deep-dive' }, undefined, 'en', [],
+      [{ group: 'community' as const, key: 'watchlistUsers', value: 2_452_829, unit: '', asOf: '', source: 'coingecko' }])
+    expect(sectionOf(community, 'Project And Community')).toContain('(source coingecko)')
     expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('1.7T USD')
     expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('0.42 x')
   })

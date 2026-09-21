@@ -164,6 +164,26 @@ export interface FinanceCoinGeckoCommunity {
   readonly githubCommits4w?: number
   readonly githubClosedIssues?: number
   readonly sentimentUp?: number
+  readonly sentimentDown?: number
+  readonly watchlistUsers?: number
+  readonly genesisDate?: string
+  readonly githubRepos?: readonly string[]
+}
+
+/** One GitHub repository lookup. */
+export interface FinanceGithubRepoRequest {
+  /** Repository in `owner/name` form. */
+  readonly repository: string
+}
+
+/** One normalized GitHub repository snapshot. */
+export interface FinanceGithubRepo {
+  readonly repository: string
+  readonly stars?: number
+  readonly forks?: number
+  readonly watchers?: number
+  readonly openIssues?: number
+  readonly commits4w?: number
 }
 
 /** One CoinMarketCap OHLCV request. */
@@ -302,6 +322,11 @@ export interface FinanceMarketDataProvider {
     request: FinanceCoinGeckoCommunityRequest,
     signal?: AbortSignal,
   ): Promise<FinanceCoinGeckoCommunity | undefined>
+  /** Load one GitHub repository snapshot when the provider supports it. */
+  loadGithubRepo?(
+    request: FinanceGithubRepoRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceGithubRepo | undefined>
   /** Load normalized CoinMarketCap latest quotes when the provider supports it. */
   loadCoinMarketCapQuotes?(
     request: FinanceCoinMarketCapQuoteRequest,

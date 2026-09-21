@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromQuote, equityMetricsFromFundamentals,
+  cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub, cryptoMetricsFromQuote,
+  equityMetricsFromFundamentals,
 } from '../src/asset-context.ts'
 
 describe('asset metric context', () => {
@@ -125,5 +126,45 @@ describe('crypto community context', () => {
     await expect(cryptoMetricsForSymbol('BTC-USD', async () => [{
       id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', slug: 'bitcoin', rank: 1,
     }], async () => { throw new Error('coingecko down') })).resolves.toHaveLength(1)
+  })
+})
+
+describe('crypto development context', () => {
+  it('maps a GitHub repository snapshot into development metrics', () => {
+    expect(cryptoMetricsFromGithub({
+      repository: 'bitcoin/bitcoin', stars: 85_000, forks: 36_000, watchers: 4_000, openIssues: 600, commits4w: 140,
+    })).toEqual([
+      { group: 'development', key: 'githubStars', value: 85_000, unit: '', asOf: '', source: 'github' },
+      { group: 'development', key: 'githubForks', value: 36_000, unit: '', asOf: '', source: 'github' },
+      { group: 'development', key: 'githubWatchers', value: 4_000, unit: '', asOf: '', source: 'github' },
+      { group: 'development', key: 'githubOpenIssues', value: 600, unit: '', asOf: '', source: 'github' },
+      { group: 'development', key: 'githubCommits4w', value: 140, unit: '', asOf: '', source: 'github' },
+    ])
+    expect(cryptoMetricsFromGithub(undefined)).toEqual([])
+  })
+
+  it('adds GitHub metrics when the community snapshot links a repository', async () => {
+    const quote = { id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', slug: 'bitcoin', rank: 1 }
+    const community = { id: 'bitcoin', name: 'Bitcoin', githubRepos: ['https://github.com/bitcoin/bitcoin'] }
+    const metrics = await cryptoMetricsForSymbol(
+      'BTC-USD',
+      async () => [quote],
+      async () => community,
+      async (repository) => {
+        expect(repository).toBe('bitcoin/bitcoin')
+        return { repository, stars: 85_000 }
+      },
+    )
+    expect(metrics.map(metric => metric.key)).toEqual(['rank', 'githubStars'])
+
+    // A failing repository read keeps the market and community metrics.
+    await expect(cryptoMetricsForSymbol(
+      'BTC-USD', async () => [quote], async () => community, async () => { throw new Error('github down') },
+    )).resolves.toHaveLength(1)
+
+    // A community snapshot without a repository link stops at the community metrics.
+    await expect(cryptoMetricsForSymbol(
+      'BTC-USD', async () => [quote], async () => ({ id: 'bitcoin', name: 'Bitcoin' }), async () => undefined,
+    )).resolves.toHaveLength(1)
   })
 })

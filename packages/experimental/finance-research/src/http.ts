@@ -6,6 +6,7 @@ import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
 import { normalizeCoinGeckoCommunity } from './coingecko.ts'
+import { normalizeGithubCommitActivity, normalizeGithubRepo } from './github.ts'
 import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
 import { isFuturesScope, normalizeFuturesAccount, normalizeSpotAccount } from './private.ts'
@@ -13,6 +14,8 @@ import { FinanceHttpTransport } from './transport.ts'
 import type {
   FinanceCoinGeckoCommunity,
   FinanceCoinGeckoCommunityRequest,
+  FinanceGithubRepo,
+  FinanceGithubRepoRequest,
   FinanceCoinMarketCapOhlcvRequest,
   FinanceCoinMarketCapOhlcvSeries,
   FinanceCoinMarketCapQuote,
@@ -39,6 +42,7 @@ const DEFAULT_IMF_BASE_URL = 'https://www.imf.org/external/datamapper/api/v1'
 const DEFAULT_BINANCE_BASE_URL = 'https://api.binance.com'
 const DEFAULT_COINMARKETCAP_BASE_URL = 'https://pro-api.coinmarketcap.com'
 const DEFAULT_COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
+const DEFAULT_GITHUB_BASE_URL = 'https://api.github.com'
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = 'https://gamma-api.polymarket.com'
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = 'https://clob.polymarket.com'
 const USER_AGENT = 'deepseek-harness-finance-research/0.0.1'
@@ -121,6 +125,8 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly coinMarketCapBaseUrl?: string
   /** CoinGecko API origin. */
   readonly coinGeckoBaseUrl?: string
+  /** GitHub API origin. */
+  readonly githubBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -161,6 +167,7 @@ interface ResolvedOptions {
   readonly polymarketClobBaseUrl: string
   readonly coinMarketCapBaseUrl: string
   readonly coinGeckoBaseUrl: string
+  readonly githubBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -182,6 +189,7 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'polymarket-gamma', description: 'Polymarket Gamma public catalog API', auth: 'none', docs: 'https://gamma-api.polymarket.com' },
   { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
   { name: 'coingecko', description: 'CoinGecko community and developer data', auth: 'api-key', docs: 'https://docs.coingecko.com/reference/coins-id' },
+  { name: 'github', description: 'GitHub public REST API for repository activity', auth: 'none', docs: 'https://docs.github.com/rest' },
   { name: 'coinmarketcap', description: 'CoinMarketCap Pro REST API', auth: 'api-key', docs: 'https://coinmarketcap.com/api/documentation/' },
   { name: 'fred', description: 'Federal Reserve Economic Data (FRED) series and observations', auth: 'api-key', docs: 'https://fred.stlouisfed.org/docs/api/fred/' },
   { name: 'worldbank', description: 'World Bank indicator API', auth: 'none', docs: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392' },
@@ -197,6 +205,7 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   'polymarket-gamma': 'polymarketGammaBaseUrl',
   'polymarket-clob': 'polymarketClobBaseUrl',
   coingecko: 'coinGeckoBaseUrl',
+  github: 'githubBaseUrl',
   coinmarketcap: 'coinMarketCapBaseUrl',
   fred: 'fredBaseUrl',
   worldbank: 'worldBankBaseUrl',
@@ -265,6 +274,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       polymarketClobBaseUrl: options.polymarketClobBaseUrl ?? DEFAULT_POLYMARKET_CLOB_BASE_URL,
       coinMarketCapBaseUrl: options.coinMarketCapBaseUrl ?? DEFAULT_COINMARKETCAP_BASE_URL,
       coinGeckoBaseUrl: options.coinGeckoBaseUrl ?? DEFAULT_COINGECKO_BASE_URL,
+      githubBaseUrl: options.githubBaseUrl ?? DEFAULT_GITHUB_BASE_URL,
       fredBaseUrl: options.fredBaseUrl ?? DEFAULT_FRED_BASE_URL,
       worldBankBaseUrl: options.worldBankBaseUrl ?? DEFAULT_WORLDBANK_BASE_URL,
       imfBaseUrl: options.imfBaseUrl ?? DEFAULT_IMF_BASE_URL,
@@ -421,6 +431,35 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       },
     }, signal)
     return normalizeCoinGeckoCommunity(response.data)
+  }
+
+  /**
+   * Load one GitHub repository snapshot, including trailing commit activity.
+   * @param request - Repository in `owner/name` form.
+   * @param signal - optional caller cancellation.
+   * @returns The snapshot, or undefined when GitHub cannot serve the repository.
+   */
+  async loadGithubRepo(
+    request: FinanceGithubRepoRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceGithubRepo | undefined> {
+    const path = `/repos/${request.repository}`
+    try {
+      const response = await this.request({ base: 'github', path, auth: 'none' }, signal)
+      const repo = normalizeGithubRepo(response.data, request.repository)
+      if (repo === undefined) return undefined
+      try {
+        // GitHub answers 202 with an empty body while it computes this series.
+        const activity = await this.request({ base: 'github', path: `${path}/stats/commit_activity`, auth: 'none' }, signal)
+        const commits4w = normalizeGithubCommitActivity(activity.data)
+        return commits4w === undefined ? repo : { ...repo, commits4w }
+      } catch {
+        return repo
+      }
+    } catch {
+      // A repository the API rate-limits or cannot find simply contributes no metrics.
+      return undefined
+    }
   }
 
   /**
