@@ -127,6 +127,11 @@ export function buildMacroSections(input: MacroReportInput): ResearchReportSecti
   return sections
 }
 
+/** Turn Markdown emphasis into HTML after escaping, so bullets keep their bold labels. */
+function emphasis(value: string): string {
+  return value.replace(/\*\*(.+?)\*\*/gu, '<strong>$1</strong>')
+}
+
 /**
  * Render the macro report as self-contained HTML.
  * @param title - Report title.
@@ -144,7 +149,7 @@ export function macroReportHtml(
   })[character] as string)
   const body = sections.map(section => [
     `<section><h2>${escape(section.title)}</h2>`,
-    `<ul>${section.content.split('\n').filter(Boolean).map(line => `<li>${escape(line.replace(/^- /u, ''))}</li>`).join('')}</ul>`,
+    `<ul>${section.content.split('\n').filter(Boolean).map(line => `<li>${emphasis(escape(line.replace(/^- /u, '')))}</li>`).join('')}</ul>`,
     '</section>',
   ].join('')).join('')
   return `<!doctype html>

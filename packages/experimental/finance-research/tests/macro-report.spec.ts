@@ -94,6 +94,7 @@ describe('macro report builder', () => {
     expect(html).toContain('A &lt; B')
     expect(html).toContain('T &amp; T')
     expect(html).toContain('line &lt;one&gt;')
+    expect(macroReportHtml('t', 'x', [{ title: 'T', content: '- **Bold** plain' }])).toContain('<strong>Bold</strong>')
   })
 })
 
