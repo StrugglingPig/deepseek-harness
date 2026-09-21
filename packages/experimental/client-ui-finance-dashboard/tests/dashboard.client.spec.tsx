@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FinanceDashboard, type FinanceDashboardProps } from '../src/client/FinanceDashboard.tsx'
 import { FinanceDashboardPanelIcon } from '../src/client/FinanceDashboardPanelIcon.tsx'
@@ -94,19 +94,36 @@ describe('FinanceDashboard', () => {
     expect(actions.refresh).toHaveBeenCalledOnce()
   })
 
-  it('renders loading, empty, failure, connecting, and offline states', () => {
+  it('renders the loading and empty panel states', () => {
     renderDashboard({ status: 'loading', bars: [], quote: undefined })
     expect(screen.getByRole('status').textContent).toBe(en.loading)
+    expect(screen.queryByText(en.emptyHint)).toBeNull()
     cleanup()
     renderDashboard({ status: 'ready', bars: [], quote: undefined, streamStatus: 'connecting' })
-    expect(screen.getByText(en.empty)).toBeTruthy()
+    expect(screen.getByText(en.emptyTitle)).toBeTruthy()
+    expect(screen.getByText(en.emptyHint)).toBeTruthy()
     expect(screen.getByText(en.connecting)).toBeTruthy()
-    cleanup()
-    renderDashboard({ status: 'error', error: 'offline', bars: [], quote: undefined, streamStatus: 'error' })
-    expect(screen.getByRole('alert').textContent).toContain('offline')
     cleanup()
     renderDashboard({ status: 'ready', bars: [], quote: undefined, streamStatus: 'disconnected' })
     expect(screen.getByText(en.offline)).toBeTruthy()
+    expect(screen.getByText(en.emptyTitle)).toBeTruthy()
+  })
+
+  it('reports a failed load as no data, with the provider message collapsed', () => {
+    const actions = renderDashboard({
+      status: 'error',
+      error: 'request failed for https://query1.finance.yahoo.com/v8/finance/chart/TSLA: HTTP 403',
+      bars: [],
+      quote: undefined,
+      streamStatus: 'error',
+    })
+    expect(screen.getByText(en.emptyTitle)).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    // The raw provider message only appears inside the disclosure.
+    expect(screen.getByText(en.emptyDetails)).toBeTruthy()
+    expect(screen.getByText(/query1\.finance\.yahoo\.com/)).toBeTruthy()
+    fireEvent.click(within(screen.getByTestId('finance-empty')).getByRole('button', { name: en.refresh }))
+    expect(actions.refresh).toHaveBeenCalledOnce()
   })
 
   it('keeps the snapshot mounted while a background poll or failure is pending', () => {
@@ -120,7 +137,8 @@ describe('FinanceDashboard', () => {
     cleanup()
 
     renderDashboard({ status: 'error', error: 'offline', streamStatus: 'error' })
-    expect(screen.getByRole('alert').textContent).toContain('offline')
+    // A failed poll keeps the last snapshot on screen and stays out of the way.
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByTestId('finance-chart')).toBeTruthy()
   })
 
@@ -180,8 +198,9 @@ describe('FinanceDashboard', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(actions.setSymbol).toHaveBeenCalled()
     cleanup()
-    renderDashboard({ status: 'error', error: undefined })
-    expect(screen.getByRole('alert').textContent).toBe(en.error)
+    renderDashboard({ status: 'error', error: undefined, bars: [], quote: undefined })
+    expect(screen.getByText(en.emptyTitle)).toBeTruthy()
+    expect(screen.queryByText(en.emptyDetails)).toBeNull()
   })
 
 })

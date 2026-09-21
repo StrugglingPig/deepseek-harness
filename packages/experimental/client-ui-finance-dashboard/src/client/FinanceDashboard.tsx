@@ -23,6 +23,20 @@ export type FinanceDashboardProps =
 
 const ASSETS: readonly DashboardAsset[] = ['crypto', 'stock', 'us']
 
+/**
+ * Placeholder artwork for the empty and loading panel state.
+ * @returns The inline glyph.
+ */
+function EmptyGlyph() {
+  return (
+    <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+      <rect x="6.5" y="8.5" width="31" height="27" rx="4" stroke="currentColor" strokeWidth="2" />
+      <path d="M6.5 14.5h31" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M11 29.5l5.5-6.5 4.5 4.5 3.5-4.5L31 29.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function formatNumber(value: number): string {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -131,9 +145,26 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
           onClose={() => { setShowIndicators(false) }}
         />
       )}
-      {state.status === 'loading' && latest === undefined ? <p role="status" className={css.notice}>{t('loading')}</p> : null}
-      {state.status === 'error' ? <p role="alert" className={css.error}>{t('error')}{state.error === undefined ? '' : `: ${state.error}`}</p> : null}
-      {state.status === 'ready' && latest === undefined ? <p className={css.notice}>{t('empty')}</p> : null}
+      {latest !== undefined ? null : (
+        <div className={css.empty} data-status={state.status} data-testid="finance-empty">
+          <span className={css.emptyGlyph} aria-hidden><EmptyGlyph /></span>
+          <p role="status" className={css.emptyTitle}>
+            {state.status === 'loading' ? t('loading') : t('emptyTitle')}
+          </p>
+          {state.status === 'loading' ? null : (
+            <>
+              <p className={css.emptyHint}>{t('emptyHint')}</p>
+              <button type="button" className={css.button} onClick={props.refresh}>{t('refresh')}</button>
+            </>
+          )}
+          {state.error === undefined ? null : (
+            <details className={css.emptyDetails}>
+              <summary>{t('emptyDetails')}</summary>
+              <p>{state.error}</p>
+            </details>
+          )}
+        </div>
+      )}
       {/* A poll or a failed reload keeps the last snapshot mounted: unmounting it
           would drop the reader's scroll position on every interval. */}
       {latest === undefined ? null : (

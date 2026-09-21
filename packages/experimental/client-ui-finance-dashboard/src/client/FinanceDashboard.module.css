@@ -60,7 +60,13 @@
 .indicatorToggle { display: inline-flex; align-items: center; gap: 6px; min-width: 96px; cursor: pointer; }
 .indicatorParam { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dsh-text-secondary, #6b7280); }
 .indicatorParam input { width: 72px; border: 1px solid var(--dsh-border, #d1d5db); border-radius: 8px; padding: 4px 6px; background: var(--dsh-surface, #fff); color: inherit; font-size: 12px; }
-.notice, .error, .accountNote { margin: 0; color: var(--dsh-text-secondary, #6b7280); }
-.error { color: #b91c1c; }
+.accountNote { margin: 0; color: var(--dsh-text-secondary, #6b7280); }
+.empty { display: grid; flex: 1 1 auto; align-content: center; justify-items: center; gap: 12px; min-height: 320px; padding: 40px 24px; border: 1px dashed var(--dsh-border, #d1d5db); border-radius: 12px; background: color-mix(in srgb, currentColor 2%, transparent); color: var(--dsh-text-secondary, #6b7280); text-align: center; }
+.emptyGlyph { display: inline-flex; color: color-mix(in srgb, currentColor 65%, transparent); }
+.emptyTitle { margin: 0; font-size: 16px; font-weight: 600; color: var(--dsh-text, #111827); }
+.emptyHint { max-width: 420px; margin: 0; font-size: 13px; line-height: 1.6; }
+.emptyDetails { max-width: 100%; font-size: 12px; color: var(--dsh-text-secondary, #6b7280); }
+.emptyDetails summary { cursor: pointer; }
+.emptyDetails p { margin: 6px 0 0; text-align: left; word-break: break-all; }
 .accountNote { margin-top: auto; font-size: 12px; }
 @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
