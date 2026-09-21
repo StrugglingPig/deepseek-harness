@@ -79,6 +79,56 @@ function mountFrame(core: SlotCore, body: (renderSlot: FrameSlots['renderSlot'])
 }
 
 describe('createSlotRenderer over the real SlotCore', () => {
+  it('renders the root tree while no scope adapter is installed', () => {
+    const core = new SlotCore()
+    // The root tree outlives every scope adapter: a disconnect or a Session
+    // teardown uninstalls the adapter while scoped outlets are still mounted.
+    const bare: SlotRendererHost = { ...hostOver(core), scope: () => undefined }
+    core.register({ name: 'root' }, () => <i>shell</i>)
+
+    const view = render(<>{createSlotRenderer().renderRoot(bare, {})}</>)
+    expect(view.container.textContent).toBe('shell')
+  })
+
+
+  it('survives a scope adapter uninstalling under a mounted tree', () => {
+    const core = new SlotCore()
+    const base = hostOver(core)
+    let adapter = base.scope('session-maybe')
+    let revision = 0
+    const listeners = new Set<() => void>()
+    const host: SlotRendererHost = {
+      ...base,
+      scope: () => adapter,
+      scopeRevision: {
+        getSnapshot: () => revision,
+        subscribe: (fn) => {
+          listeners.add(fn)
+          return () => { listeners.delete(fn) }
+        },
+      },
+    }
+    core.register({ name: 'root' }, () => <i>shell</i>)
+    const view = render(<>{createSlotRenderer().renderRoot(host, {})}</>)
+    expect(view.container.textContent).toBe('shell')
+
+    // The uninstall window: the adapter is gone while the tree stays mounted.
+    act(() => {
+      adapter = undefined
+      revision += 1
+      for (const listener of listeners) listener()
+    })
+    expect(view.container.textContent).toBe('shell')
+
+    // …and the scope comes back without a remount.
+    act(() => {
+      adapter = base.scope('session-maybe')
+      revision += 1
+      for (const listener of listeners) listener()
+    })
+    expect(view.container.textContent).toBe('shell')
+  })
+
   it('renders registrations live through real microtask batching: register, dispose back to fallback', async () => {
     const core = new SlotCore()
     const { view } = mountFrame(core, renderSlot =>

@@ -139,6 +139,19 @@ export function keyedObservableHook(
   return hook
 }
 
+/**
+ * Absent scope projection: a scope whose adapter is not installed, or whose
+ * optional selection is empty, reads as a binding with no key. Scoped outlets
+ * already carry a blank incarnation for that state.
+ */
+const ABSENT_SCOPE_BINDING: StandardSourceBinding = { key: undefined, hooks: {}, keyedHooks: {}, props: {} }
+
+/** Stable observable for {@link ABSENT_SCOPE_BINDING}, so Hook identity never changes. */
+const ABSENT_SCOPE_SOURCE: HostObservable<StandardSourceBinding> = {
+  getSnapshot: () => ABSENT_SCOPE_BINDING,
+  subscribe: () => () => {},
+}
+
 const NO_DEFAULT_KEY = Symbol('no default key')
 const keyedHookCache = new WeakMap<KeyedStandardSource, Map<string | symbol, KeyedSnapshotHook>>()
 const identity = (value: unknown): unknown => value
@@ -166,8 +179,13 @@ export function ScopeProvider({
 }) {
   const host = useHost()
   observableHook(host.scopeRevision)(value => value)
+  // The root tree outlives every scope adapter: a disconnect or a Session
+  // teardown uninstalls the adapter while scoped outlets are still mounted, and
+  // the roster subscription above re-renders this provider in that window.
+  // Rendering the absent projection keeps those outlets in their blank
+  // incarnation; throwing here would fail the whole application tree. The Hook
+  // call stays unconditional so the Hook order cannot change with the roster.
   const adapter = host.scope(scope)
-  if (adapter === undefined) throw new SlotAssemblyError(`scope '${scope}' rendered without an installed adapter`)
-  const binding = observableHook(adapter.current)(value => value)
+  const binding = observableHook(adapter?.current ?? ABSENT_SCOPE_SOURCE)(value => value)
   return <ScopeBindingContext.Provider value={binding}>{children}</ScopeBindingContext.Provider>
 }
