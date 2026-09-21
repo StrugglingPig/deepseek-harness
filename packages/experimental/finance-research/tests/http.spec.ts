@@ -249,6 +249,7 @@ describe('HTTP finance market data provider', () => {
     expect(provider.describe().bases.map(base => base.name)).toEqual([
       'binance-spot', 'binance-usdm', 'binance-coinm', 'binance-options',
       'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coinmarketcap',
+      'fred', 'worldbank', 'imf',
     ])
 
     await provider.request({ base: 'binance-spot', path: '/api/v3/ping' })

@@ -7,6 +7,8 @@ import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
   createCoinMarketCapRequestAuthorizer,
+  createFredRequestAuthorizer,
+  FRED_API_KEY_REF,
 } from '../src/auth.ts'
 
 const NOW = Date.UTC(2026, 8, 20, 12, 0, 0)
@@ -119,6 +121,17 @@ describe('Binance request authorizer', () => {
     expect(headers).toEqual({ 'X-CMC_PRO_API_KEY': 'cmc-key' })
   })
 
+  it('leaves the other api-key base to its own authorizer', async () => {
+    const authorize = createCoinMarketCapRequestAuthorizer({
+      resolveCredential: async () => undefined,
+      enabled: () => true,
+    })
+    const url = new URL('https://api.stlouisfed.org/fred/series/observations')
+    await expect(authorize({ base: 'fred', path: '/fred/series/observations', auth: 'api-key' }, url, {}))
+      .resolves.toBeUndefined()
+    expect(url.searchParams.has('api_key')).toBe(false)
+  })
+
   it('rejects disabled, wrong-base, and missing CoinMarketCap credentials', async () => {
     const request = { base: 'coinmarketcap', path: '/v3/cryptocurrency/quotes/latest', auth: 'api-key' } as const
     await expect(createCoinMarketCapRequestAuthorizer({
@@ -135,6 +148,29 @@ describe('Binance request authorizer', () => {
       resolveCredential: async () => undefined,
       enabled: () => true,
     })(request, new URL('https://pro-api.test'), {})).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
+  })
+
+  it('adds the api_key query parameter to FRED requests only', async () => {
+    const authorize = createFredRequestAuthorizer({
+      resolveCredential: async ref => ref === FRED_API_KEY_REF ? 'fred-key' : undefined,
+      enabled: () => true,
+    })
+    const url = new URL('https://api.stlouisfed.org/fred/series/observations')
+    await authorize({ base: 'fred', path: '/fred/series/observations', auth: 'api-key' }, url, {})
+    expect(url.searchParams.get('api_key')).toBe('fred-key')
+
+    const untouched = new URL('https://api.stlouisfed.org/fred/series/observations')
+    await authorize({ base: 'fred', path: '/fred/series/observations' }, untouched, {})
+    expect(untouched.searchParams.has('api_key')).toBe(false)
+  })
+
+  it('rejects a disabled FRED switch and a missing FRED key', async () => {
+    const disabled = createFredRequestAuthorizer({ resolveCredential: async () => 'fred-key', enabled: () => false })
+    await expect(disabled({ base: 'fred', path: '/fred/series', auth: 'api-key' }, new URL('https://fred.test'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_DISABLED' })
+    const missing = createFredRequestAuthorizer({ resolveCredential: async () => undefined, enabled: () => true })
+    await expect(missing({ base: 'fred', path: '/fred/series', auth: 'api-key' }, new URL('https://fred.test'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
   })
 
   it('composes Binance and CoinMarketCap authorizers without cross-handling', async () => {

@@ -4,7 +4,7 @@ import { WebSocketServer } from 'ws'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
-import { apply, BINANCE_API_KEY_REF, COINMARKETCAP_API_KEY_REF } from '../src/index.ts'
+import { apply, BINANCE_API_KEY_REF, COINMARKETCAP_API_KEY_REF, FRED_API_KEY_REF } from '../src/index.ts'
 import { DASHBOARD_MARKET_PATH } from '../src/shared.ts'
 import type { Config } from '../src/index.ts'
 import type { FinanceRuntimeSettings } from '../src/settings-provider.ts'
@@ -36,6 +36,10 @@ const CONFIG: Required<Config> = {
   stockBridgeTimeoutMs: 60_000,
   stockBridgeMaxOutputBytes: 4 * 1024 * 1024,
   coinMarketCapBaseUrl: 'https://pro-api.test',
+  fredBaseUrl: 'https://fred.test',
+  worldBankBaseUrl: 'https://worldbank.test',
+  imfBaseUrl: 'https://imf.test',
+  enableFredRequests: true,
   requestCacheTtlMs: 0,
   requestCacheMaxEntries: 10,
   requestMaxRetries: 0,
@@ -65,7 +69,8 @@ describe('finance apply', () => {
     const resolve = vi.fn(async (ref: string) => ({
       value: ref === BINANCE_API_KEY_REF ? 'api-key'
         : ref === COINMARKETCAP_API_KEY_REF ? 'cmc-key'
-          : 'api-secret',
+          : ref === FRED_API_KEY_REF ? 'fred-key'
+            : 'api-secret',
     }))
     ctx.provide('credentials', { resolve } as never)
     const server = new WebSocketServer({ port: 0 })
@@ -92,6 +97,10 @@ describe('finance apply', () => {
     current = config
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.includes('/fred/series/observations')) {
+        expect(url).toContain('api_key=fred-key')
+        return new Response(JSON.stringify({ observations: [{ date: '2026-01-01', value: '4.5' }, { date: '2026-02-01', value: '4.7' }] }), { status: 200 })
+      }
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
       }
@@ -129,6 +138,15 @@ describe('finance apply', () => {
     })
     expect(quotes.isError).toBe(false)
 
+    const macro = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'macro-snapshot' as never,
+      name: 'finance_macro_snapshot',
+      arguments: { indicators: ['us-10y-yield'], source: 'fred', limit: 2 },
+    })
+    expect(macro.isError).toBe(false)
+    expect(textOfReport(macro)).toContain('4.7')
+
     const cmcStreamed = await ctx.tools.execute({
       signal: new AbortController().signal,
       callId: 'cmc-stream-request' as never,
@@ -161,16 +179,23 @@ describe('finance apply', () => {
         volume: 1_000 + index,
       })),
     }
+    let payload: object = history
     const handle = {
       collected: {
-        stdout: { readFrom: () => ({ text: JSON.stringify({ ok: true, data: history }), nextOffset: 0, lossy: false }) },
+        stdout: { readFrom: () => ({ text: JSON.stringify({ ok: true, data: payload }), nextOffset: 0, lossy: false }) },
         stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) },
       },
       done: Promise.resolve({ exitCode: 0, signal: null }),
     } as unknown as SubprocessHandle
     ctx.provide('subprocess', {
       resolveExecutable: async () => '/usr/bin/python3',
-      spawn: () => handle,
+      spawn: (request: { readonly stdio?: { readonly stdin?: { readonly data?: string } } }) => {
+        const stdin = request.stdio?.stdin?.data ?? ''
+        payload = stdin.includes('macro_series')
+          ? { function: 'macro_china_pmi', observations: [{ date: '2026-01', value: 50.5 }] }
+          : history
+        return handle
+      },
     } as never)
     ctx.provide('credentials', { resolve: async () => ({ value: 'credential' }) } as never)
     let route: { fetch: (request: Request) => Promise<Response> } | undefined
@@ -202,6 +227,15 @@ describe('finance apply', () => {
     expect(akshareRoute?.status).toBe(200)
     expect(ifindRoute?.status).toBe(200)
     expect(await akshareRoute?.text()).toContain('贵州茅台')
+
+    const macro = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'macro-akshare' as never,
+      name: 'finance_macro_snapshot',
+      arguments: { indicators: ['cn-pmi'], source: 'akshare', limit: 1 },
+    })
+    expect(macro.isError).toBe(false)
+    expect(textOfReport(macro)).toContain('50.5')
     await ctx.fiber.dispose()
   })
 

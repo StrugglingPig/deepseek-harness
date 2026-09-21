@@ -30,6 +30,11 @@ export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
 /** Credential reference for the CoinMarketCap API key. */
 export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
+/** Credential reference for the FRED API key. */
+export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
+
+/** Bases whose requests carry an API key; each has exactly one owning authorizer. */
+const API_KEY_BASES: ReadonlySet<string> = new Set(['coinmarketcap', 'fred'])
 
 /** Options for CoinMarketCap API-key authorization. */
 export interface CoinMarketCapRequestAuthorizerOptions {
@@ -83,13 +88,35 @@ export function createCoinMarketCapRequestAuthorizer(
     if (request.auth !== 'api-key') return
     if (!options.enabled()) throw new FinanceDataError('CoinMarketCap requests are disabled in settings', 'AUTH_DISABLED')
     if (request.base !== 'coinmarketcap') {
-      throw new FinanceDataError('api-key requests are configured only for the CoinMarketCap base', 'AUTH_UNSUPPORTED')
+      // Another authorizer owns the remaining api-key bases; an unknown base is
+      // still a misconfiguration rather than a silently unauthenticated call.
+      if (API_KEY_BASES.has(request.base)) return
+      throw new FinanceDataError('api-key requests are configured only for the CoinMarketCap and FRED bases', 'AUTH_UNSUPPORTED')
     }
     const apiKey = await options.resolveCredential(COINMARKETCAP_API_KEY_REF)
     if (apiKey === undefined || apiKey.length === 0) {
       throw new FinanceDataError('CoinMarketCap API key is not configured', 'AUTH_REQUIRED')
     }
     headers['X-CMC_PRO_API_KEY'] = apiKey
+  }
+}
+
+/**
+ * Create the FRED API-key authorizer.
+ * @param options - credential resolver and feature switch.
+ * @returns an authorizer that adds the `api_key` query parameter to FRED requests.
+ */
+export function createFredRequestAuthorizer(
+  options: CoinMarketCapRequestAuthorizerOptions,
+): FinanceRequestAuthorizer {
+  return async (request, url) => {
+    if (request.auth !== 'api-key' || request.base !== 'fred') return
+    if (!options.enabled()) throw new FinanceDataError('FRED requests are disabled in settings', 'AUTH_DISABLED')
+    const apiKey = await options.resolveCredential(FRED_API_KEY_REF)
+    if (apiKey === undefined || apiKey.length === 0) {
+      throw new FinanceDataError('FRED API key is not configured', 'AUTH_REQUIRED')
+    }
+    url.searchParams.set('api_key', apiKey)
   }
 }
 

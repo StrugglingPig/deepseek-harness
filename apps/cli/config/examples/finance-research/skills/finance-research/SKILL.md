@@ -13,9 +13,10 @@ This skill governs a finance research session. The finance research tools own de
 2. Call `finance_market_snapshot` for the normalized instrument and source facts.
 3. Call `finance_technical_analysis` for SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, signals, conflicts, and the composite score.
 4. Call `finance_methodology_analysis` for non-A-share instruments and `finance_stock_methodology_analysis` for A-shares to get data-backed methodology readings and investor lenses. Call `finance_strategy_catalog` when the user asks which strategy families are available or which inputs are missing.
-5. Use `web_search` and `web_fetch` for current news, filings, macro data, or prediction-market rules when the snapshot does not carry them.
-6. Call `finance_report_types` to choose the report type for the request: recurring coverage uses daily, weekly, or monthly; a one-off analysis uses deep-dive or thematic; a company or macro event uses event; a reporting date uses earnings; allocation questions use allocation. Then call `finance_research_report` with that `report_type` to build Markdown and interactive HTML, and `finance_report_export` to write both files when `ctx.fs` is available.
-7. Re-check every claim against tool results and source metadata before synthesis.
+5. For macro, rate, policy, or cross-asset questions, call `finance_macro_catalog` to pick indicator ids and then `finance_macro_snapshot` to read the series. `source: auto` walks the catalog upstreams (FRED, AKShare, World Bank, IMF); pass an explicit source only to test one upstream or to honour a stated preference. Report every macro figure with its unit, frequency, and the period it describes, and never resample or annualise a series yourself.
+6. Use `web_search` and `web_fetch` for current news, filings, policy statements, or prediction-market rules when the snapshots do not carry them.
+7. Call `finance_report_types` to choose the report type for the request: recurring coverage uses daily, weekly, or monthly; a one-off analysis uses deep-dive or thematic; a company or macro event uses event; a reporting date uses earnings; allocation questions use allocation. Then call `finance_research_report` with that `report_type` to build Markdown and interactive HTML, and `finance_report_export` to write both files when `ctx.fs` is available.
+8. Re-check every claim against tool results and source metadata before synthesis.
 
 The report writer owns the report language: it follows the user's selected locale, then the host system locale, and falls back to English. Write your own commentary, answers, and summaries in that same language, and never translate or duplicate the generated section headings.
 
@@ -27,6 +28,15 @@ Never calculate RSI, MACD, ATR, Bollinger Bands, or composite weights by reasoni
 - **Crypto** — combine price structure, volatility, volume, funding, open interest, liquidity, and on-chain or exchange-flow evidence when available.
 - **Prediction market** — separate market-implied probability from model probability; record bid/ask spread, depth, resolution rules, expiry, and cross-market consistency.
 - **Market research** — identify the regime, demand drivers, competitive structure, policy or regulatory constraints, and scenario sensitivities.
+
+## Macro data
+
+`finance_macro_snapshot` returns upstream-as-published observations with `unit`, `frequency`, `timing` (leading/coincident/lagging), a transmission `reading`, and the affected assets. Coverage spans growth, inflation, employment, consumption, investment, money and credit, fiscal, external, policy, and market transmission for China, the United States, and global aggregates.
+
+- FRED carries the long US history (policy rate, real yields, credit spreads, PCE, payrolls, the dollar) and needs a free API key plus the FRED switch in Finance settings.
+- AKShare carries China's activity, price, credit, and external series through the local Python bridge.
+- The World Bank and IMF DataMapper carry annual cross-country and global panels.
+- An indicator the catalog does not know is an error, not a guess: call `finance_macro_catalog` first. When a source is disabled or unkeyed, `auto` records the reason and tries the next binding; per-series failures return in `errors` beside the series that did load.
 
 ## Private account and realtime data
 

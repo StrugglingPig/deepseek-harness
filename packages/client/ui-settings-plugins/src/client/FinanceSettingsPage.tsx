@@ -207,6 +207,34 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         stateLabel={state.coinMarketCapApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
         onEdit={(text) => { props.edit('coinMarketCapApiKey', text) }}
       />
+      <h3 className={css.label}>{t('financeFredTitle')}</h3>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-fred">{t('financeEnableFredRequests')}</label>
+        </div>
+        <input
+          id="finance-enable-fred"
+          type="checkbox"
+          checked={state.enableFredRequests.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableFredRequests', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableFredRequestsHint')}</p>
+      </div>
+      <ValueField id="finance-fred-base" label={t('financeFredBaseUrl')} hint={t('financeEndpointHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.fredBaseUrl}
+        onEdit={(text) => { props.edit('fredBaseUrl', text) }} onReset={() => { props.resetField('fredBaseUrl') }} />
+      <SecretField
+        id="finance-fred-api-key"
+        label={t('financeFredApiKey')}
+        hint={t('financeFredApiKeyHint')}
+        disabled={!state.fredApiKeyWritable}
+        text={state.fredApiKey.text}
+        configured={state.fredApiKeyConfigured}
+        stateLabel={state.fredApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('fredApiKey', text) }}
+      />
       <h3 className={css.label}>{t('financeDeliveryTitle')}</h3>
       <ValueField id="finance-ws-base" label={t('financeBinanceWebSocketBaseUrl')} hint={t('financeEndpointHint')}
         overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}

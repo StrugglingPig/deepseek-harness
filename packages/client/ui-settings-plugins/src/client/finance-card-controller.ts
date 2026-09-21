@@ -17,6 +17,8 @@ export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
 /** Credential reference for the CoinMarketCap API key. */
 export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
+/** Credential reference for the FRED API key. */
+export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 /** Credential reference for the iFinD account. */
 export const IFIND_USER_REF = 'FINANCE_IFIND_USER'
 /** Credential reference for the iFinD password. */
@@ -27,6 +29,7 @@ export const IFIND_REFRESH_TOKEN_REF = 'FINANCE_IFIND_REFRESH_TOKEN'
 const API_KEY_FIELD = 'binanceApiKey'
 const API_SECRET_FIELD = 'binanceApiSecret'
 const COINMARKETCAP_API_KEY_FIELD = 'coinMarketCapApiKey'
+const FRED_API_KEY_FIELD = 'fredApiKey'
 const IFIND_USER_FIELD = 'ifindUser'
 const IFIND_PASSWORD_FIELD = 'ifindPassword'
 const IFIND_REFRESH_TOKEN_FIELD = 'ifindRefreshToken'
@@ -44,8 +47,10 @@ export interface FinanceSettings {
   polymarketGammaBaseUrl?: string
   polymarketClobBaseUrl?: string
   coinMarketCapBaseUrl?: string
+  fredBaseUrl?: string
   enableSignedRequests?: boolean
   enableCoinMarketCapRequests?: boolean
+  enableFredRequests?: boolean
   enableAkshare?: boolean
   enableIfind?: boolean
   ifindTransport?: string
@@ -84,8 +89,10 @@ export interface FinanceCardState extends CardShell {
   polymarketGammaBaseUrl: CardFieldState
   polymarketClobBaseUrl: CardFieldState
   coinMarketCapBaseUrl: CardFieldState
+  fredBaseUrl: CardFieldState
   enableSignedRequests: CardFieldState
   enableCoinMarketCapRequests: CardFieldState
+  enableFredRequests: CardFieldState
   enableAkshare: CardFieldState
   enableIfind: CardFieldState
   ifindTransport: CardFieldState
@@ -107,18 +114,21 @@ export interface FinanceCardState extends CardShell {
   binanceApiKey: CardFieldState
   binanceApiSecret: CardFieldState
   coinMarketCapApiKey: CardFieldState
+  fredApiKey: CardFieldState
   ifindUser: CardFieldState
   ifindPassword: CardFieldState
   ifindRefreshToken: CardFieldState
   binanceApiKeyConfigured: boolean
   binanceApiSecretConfigured: boolean
   coinMarketCapApiKeyConfigured: boolean
+  fredApiKeyConfigured: boolean
   ifindUserConfigured: boolean
   ifindPasswordConfigured: boolean
   ifindRefreshTokenConfigured: boolean
   binanceApiKeyWritable: boolean
   binanceApiSecretWritable: boolean
   coinMarketCapApiKeyWritable: boolean
+  fredApiKeyWritable: boolean
   ifindUserWritable: boolean
   ifindPasswordWritable: boolean
   ifindRefreshTokenWritable: boolean
@@ -138,6 +148,7 @@ export class FinanceCardController {
   private apiKey: CredentialState = { configured: false, writable: true }
   private apiSecret: CredentialState = { configured: false, writable: true }
   private coinMarketCapApiKey: CredentialState = { configured: false, writable: true }
+  private fredApiKey: CredentialState = { configured: false, writable: true }
   private ifindUser: CredentialState = { configured: false, writable: true }
   private ifindPassword: CredentialState = { configured: false, writable: true }
   private ifindRefreshToken: CredentialState = { configured: false, writable: true }
@@ -157,8 +168,9 @@ export class FinanceCardController {
         textField('yahooBaseUrl'), textField('binanceBaseUrl'), textField('binanceUsdmBaseUrl'),
         textField('binanceCoinmBaseUrl'), textField('binanceOptionsBaseUrl'),
         textField('polymarketGammaBaseUrl'), textField('polymarketClobBaseUrl'),
-        textField('coinMarketCapBaseUrl'),
+        textField('coinMarketCapBaseUrl'), textField('fredBaseUrl'),
         booleanField('enableSignedRequests'), booleanField('enableCoinMarketCapRequests'),
+        booleanField('enableFredRequests'),
         booleanField('enableAkshare'), booleanField('enableIfind'),
         textField('ifindTransport'), textField('ifindBaseUrl'),
         textField('pythonExecutable'), numberField('stockBridgeTimeoutMs'),
@@ -173,6 +185,7 @@ export class FinanceCardController {
         { field: API_KEY_FIELD, write: text => this.writeCredential(BINANCE_API_KEY_REF, text) },
         { field: API_SECRET_FIELD, write: text => this.writeCredential(BINANCE_API_SECRET_REF, text) },
         { field: COINMARKETCAP_API_KEY_FIELD, write: text => this.writeCredential(COINMARKETCAP_API_KEY_REF, text) },
+        { field: FRED_API_KEY_FIELD, write: text => this.writeCredential(FRED_API_KEY_REF, text) },
         { field: IFIND_USER_FIELD, write: text => this.writeCredential(IFIND_USER_REF, text) },
         { field: IFIND_PASSWORD_FIELD, write: text => this.writeCredential(IFIND_PASSWORD_REF, text) },
         { field: IFIND_REFRESH_TOKEN_FIELD, write: text => this.writeCredential(IFIND_REFRESH_TOKEN_REF, text) },
@@ -197,8 +210,10 @@ export class FinanceCardController {
       polymarketGammaBaseUrl: this.form.field('polymarketGammaBaseUrl'),
       polymarketClobBaseUrl: this.form.field('polymarketClobBaseUrl'),
       coinMarketCapBaseUrl: this.form.field('coinMarketCapBaseUrl'),
+      fredBaseUrl: this.form.field('fredBaseUrl'),
       enableSignedRequests: this.form.field('enableSignedRequests'),
       enableCoinMarketCapRequests: this.form.field('enableCoinMarketCapRequests'),
+      enableFredRequests: this.form.field('enableFredRequests'),
       enableAkshare: this.form.field('enableAkshare'),
       enableIfind: this.form.field('enableIfind'),
       ifindTransport: this.form.field('ifindTransport'),
@@ -220,18 +235,21 @@ export class FinanceCardController {
       binanceApiKey: this.form.field(API_KEY_FIELD),
       binanceApiSecret: this.form.field(API_SECRET_FIELD),
       coinMarketCapApiKey: this.form.field(COINMARKETCAP_API_KEY_FIELD),
+      fredApiKey: this.form.field(FRED_API_KEY_FIELD),
       ifindUser: this.form.field(IFIND_USER_FIELD),
       ifindPassword: this.form.field(IFIND_PASSWORD_FIELD),
       ifindRefreshToken: this.form.field(IFIND_REFRESH_TOKEN_FIELD),
       binanceApiKeyConfigured: this.apiKey.configured,
       binanceApiSecretConfigured: this.apiSecret.configured,
       coinMarketCapApiKeyConfigured: this.coinMarketCapApiKey.configured,
+      fredApiKeyConfigured: this.fredApiKey.configured,
       ifindUserConfigured: this.ifindUser.configured,
       ifindPasswordConfigured: this.ifindPassword.configured,
       ifindRefreshTokenConfigured: this.ifindRefreshToken.configured,
       binanceApiKeyWritable: this.apiKey.writable,
       binanceApiSecretWritable: this.apiSecret.writable,
       coinMarketCapApiKeyWritable: this.coinMarketCapApiKey.writable,
+      fredApiKeyWritable: this.fredApiKey.writable,
       ifindUserWritable: this.ifindUser.writable,
       ifindPasswordWritable: this.ifindPassword.writable,
       ifindRefreshTokenWritable: this.ifindRefreshToken.writable,
@@ -241,12 +259,14 @@ export class FinanceCardController {
   private async readCredentials(): Promise<void> {
     const response = await this.ctx.remote.credentials.describe([
       BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF,
+      FRED_API_KEY_REF,
       IFIND_USER_REF, IFIND_PASSWORD_REF, IFIND_REFRESH_TOKEN_REF,
     ])
     if (!response.ok) return
     const apiKey = response.value[BINANCE_API_KEY_REF]
     const apiSecret = response.value[BINANCE_API_SECRET_REF]
     const coinMarketCapApiKey = response.value[COINMARKETCAP_API_KEY_REF]
+    const fredApiKey = response.value[FRED_API_KEY_REF]
     const ifindUser = response.value[IFIND_USER_REF]
     const ifindPassword = response.value[IFIND_PASSWORD_REF]
     const ifindRefreshToken = response.value[IFIND_REFRESH_TOKEN_REF]
@@ -256,6 +276,7 @@ export class FinanceCardController {
       configured: coinMarketCapApiKey?.configured ?? false,
       writable: coinMarketCapApiKey?.writable ?? true,
     }
+    const nextFredKey = { configured: fredApiKey?.configured ?? false, writable: fredApiKey?.writable ?? true }
     const nextIfindUser = { configured: ifindUser?.configured ?? false, writable: ifindUser?.writable ?? true }
     const nextIfindPassword = { configured: ifindPassword?.configured ?? false, writable: ifindPassword?.writable ?? true }
     const nextIfindRefreshToken = { configured: ifindRefreshToken?.configured ?? false, writable: ifindRefreshToken?.writable ?? true }
@@ -263,6 +284,7 @@ export class FinanceCardController {
       && nextSecret.configured === this.apiSecret.configured && nextSecret.writable === this.apiSecret.writable
       && nextCoinMarketCapKey.configured === this.coinMarketCapApiKey.configured
       && nextCoinMarketCapKey.writable === this.coinMarketCapApiKey.writable
+      && nextFredKey.configured === this.fredApiKey.configured && nextFredKey.writable === this.fredApiKey.writable
       && nextIfindUser.configured === this.ifindUser.configured && nextIfindUser.writable === this.ifindUser.writable
       && nextIfindPassword.configured === this.ifindPassword.configured
       && nextIfindPassword.writable === this.ifindPassword.writable
@@ -271,6 +293,7 @@ export class FinanceCardController {
     this.apiKey = nextKey
     this.apiSecret = nextSecret
     this.coinMarketCapApiKey = nextCoinMarketCapKey
+    this.fredApiKey = nextFredKey
     this.ifindUser = nextIfindUser
     this.ifindPassword = nextIfindPassword
     this.ifindRefreshToken = nextIfindRefreshToken
@@ -284,6 +307,7 @@ export class FinanceCardController {
   refreshCredential(ref: string): void {
     if (
       ref === BINANCE_API_KEY_REF || ref === BINANCE_API_SECRET_REF || ref === COINMARKETCAP_API_KEY_REF
+      || ref === FRED_API_KEY_REF
       || ref === IFIND_USER_REF || ref === IFIND_PASSWORD_REF || ref === IFIND_REFRESH_TOKEN_REF
     ) {
       void this.readCredentials()
@@ -296,6 +320,7 @@ export class FinanceCardController {
     if (ref === BINANCE_API_KEY_REF) return this.apiKey.configured
     if (ref === BINANCE_API_SECRET_REF) return this.apiSecret.configured
     if (ref === COINMARKETCAP_API_KEY_REF) return this.coinMarketCapApiKey.configured
+    if (ref === FRED_API_KEY_REF) return this.fredApiKey.configured
     if (ref === IFIND_USER_REF) return this.ifindUser.configured
     if (ref === IFIND_PASSWORD_REF) return this.ifindPassword.configured
     return this.ifindRefreshToken.configured

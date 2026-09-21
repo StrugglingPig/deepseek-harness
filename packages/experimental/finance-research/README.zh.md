@@ -11,6 +11,19 @@ English | [中文](README.md)
 
 `dsh-experimental-finance-research` 为金融研究会话提供一条从数据到报告的路径，可使用确定性 fixture、实时公共 HTTP 和 WebSocket Provider。它加载股票、加密货币和预测市场的统一快照，计算技术指标和加权多指标汇总，评估策略目录和投资大师透镜，构建结构化 Markdown 与交互式 HTML 报告，提供通用 Provider 请求、只读 Binance 私有账户读取、CoinMarketCap 行情与 OHLCV 数据，通过 AKShare、同花顺 iFinD HTTP API 或本机 iFinDPy SDK 加载中国 A 股历史行情和实时行情，以及有界 Binance 或 CoinMarketCap 实时 WebSocket 事件。确定性监控规划器会为盘前、盘后和 BTC 24/7 检查返回 `schedule_create` 参数。
 
+## 宏观数据
+
+本包从四个上游读取宏观序列，并通过 `finance_macro_snapshot` 与 `finance_macro_catalog` 暴露：
+
+| 上游 | 覆盖 | 凭据 |
+|---|---|---|
+| FRED | 美国长序列：政策利率、实际利率、信用利差、PCE、非农、美元指数、WTI | 免费 API Key，并在金融设置中打开 FRED 开关 |
+| AKShare | 中国：GDP、PMI、CPI/PPI、M2、社融、新增贷款、房地产、外贸、外储 | 无需凭据，复用本地 Python 桥 |
+| World Bank | 年度跨国与全球面板（GDP 增速、通胀、失业、债务、经常账户、贸易） | 无需凭据 |
+| IMF DataMapper | 年度全球面板，含 `WEOWORLD` 全球合计 | 无需凭据 |
+
+`finance_macro_catalog` 返回指标 id、单位、频率、周期属性（领先/同步/滞后）、传导解读、影响资产，以及该序列可用的上游绑定。`finance_macro_snapshot` 按这些绑定解析请求：`source: auto` 依次尝试 FRED、AKShare、全球面板，记录每一个失败原因，并在返回结果中把成功加载的序列与逐指标的 `errors` 一并给出。观测值保持上游原始口径——季度与年度序列不会被重采样。
+
 ## 目录
 
 - [Use this package](#use-this-package)

@@ -11,6 +11,19 @@ English | [中文](README.zh.md)
 
 `dsh-experimental-finance-research` gives a finance research session a data-to-report path over fixture or live market providers. It loads normalized equity, crypto, and prediction-market snapshots, computes technical and methodology analysis, evaluates investor lenses, builds Markdown and interactive HTML reports, exposes generic provider requests, reads Binance private accounts and CoinMarketCap quotes, loads A-share data through AKShare or iFinD, collects bounded WebSocket events, and plans pre-market, after-hours, and BTC 24/7 monitoring.
 
+## Macro data
+
+The package reads macro series from four upstreams and exposes them through `finance_macro_snapshot` and `finance_macro_catalog`:
+
+| Upstream | Coverage | Credential |
+|---|---|---|
+| FRED | Long US history: policy rate, real yields, credit spreads, PCE, payrolls, the dollar, WTI | Free API key, plus the FRED switch in Finance settings |
+| AKShare | China: GDP, PMI, CPI/PPI, M2, total social financing, new loans, property, trade, FX reserves | None; reuses the local Python bridge |
+| World Bank | Annual cross-country and global panels (GDP growth, inflation, unemployment, debt, current account, trade) | None |
+| IMF DataMapper | Annual global panel, including the `WEOWORLD` aggregate | None |
+
+`finance_macro_catalog` returns the indicator id, unit, frequency, cycle timing, transmission reading, affected assets, and the upstreams bound to each series. `finance_macro_snapshot` resolves a request across those bindings: `source: auto` walks FRED, then AKShare, then the global panels, records why each one failed, and returns the series that did load beside a per-indicator `errors` list. Observations stay upstream-as-published — quarterly and annual series are not resampled.
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

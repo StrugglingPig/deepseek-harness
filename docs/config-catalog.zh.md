@@ -728,6 +728,14 @@ export interface Config {
   readonly polymarketClobBaseUrl?: string
   /** CoinMarketCap Pro REST origin. */
   readonly coinMarketCapBaseUrl?: string
+  /** FRED API origin. */
+  readonly fredBaseUrl?: string
+  /** World Bank API origin. */
+  readonly worldBankBaseUrl?: string
+  /** IMF DataMapper origin. */
+  readonly imfBaseUrl?: string
+  /** Whether the user permits credentialed FRED macro requests. */
+  readonly enableFredRequests?: boolean
   /** Whether the user permits explicit signed Binance requests. */
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */

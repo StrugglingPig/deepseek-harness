@@ -22,6 +22,7 @@ function bridge(): FinanceStockBridge {
       if (request.action === 'stock_history') {
         return { symbol: request.symbol, name: '贵州茅台', bars: bars() }
       }
+      if (request.action !== 'stock_quote') throw new Error(`unexpected action ${request.action}`)
       return {
         quotes: [{
           symbol: '600519',
@@ -96,8 +97,9 @@ describe('SubprocessFinanceStockDataProvider', () => {
   it('passes the configured iFinD transport to the bridge', async () => {
     const requests: unknown[] = []
     const provider = new SubprocessFinanceStockDataProvider({
-      async run(request) {
-        requests.push(request)
+      async run(raw) {
+        requests.push(raw)
+        const request = raw as { readonly symbol?: string }
         return { symbol: request.symbol, name: '贵州茅台', bars: bars() }
       },
     }, { ifindTransport: () => 'local' })

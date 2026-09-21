@@ -194,6 +194,99 @@ def rows_from_frame(frame) -> list[dict]:
     return []
 
 
+MACRO_DATE_KEYS = ("日期", "时间", "月份", "date", "time", "年份")
+MACRO_VALUE_KEYS = ("今值", "现值", "数值", "值", "value", "close", "收盘价")
+MACRO_FUNCTION_PATTERN = re.compile(r"^macro_[a-z0-9_]+$")
+
+
+def normalize_macro_date(value):
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    if text == "":
+        return None
+    match = re.fullmatch(r"(\d{4})年(\d{1,2})月(?:份)?", text)
+    if match:
+        return f"{match.group(1)}-{int(match.group(2)):02d}"
+    match = re.fullmatch(r"(\d{4})[-/](\d{1,2})", text)
+    if match:
+        return f"{match.group(1)}-{int(match.group(2)):02d}"
+    match = re.fullmatch(r"(\d{4})(\d{2})(\d{2})", text)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    match = re.fullmatch(r"(\d{4})(\d{2})", text)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}"
+    if re.fullmatch(r"\d{4}", text):
+        return text
+    return text
+
+
+def macro_observations(frame, column=None) -> list[dict]:
+    """Normalize one AKShare macro frame into date/value observations.
+
+    AKShare publishes macro tables in three shapes: an event table
+    (商品/日期/今值/预测值/前值), a month index table (月份 plus one numeric
+    series per column), and a time table (时间/发布日期/现值/前值). The caller
+    may name the value column; otherwise the shared preference lists decide.
+    """
+    rows = rows_from_frame(frame)
+    if not rows:
+        return []
+    columns = [str(key) for key in rows[0].keys()]
+    date_column = next((key for key in MACRO_DATE_KEYS if key in columns), None)
+    if date_column is None:
+        for key in columns:
+            sample = [row.get(key) for row in rows[-3:]]
+            if any(re.search(r"\d{4}", str(value)) for value in sample if value is not None):
+                date_column = key
+                break
+    if column is not None and str(column) in columns:
+        value_column = str(column)
+    else:
+        value_column = next((key for key in MACRO_VALUE_KEYS if key in columns), None)
+    if value_column is None:
+        for key in columns:
+            if key == date_column:
+                continue
+            if any(number(row.get(key)) is not None for row in rows[-5:]):
+                value_column = key
+                break
+    if date_column is None or value_column is None:
+        return []
+    observations = []
+    for row in rows:
+        timestamp = normalize_macro_date(row.get(date_column))
+        value = number(row.get(value_column))
+        if timestamp is None or value is None:
+            continue
+        observations.append({"date": timestamp, "value": value})
+    return observations
+
+
+def ak_macro(request: dict) -> dict:
+    function = text_value(request.get("function"))
+    if function is None or not MACRO_FUNCTION_PATTERN.match(function):
+        raise RuntimeError("AKSHARE_MACRO_INVALID: macro function name is missing or unsupported")
+    ak = import_akshare()
+    handler = getattr(ak, function, None)
+    if handler is None or not callable(handler):
+        raise RuntimeError(f"AKSHARE_MACRO_UNSUPPORTED: {function} is not available in this AKShare build")
+    params = request.get("params") or {}
+    if not isinstance(params, dict):
+        raise RuntimeError("AKSHARE_MACRO_INVALID: params must be an object")
+    try:
+        frame = handler(**{str(key): value for key, value in params.items()})
+    except TypeError as error:
+        raise RuntimeError(f"AKSHARE_MACRO_ARGUMENTS: {function} rejected the supplied parameters ({error})") from error
+    observations = macro_observations(frame, request.get("column"))
+    if not observations:
+        raise RuntimeError(f"AKSHARE_MACRO_EMPTY: {function} returned no usable observations")
+    return {"function": function, "observations": observations}
+
+
 def ifind_tables(payload: dict) -> list[dict]:
     tables = payload.get("tables")
     if tables is None and isinstance(payload.get("data"), dict):
@@ -634,6 +727,8 @@ def main() -> None:
             emit({"ok": True, "data": ak_quotes(request)})
         elif action == "stock_quote" and provider == "ifind":
             emit({"ok": True, "data": ifind_quotes(request)})
+        elif action == "macro_series":
+            emit({"ok": True, "data": ak_macro(request)})
         else:
             fail("INVALID_STOCK_REQUEST", f"unsupported stock bridge request: {action}/{provider}")
     except Exception as error:  # noqa: BLE001 - bridge must return a structured child-process error.

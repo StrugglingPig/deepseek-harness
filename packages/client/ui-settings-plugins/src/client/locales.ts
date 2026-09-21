@@ -36,6 +36,8 @@ export type PluginsSettingsLocaleKey =
   | 'financeCoinMarketCapTitle' | 'financeEnableCoinMarketCapRequests' | 'financeEnableCoinMarketCapRequestsHint'
   | 'financeCoinMarketCapBaseUrl' | 'financeCoinMarketCapWebSocketBaseUrl'
   | 'financeCoinMarketCapApiKey' | 'financeCoinMarketCapApiKeyHint'
+  | 'financeFredTitle' | 'financeEnableFredRequests' | 'financeEnableFredRequestsHint'
+  | 'financeFredBaseUrl' | 'financeFredApiKey' | 'financeFredApiKeyHint'
   | 'financeStockTitle' | 'financeEnableAkshare' | 'financeEnableAkshareHint'
   | 'financeEnableIfind' | 'financeEnableIfindHint'
   | 'financeIfindTransport' | 'financeIfindTransportHint'
@@ -151,6 +153,12 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinMarketCapBaseUrl: 'CoinMarketCap Pro REST base URL',
   financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
   financeCoinMarketCapApiKey: 'CoinMarketCap API key',
+  financeFredTitle: 'Macro data (FRED)',
+  financeEnableFredRequests: 'Allow FRED macro requests',
+  financeEnableFredRequestsHint: 'FRED carries the long US macro history: rates, credit spreads, PCE, payrolls, and the dollar. It needs a free FRED API key.',
+  financeFredBaseUrl: 'FRED API base URL',
+  financeFredApiKey: 'FRED API key',
+  financeFredApiKeyHint: 'Free key from fredaccount.stlouisfed.org. Stored on the Host and never returned.',
   financeCoinMarketCapApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
   financeStockTitle: 'A-share stock bridge',
   financeEnableAkshare: 'Enable AKShare stock data',
@@ -294,6 +302,12 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinMarketCapBaseUrl: 'CoinMarketCap Pro REST Base URL',
   financeCoinMarketCapWebSocketBaseUrl: 'CoinMarketCap WebSocket URL',
   financeCoinMarketCapApiKey: 'CoinMarketCap API Key',
+  financeFredTitle: '宏观数据（FRED）',
+  financeEnableFredRequests: '允许 FRED 宏观请求',
+  financeEnableFredRequestsHint: 'FRED 提供美国宏观长序列：利率、信用利差、PCE、非农与美元指数。需要免费的 FRED API Key。',
+  financeFredBaseUrl: 'FRED API 地址',
+  financeFredApiKey: 'FRED API Key',
+  financeFredApiKeyHint: '可在 fredaccount.stlouisfed.org 免费申请。仅保存在 Host，不会回传。',
   financeCoinMarketCapApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
   financeStockTitle: 'A 股数据桥',
   financeEnableAkshare: '启用 AKShare 股票数据',

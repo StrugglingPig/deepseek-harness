@@ -44,6 +44,37 @@ function bench(options: {
   return { bridge, spec, subprocess }
 }
 
+describe('finance macro bridge requests', () => {
+  it('runs an AKShare macro action through the same subprocess bridge', async () => {
+    const seen: SubprocessSpawnSpec[] = []
+    const handle = {
+      collected: {
+        stdout: reader(JSON.stringify({ ok: true, data: { function: 'macro_china_pmi', observations: [{ date: '2026-01', value: 50 }] } })),
+        stderr: reader(''),
+      },
+      done: Promise.resolve({ exitCode: 0, signal: null }),
+    } as unknown as SubprocessHandle
+    const subprocess = {
+      resolveExecutable: vi.fn(async () => '/usr/bin/python3'),
+      spawn: vi.fn((request: SubprocessSpawnSpec) => { seen.push(request); return handle }),
+    } as unknown as SubprocessRuntime
+    const bridge = new FinanceStockSubprocessBridge({
+      subprocess,
+      pythonExecutable: 'python3',
+      resolveCredential: async () => undefined,
+    })
+
+    await expect(bridge.run({ action: 'macro_series', function: 'macro_china_pmi' })).resolves.toEqual({
+      function: 'macro_china_pmi',
+      observations: [{ date: '2026-01', value: 50 }],
+    })
+    expect(JSON.parse((seen[0]?.stdio?.stdin as { data: string }).data)).toEqual({
+      action: 'macro_series',
+      function: 'macro_china_pmi',
+    })
+  })
+})
+
 describe('FinanceStockSubprocessBridge', () => {
   it('spawns the bundled bridge with bounded stdio', async () => {
     const { bridge, spec } = bench()

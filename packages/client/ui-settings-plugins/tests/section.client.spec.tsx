@@ -465,8 +465,10 @@ describe('FinanceSettingsPage', () => {
       polymarketGammaBaseUrl: field('https://gamma.test'),
       polymarketClobBaseUrl: field('https://clob.test'),
       coinMarketCapBaseUrl: field('https://pro-api.test'),
+      fredBaseUrl: field('https://fred.test'),
       enableSignedRequests: field('true'),
       enableCoinMarketCapRequests: field('true'),
+      enableFredRequests: field('true'),
       enableAkshare: field('true'),
       enableIfind: field('true'),
       ifindTransport: field('http'),
@@ -488,18 +490,21 @@ describe('FinanceSettingsPage', () => {
       binanceApiKey: field(''),
       binanceApiSecret: field(''),
       coinMarketCapApiKey: field(''),
+      fredApiKey: field(''),
       ifindUser: field(''),
       ifindPassword: field(''),
       ifindRefreshToken: field(''),
       binanceApiKeyConfigured: true,
       binanceApiSecretConfigured: true,
       coinMarketCapApiKeyConfigured: true,
+      fredApiKeyConfigured: true,
       ifindUserConfigured: true,
       ifindPasswordConfigured: true,
       ifindRefreshTokenConfigured: true,
       binanceApiKeyWritable: true,
       binanceApiSecretWritable: true,
       coinMarketCapApiKeyWritable: true,
+      fredApiKeyWritable: true,
       ifindUserWritable: true,
       ifindPasswordWritable: true,
       ifindRefreshTokenWritable: true,
@@ -586,7 +591,7 @@ describe('FinanceSettingsPage', () => {
     ]))
     expect(actions.save).toHaveBeenCalledOnce()
     expect(actions.resetField).toHaveBeenCalledTimes(resets.length)
-    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(6)
+    expect(screen.getAllByText(en.financeCredentialSet)).toHaveLength(7)
   })
 
   it('uses provider and credential fallback branches', () => {

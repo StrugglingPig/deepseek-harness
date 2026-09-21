@@ -35,6 +35,10 @@ export interface FinanceRuntimeSettings {
   readonly binanceCoinmBaseUrl: string
   readonly binanceOptionsBaseUrl: string
   readonly coinMarketCapBaseUrl: string
+  readonly fredBaseUrl: string
+  readonly worldBankBaseUrl: string
+  readonly imfBaseUrl: string
+  readonly enableFredRequests: boolean
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
   readonly enableSignedRequests: boolean
@@ -83,6 +87,9 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       binanceCoinmBaseUrl: settings.binanceCoinmBaseUrl,
       binanceOptionsBaseUrl: settings.binanceOptionsBaseUrl,
       coinMarketCapBaseUrl: settings.coinMarketCapBaseUrl,
+      fredBaseUrl: settings.fredBaseUrl,
+      worldBankBaseUrl: settings.worldBankBaseUrl,
+      imfBaseUrl: settings.imfBaseUrl,
       polymarketGammaBaseUrl: settings.polymarketGammaBaseUrl,
       polymarketClobBaseUrl: settings.polymarketClobBaseUrl,
       authorize: this.authorize,

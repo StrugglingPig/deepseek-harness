@@ -10,7 +10,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
-  createCoinMarketCapRequestAuthorizer,
+  createCoinMarketCapRequestAuthorizer, createFredRequestAuthorizer,
   type FinanceCredentialResolver,
 } from './auth.ts'
 import { FinanceDataError } from './error.ts'
@@ -29,6 +29,10 @@ import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECO
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
+import { AkshareMacroLoader } from './macro-akshare.ts'
+import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
+import { SettingsFinanceMacroDataProvider } from './macro.ts'
+import { registerMacroTools } from './macro-tools.ts'
 import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, analysisValue, snapshotValue } from './tool-schemas.ts'
 import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
 import { REPORT_COPY, type ReportCategoryCopy } from './report-copy.ts'
@@ -57,9 +61,11 @@ export {
   BINANCE_API_KEY_REF,
   BINANCE_API_SECRET_REF,
   COINMARKETCAP_API_KEY_REF,
+  FRED_API_KEY_REF,
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
   createCoinMarketCapRequestAuthorizer,
+  createFredRequestAuthorizer,
 } from './auth.ts'
 export type {
   BinanceRequestAuthorizerOptions,
@@ -120,6 +126,14 @@ export interface Config {
   readonly polymarketClobBaseUrl?: string
   /** CoinMarketCap Pro REST origin. */
   readonly coinMarketCapBaseUrl?: string
+  /** FRED API origin. */
+  readonly fredBaseUrl?: string
+  /** World Bank API origin. */
+  readonly worldBankBaseUrl?: string
+  /** IMF DataMapper origin. */
+  readonly imfBaseUrl?: string
+  /** Whether the user permits credentialed FRED macro requests. */
+  readonly enableFredRequests?: boolean
   /** Whether the user permits explicit signed Binance requests. */
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
@@ -180,6 +194,10 @@ export const Config: z<Config> = z.object({
   polymarketGammaBaseUrl: z.string().default('https://gamma-api.polymarket.com'),
   polymarketClobBaseUrl: z.string().default('https://clob.polymarket.com'),
   coinMarketCapBaseUrl: z.string().default('https://pro-api.coinmarketcap.com'),
+  fredBaseUrl: z.string().default('https://api.stlouisfed.org'),
+  worldBankBaseUrl: z.string().default('https://api.worldbank.org'),
+  imfBaseUrl: z.string().default('https://www.imf.org/external/datamapper/api/v1'),
+  enableFredRequests: z.boolean().default(false),
   enableSignedRequests: z.boolean().default(false),
   enableCoinMarketCapRequests: z.boolean().default(false),
   enableAkshare: z.boolean().default(true),
@@ -1107,6 +1125,10 @@ export function apply(ctx: Context, config: Config): void {
     polymarketGammaBaseUrl: resolved.polymarketGammaBaseUrl,
     polymarketClobBaseUrl: resolved.polymarketClobBaseUrl,
     coinMarketCapBaseUrl: resolved.coinMarketCapBaseUrl,
+    fredBaseUrl: resolved.fredBaseUrl,
+    worldBankBaseUrl: resolved.worldBankBaseUrl,
+    imfBaseUrl: resolved.imfBaseUrl,
+    enableFredRequests: resolved.enableFredRequests,
     enableSignedRequests: resolved.enableSignedRequests,
     enableCoinMarketCapRequests: resolved.enableCoinMarketCapRequests,
     enableAkshare: resolved.enableAkshare,
@@ -1143,13 +1165,23 @@ export function apply(ctx: Context, config: Config): void {
       resolveCredential: ref => resolveCredential(ref),
       enabled: () => currentSettings.enableCoinMarketCapRequests,
     }),
+    createFredRequestAuthorizer({
+      resolveCredential: ref => resolveCredential(ref),
+      enabled: () => currentSettings.enableFredRequests,
+    }),
   )
   const provider = new SettingsFinanceMarketDataProvider(() => currentSettings, authorize)
+  const macroProvider = new SettingsFinanceMacroDataProvider([
+    new FredMacroLoader(provider, () => currentSettings.enableFredRequests),
+    new WorldBankMacroLoader(provider),
+    new ImfMacroLoader(provider),
+  ])
   const streamProvider = new SettingsFinanceMarketStreamProvider(
     () => currentSettings,
     ref => resolveCredential(ref),
   )
   registerFinanceTools(ctx, provider, streamProvider, reportLanguage)
+  registerMacroTools(ctx, macroProvider)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({
       subprocess: subprocessCtx.subprocess,
@@ -1165,6 +1197,7 @@ export function apply(ctx: Context, config: Config): void {
       }),
       resolveCredential: ref => resolveCredential(ref),
     })
+    macroProvider.addLoader(new AkshareMacroLoader(bridge, () => currentSettings.enableAkshare))
     stockProvider = new SubprocessFinanceStockDataProvider(bridge, {
       enabled: provider => provider === 'akshare'
         ? currentSettings.enableAkshare

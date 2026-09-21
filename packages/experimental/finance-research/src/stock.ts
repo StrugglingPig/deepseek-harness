@@ -85,10 +85,20 @@ export interface FinanceStockBridgeRequest {
   readonly transport?: 'http' | 'local'
 }
 
-/** Testable result returned by the Python stock bridge. */
+/** One AKShare macro call the Python bridge executes from a catalog binding. */
+export interface FinanceMacroBridgeRequest {
+  readonly action: 'macro_series'
+  /** AKShare macro function name, always resolved from the catalog rather than the model. */
+  readonly function: string
+  readonly params?: Readonly<Record<string, string>>
+  /** Value column to read when the function publishes several series. */
+  readonly column?: string
+}
+
+/** Testable result returned by the Python finance bridge. */
 export interface FinanceStockBridge {
   /** Run one bridge request and return its validated JSON data. */
-  run(request: FinanceStockBridgeRequest, signal?: AbortSignal): Promise<unknown>
+  run(request: FinanceStockBridgeRequest | FinanceMacroBridgeRequest, signal?: AbortSignal): Promise<unknown>
 }
 
 /** Runtime options read fresh before each stock bridge invocation. */
@@ -162,12 +172,12 @@ export class FinanceStockSubprocessBridge implements FinanceStockBridge {
    * @param signal - optional caller cancellation.
    * @returns Parsed JSON data from the bridge.
    */
-  async run(request: FinanceStockBridgeRequest, signal?: AbortSignal): Promise<unknown> {
+  async run(request: FinanceStockBridgeRequest | FinanceMacroBridgeRequest, signal?: AbortSignal): Promise<unknown> {
     const runtime = this.options.readRuntimeOptions()
     const timeout = AbortSignal.timeout(runtime.timeoutMs)
     const requestSignal = signal === undefined ? timeout : AbortSignal.any([signal, timeout])
     const env: Record<string, string> = { PYTHONIOENCODING: 'utf-8' }
-    if (request.provider === 'ifind') {
+    if ('provider' in request && request.provider === 'ifind') {
       if (request.transport === undefined) {
         throw new FinanceDataError('iFinD transport is required', 'INVALID_STOCK_TRANSPORT')
       }

@@ -30,6 +30,9 @@ import type {
 const DEFAULT_TIMEOUT_MS = 15_000
 const DEFAULT_BAR_LIMIT = 80
 const DEFAULT_YAHOO_BASE_URL = 'https://query1.finance.yahoo.com'
+const DEFAULT_FRED_BASE_URL = 'https://api.stlouisfed.org'
+const DEFAULT_WORLDBANK_BASE_URL = 'https://api.worldbank.org'
+const DEFAULT_IMF_BASE_URL = 'https://www.imf.org/external/datamapper/api/v1'
 const DEFAULT_BINANCE_BASE_URL = 'https://api.binance.com'
 const DEFAULT_COINMARKETCAP_BASE_URL = 'https://pro-api.coinmarketcap.com'
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = 'https://gamma-api.polymarket.com'
@@ -112,6 +115,12 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly polymarketClobBaseUrl?: string
   /** CoinMarketCap Pro REST origin. */
   readonly coinMarketCapBaseUrl?: string
+  /** FRED API origin. */
+  readonly fredBaseUrl?: string
+  /** World Bank API origin. */
+  readonly worldBankBaseUrl?: string
+  /** IMF DataMapper origin. */
+  readonly imfBaseUrl?: string
   /** Injectable clock for deterministic retrieved-at values. */
   readonly now?: () => Date
   /** Host-side authorization/signing applied before fetch. */
@@ -145,6 +154,9 @@ interface ResolvedOptions {
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
   readonly coinMarketCapBaseUrl: string
+  readonly fredBaseUrl: string
+  readonly worldBankBaseUrl: string
+  readonly imfBaseUrl: string
   readonly now: () => Date
   readonly authorize?: FinanceRequestAuthorizer
 }
@@ -163,6 +175,9 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'polymarket-gamma', description: 'Polymarket Gamma public catalog API', auth: 'none', docs: 'https://gamma-api.polymarket.com' },
   { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
   { name: 'coinmarketcap', description: 'CoinMarketCap Pro REST API', auth: 'api-key', docs: 'https://coinmarketcap.com/api/documentation/' },
+  { name: 'fred', description: 'Federal Reserve Economic Data (FRED) series and observations', auth: 'api-key', docs: 'https://fred.stlouisfed.org/docs/api/fred/' },
+  { name: 'worldbank', description: 'World Bank indicator API', auth: 'none', docs: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392' },
+  { name: 'imf', description: 'IMF DataMapper macro indicators', auth: 'none', docs: 'https://www.imf.org/external/datamapper/api/help' },
 ]
 
 const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
@@ -174,6 +189,9 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   'polymarket-gamma': 'polymarketGammaBaseUrl',
   'polymarket-clob': 'polymarketClobBaseUrl',
   coinmarketcap: 'coinMarketCapBaseUrl',
+  fred: 'fredBaseUrl',
+  worldbank: 'worldBankBaseUrl',
+  imf: 'imfBaseUrl',
 }
 
 function queryValue(value: FinanceJsonValue): string {
@@ -237,6 +255,9 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       polymarketGammaBaseUrl: options.polymarketGammaBaseUrl ?? DEFAULT_POLYMARKET_GAMMA_BASE_URL,
       polymarketClobBaseUrl: options.polymarketClobBaseUrl ?? DEFAULT_POLYMARKET_CLOB_BASE_URL,
       coinMarketCapBaseUrl: options.coinMarketCapBaseUrl ?? DEFAULT_COINMARKETCAP_BASE_URL,
+      fredBaseUrl: options.fredBaseUrl ?? DEFAULT_FRED_BASE_URL,
+      worldBankBaseUrl: options.worldBankBaseUrl ?? DEFAULT_WORLDBANK_BASE_URL,
+      imfBaseUrl: options.imfBaseUrl ?? DEFAULT_IMF_BASE_URL,
       now: options.now ?? (() => new Date()),
       ...options.authorize === undefined ? {} : { authorize: options.authorize },
     }
