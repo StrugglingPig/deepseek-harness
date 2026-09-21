@@ -365,6 +365,10 @@ export interface FinanceMarketDataProvider {
     request: FinanceCoinGeckoCommunityRequest,
     signal?: AbortSignal,
   ): Promise<FinanceCoinGeckoCommunity | undefined>
+  /** Load daily bars from the backup equity source when the provider supports it. */
+  loadAlphaVantageBars?(symbol: string, signal?: AbortSignal): Promise<readonly MarketBar[]>
+  /** Load crypto market rows from the fallback source when the provider supports it. */
+  loadCoinGeckoMarkets?(symbols: readonly string[], signal?: AbortSignal): Promise<readonly FinanceCoinMarketCapQuote[]>
   /** Load one US equity fundamentals snapshot when the provider supports it. */
   loadUsFundamentals?(
     request: FinanceUsFundamentalsRequest,

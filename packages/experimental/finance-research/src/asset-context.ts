@@ -324,3 +324,24 @@ export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | 
   }
   return metrics
 }
+
+/**
+ * Read crypto quotes from the primary source, falling back to the secondary one.
+ * @param symbols - Ticker symbols to read.
+ * @param loadPrimary - Primary quote loader.
+ * @param loadFallback - Loader used when the primary fails or publishes nothing.
+ * @returns Quotes from whichever source answered, primary first.
+ */
+export async function cryptoQuotesFromSources(
+  symbols: readonly string[],
+  loadPrimary: (symbols: readonly string[]) => Promise<readonly FinanceCoinMarketCapQuote[]>,
+  loadFallback: (symbols: readonly string[]) => Promise<readonly FinanceCoinMarketCapQuote[]>,
+): Promise<readonly FinanceCoinMarketCapQuote[]> {
+  try {
+    const quotes = await loadPrimary(symbols)
+    if (quotes.length > 0) return quotes
+  } catch {
+    // The fallback below covers a failing primary source.
+  }
+  return loadFallback(symbols)
+}

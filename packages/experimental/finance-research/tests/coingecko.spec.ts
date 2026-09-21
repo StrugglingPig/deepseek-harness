@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeCoinGeckoCommunity } from '../src/coingecko.ts'
+import { normalizeCoinGeckoCommunity, normalizeCoinGeckoMarkets } from '../src/coingecko.ts'
 
 describe('CoinGecko normalization', () => {
   it('reads community and developer counts', () => {
@@ -69,5 +69,44 @@ describe('CoinGecko normalization', () => {
     expect(normalizeCoinGeckoCommunity(undefined)).toBeUndefined()
     expect(normalizeCoinGeckoCommunity({ name: 'Bitcoin' })).toBeUndefined()
     expect(normalizeCoinGeckoCommunity({ id: 'bitcoin' })).toBeUndefined()
+  })
+})
+
+describe('CoinGecko market rows', () => {
+  it('maps the markets response onto the shared quote record', () => {
+    const quotes = normalizeCoinGeckoMarkets([{
+      id: 'bitcoin',
+      symbol: 'btc',
+      name: 'Bitcoin',
+      market_cap_rank: 1,
+      current_price: 86_102,
+      market_cap: 1_727_073_625_507,
+      total_volume: 51_744_942_904,
+      circulating_supply: 20_087_418,
+      total_supply: 20_087_478,
+      max_supply: 21_000_000,
+      price_change_percentage_24h: 6.67,
+      price_change_percentage_7d_in_currency: 9.74,
+      last_updated: '2026-09-21T15:07:20.000Z',
+    }], 'USD')
+    expect(quotes).toEqual([{
+      id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', rank: 1,
+      price: 86_102, percentChange24h: 6.67, percentChange7d: 9.74,
+      marketCap: 1_727_073_625_507, volume24h: 51_744_942_904,
+      circulatingSupply: 20_087_418, totalSupply: 20_087_478, maxSupply: 21_000_000,
+      lastUpdated: '2026-09-21T15:07:20.000Z',
+    }])
+  })
+
+  it('skips rows without a name or symbol and non-array payloads', () => {
+    expect(normalizeCoinGeckoMarkets({}, 'USD')).toEqual([])
+    expect(normalizeCoinGeckoMarkets([{ id: 'x' }, 'nope'], 'USD')).toEqual([])
+    const unnamed = normalizeCoinGeckoMarkets([{ name: 'Bitcoin', symbol: 'btc', market_cap_rank: 3 }], 'USD')
+    expect(unnamed[0]).toMatchObject({ id: 3, name: 'Bitcoin', symbol: 'BTC' })
+    // A numeric id and a name without a symbol both have to be handled.
+    expect(normalizeCoinGeckoMarkets([{ id: 7, name: 'Bitcoin', symbol: 'btc' }], 'USD')[0]).toMatchObject({ id: 7 })
+    expect(normalizeCoinGeckoMarkets([{ name: 'Bitcoin' }], 'USD')).toEqual([])
+    // Without an id or a rank the shared record still keeps a numeric placeholder.
+    expect(normalizeCoinGeckoMarkets([{ name: 'Bitcoin', symbol: 'btc' }], 'USD')[0]).toMatchObject({ id: 0 })
   })
 })

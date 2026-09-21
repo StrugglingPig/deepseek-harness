@@ -1,6 +1,6 @@
 /** CoinGecko REST response normalization. */
 
-import type { FinanceCoinGeckoCommunity } from './types.ts'
+import type { FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote } from './types.ts'
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -71,4 +71,55 @@ export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoC
     ...genesisDate === undefined ? {} : { genesisDate },
     ...githubRepos === undefined ? {} : { githubRepos },
   }
+}
+
+/** One CoinGecko markets row, mapped onto the shared normalized quote record. */
+function marketQuote(row: Record<string, unknown>, convert: string): FinanceCoinMarketCapQuote | undefined {
+  const id = finite(row.id) ?? finite(row.market_cap_rank)
+  const name = typeof row.name === 'string' ? row.name : undefined
+  const symbol = typeof row.symbol === 'string' ? row.symbol.toUpperCase() : undefined
+  if (name === undefined || symbol === undefined) return undefined
+  const price = finite(row.current_price)
+  const marketCap = finite(row.market_cap)
+  const volume24h = finite(row.total_volume)
+  const rank = finite(row.market_cap_rank)
+  const percentChange24h = finite(row.price_change_percentage_24h)
+  const percentChange7d = finite(row.price_change_percentage_7d_in_currency)
+  const circulatingSupply = finite(row.circulating_supply)
+  const totalSupply = finite(row.total_supply)
+  const maxSupply = finite(row.max_supply)
+  const lastUpdated = typeof row.last_updated === 'string' ? row.last_updated : undefined
+  return {
+    // CoinGecko publishes a numeric id only in other endpoints; the rank stands in
+    // so the shared record keeps a stable number for non-ranking callers.
+    id: id ?? 0,
+    name,
+    symbol,
+    currency: convert,
+    ...rank === undefined ? {} : { rank },
+    ...price === undefined ? {} : { price },
+    ...percentChange24h === undefined ? {} : { percentChange24h },
+    ...percentChange7d === undefined ? {} : { percentChange7d },
+    ...marketCap === undefined ? {} : { marketCap },
+    ...volume24h === undefined ? {} : { volume24h },
+    ...circulatingSupply === undefined ? {} : { circulatingSupply },
+    ...totalSupply === undefined ? {} : { totalSupply },
+    ...maxSupply === undefined ? {} : { maxSupply },
+    ...lastUpdated === undefined ? {} : { lastUpdated },
+  }
+}
+
+/**
+ * Normalize a CoinGecko markets response onto the shared quote record.
+ * @param payload - Upstream JSON array.
+ * @param convert - Conversion currency the rows were requested in.
+ * @returns One normalized quote per usable row.
+ */
+export function normalizeCoinGeckoMarkets(payload: unknown, convert: string): FinanceCoinMarketCapQuote[] {
+  if (!Array.isArray(payload)) return []
+  return payload.flatMap((entry) => {
+    const row = record(entry)
+    const quote = row === undefined ? undefined : marketQuote(row, convert)
+    return quote === undefined ? [] : [quote]
+  })
 }

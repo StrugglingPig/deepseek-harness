@@ -5,8 +5,8 @@ export { FinanceDataError } from './error.ts'
 import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
-import { normalizeCoinGeckoCommunity } from './coingecko.ts'
-import { normalizeUsFundamentals } from './alphavantage.ts'
+import { normalizeCoinGeckoCommunity, normalizeCoinGeckoMarkets } from './coingecko.ts'
+import { normalizeAlphaVantageBars, normalizeUsFundamentals } from './alphavantage.ts'
 import { normalizeGithubCommitActivity, normalizeGithubRepo } from './github.ts'
 import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
@@ -304,7 +304,27 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
     if (normalized.length === 0) throw new FinanceDataError('symbol must be a non-empty string', 'INVALID_SYMBOL')
     if (classifyAsset(normalized) === 'prediction') return this.loadPrediction(normalized, signal)
     if (classifyAsset(normalized) === 'crypto') return this.loadCrypto(normalized, signal)
-    return this.loadEquity(normalized, signal)
+    try {
+      return await this.loadEquity(normalized, signal)
+    } catch (error: unknown) {
+      if (signal?.aborted === true) throw error
+      // Yahoo is the primary equity source; Alpha Vantage covers its outages when the
+      // user has enabled it, and the snapshot records whichever source answered.
+      const bars = await this.loadAlphaVantageBars(normalized, signal)
+      if (bars.length < 50) throw error
+      const latest = bars.at(-1) as MarketBar
+      const previous = bars[bars.length - 2] as MarketBar
+      return {
+        instrument: { symbol: normalized, name: normalized, assetClass: 'equity', currency: 'USD' },
+        asOf: latest.timestamp,
+        source: { provider: 'alphavantage', retrievedAt: this.options.now().toISOString(), synthetic: false },
+        quote: {
+          price: latest.close,
+          changePercent: previous.close === 0 ? 0 : (latest.close - previous.close) / previous.close * 100,
+        },
+        bars: [...bars],
+      }
+    }
   }
 
   private async fetchJson(
@@ -441,6 +461,53 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       },
     }, signal)
     return normalizeCoinGeckoCommunity(response.data)
+  }
+
+  /**
+   * Load daily bars from Alpha Vantage, used when the primary equity source fails.
+   * @param symbol - Ticker symbol.
+   * @param signal - optional caller cancellation.
+   * @returns Ascending bars, or an empty list when the upstream publishes none.
+   */
+  async loadAlphaVantageBars(symbol: string, signal?: AbortSignal): Promise<readonly MarketBar[]> {
+    try {
+      const response = await this.request({
+        base: 'alphavantage',
+        path: '/query',
+        auth: 'api-key',
+        query: { function: 'TIME_SERIES_DAILY', symbol: symbol.toUpperCase(), outputsize: 'compact' },
+      }, signal)
+      return normalizeAlphaVantageBars(response.data)
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Load normalized crypto market rows from CoinGecko, used when CMC fails.
+   * @param symbols - Ticker symbols to keep, matched case-insensitively.
+   * @param signal - optional caller cancellation.
+   * @returns One normalized quote per requested symbol that the upstream published.
+   */
+  async loadCoinGeckoMarkets(symbols: readonly string[], signal?: AbortSignal): Promise<readonly FinanceCoinMarketCapQuote[]> {
+    try {
+      const response = await this.request({
+        base: 'coingecko',
+        path: '/coins/markets',
+        auth: 'api-key',
+        query: {
+          vs_currency: 'usd',
+          order: 'market_cap_desc',
+          per_page: '250',
+          page: '1',
+          price_change_percentage: '1h,24h,7d,30d',
+        },
+      }, signal)
+      const wanted = new Set(symbols.map(symbol => symbol.toUpperCase()))
+      return normalizeCoinGeckoMarkets(response.data, 'USD').filter(quote => wanted.has(quote.symbol))
+    } catch {
+      return []
+    }
   }
 
   /**

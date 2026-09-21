@@ -739,6 +739,61 @@ FUNDAMENTAL_METRICS = (
 )
 
 
+THS_FUNDAMENTAL_METRICS = (
+    ("eps", "基本每股收益"),
+    ("bookValuePerShare", "每股净资产"),
+    ("roe", "净资产收益率-摊薄"),
+    ("netMargin", "销售净利率"),
+    ("debtRatio", "资产负债率"),
+    ("currentRatio", "流动比率"),
+    ("revenueGrowth", "营业总收入同比增长率"),
+    ("profitGrowth", "净利润同比增长率"),
+)
+
+
+def ths_number(value):
+    """Read a Tonghuashun figure, which may carry a percent sign or a 亿/万 suffix."""
+    if value is None:
+        return None
+    text = str(value).strip().replace(",", "")
+    if text == "" or text in ("--", "None", "nan"):
+        return None
+    scale = 1.0
+    if text.endswith("%"):
+        text = text[:-1]
+    elif text.endswith("亿"):
+        text, scale = text[:-1], 1e8
+    elif text.endswith("万"):
+        text, scale = text[:-1], 1e4
+    try:
+        number = float(text) * scale
+    except ValueError:
+        return None
+    return number if number == number else None
+
+
+def ths_fundamentals(symbol: str) -> list[dict]:
+    """Read the Tonghuashun reported-ratio table as a second fundamentals source."""
+    try:
+        frame = import_akshare().stock_financial_abstract_ths(symbol=symbol, indicator="按报告期")
+    except Exception:
+        return []
+    periods = []
+    for row in rows_from_frame(frame):
+        reported = normalize_macro_date(row.get("报告期"))
+        if reported is None:
+            continue
+        metrics = {}
+        for key, column in THS_FUNDAMENTAL_METRICS:
+            value = ths_number(row.get(column))
+            if value is not None:
+                metrics[key] = value
+        if metrics:
+            periods.append({"period": reported, "metrics": metrics})
+    periods.sort(key=lambda item: item["period"])
+    return periods
+
+
 def ak_fundamentals(request: dict) -> dict:
     """Load reported financial ratios for one mainland symbol.
 
@@ -748,8 +803,11 @@ def ak_fundamentals(request: dict) -> dict:
     ak = import_akshare()
     symbol = bare_symbol(request["symbol"])
     start_year = str(request.get("startYear") or (date.today().year - 2))
-    frame = ak.stock_financial_analysis_indicator(symbol=symbol, start_year=start_year)
-    rows = rows_from_frame(frame)
+    try:
+        frame = ak.stock_financial_analysis_indicator(symbol=symbol, start_year=start_year)
+    except Exception:
+        frame = None
+    rows = rows_from_frame(frame) if frame is not None else []
     periods = []
     for row in rows:
         reported = normalize_macro_date(row.get("日期"))
@@ -766,7 +824,10 @@ def ak_fundamentals(request: dict) -> dict:
         if metrics:
             periods.append({"period": reported, "metrics": metrics})
     if not periods:
-        raise RuntimeError("AKSHARE_FUNDAMENTALS_EMPTY: indicator table returned no numeric rows")
+        # A second published table covers the primary source being unavailable.
+        periods = ths_fundamentals(symbol)
+    if not periods:
+        raise RuntimeError("AKSHARE_FUNDAMENTALS_EMPTY: no fundamentals table returned usable rows")
     periods.sort(key=lambda item: item["period"])
     return {"symbol": symbol, "periods": periods[-8:]}
 

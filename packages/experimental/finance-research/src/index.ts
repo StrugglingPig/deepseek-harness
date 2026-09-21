@@ -31,7 +31,7 @@ import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECO
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import {
-  cryptoMetricsForSymbol, equityMetricsFromFundamentals, equityMetricsFromValuation,
+  cryptoMetricsForSymbol, cryptoQuotesFromSources, equityMetricsFromFundamentals, equityMetricsFromValuation,
   usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
 } from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
@@ -1236,7 +1236,11 @@ export function apply(ctx: Context, config: Config): void {
       if (isPair) {
         return cryptoMetricsForSymbol(
           request.symbol,
-          symbols => provider.loadCoinMarketCapQuotes({ symbols }),
+          symbols => cryptoQuotesFromSources(
+            symbols,
+            request => provider.loadCoinMarketCapQuotes({ symbols: request }),
+            request => provider.loadCoinGeckoMarkets(request),
+          ),
           id => provider.loadCoinGeckoCommunity({ id }),
           repository => provider.loadGithubRepo({ repository }),
         )

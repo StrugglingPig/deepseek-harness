@@ -76,6 +76,8 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadUsFundamentals({ symbol: 'AAPL' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
+    await expect(provider.loadAlphaVantageBars('AAPL')).resolves.toEqual([])
+    await expect(provider.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
@@ -121,6 +123,8 @@ describe('settings-backed finance providers', () => {
       .resolves.toMatchObject({ repository: 'bitcoin/bitcoin', stars: 85_000 })
     await expect(provider.loadUsFundamentals({ symbol: 'AAPL' }))
       .resolves.toMatchObject({ symbol: 'AAPL', name: 'Apple Inc', indicators: { peRatio: 32.5 } })
+    await expect(provider.loadAlphaVantageBars('AAPL')).resolves.toEqual([])
+    await expect(provider.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
   })
 
   it('uses the production WebSocket factory when no test carrier is supplied', async () => {

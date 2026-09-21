@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeUsFundamentals } from '../src/alphavantage.ts'
+import { normalizeAlphaVantageBars, normalizeUsFundamentals } from '../src/alphavantage.ts'
 
 describe('Alpha Vantage normalization', () => {
   it('reads the overview figures and the sector classification', () => {
@@ -46,5 +46,29 @@ describe('Alpha Vantage normalization', () => {
     expect(normalizeUsFundamentals(undefined, 'AAPL')).toBeUndefined()
     expect(normalizeUsFundamentals({ Note: 'rate limit reached' }, 'AAPL')).toBeUndefined()
     expect(normalizeUsFundamentals({ Name: '' }, 'AAPL')).toBeUndefined()
+  })
+})
+
+describe('Alpha Vantage daily bars', () => {
+  it('normalizes the daily series into ascending bars', () => {
+    const bars = normalizeAlphaVantageBars({
+      'Time Series (Daily)': {
+        '2026-09-19': { '1. open': '140', '2. high': '142', '3. low': '139', '4. close': '141', '6. volume': '1000' },
+        '2026-09-18': { '1. open': '138', '2. high': '141', '3. low': '137', '4. close': '140', '5. volume': '900' },
+        '2026-09-17': { '1. open': 'bad', '4. close': '139' },
+        '2026-09-16': { '1. open': '137', '2. high': '139', '3. low': '136', '4. close': '138' },
+      },
+    })
+    expect(bars).toEqual([
+      { timestamp: '2026-09-16T00:00:00.000Z', open: 137, high: 139, low: 136, close: 138, volume: 0 },
+      { timestamp: '2026-09-18T00:00:00.000Z', open: 138, high: 141, low: 137, close: 140, volume: 900 },
+      { timestamp: '2026-09-19T00:00:00.000Z', open: 140, high: 142, low: 139, close: 141, volume: 1000 },
+    ])
+  })
+
+  it('reports nothing for a notice or an unusable series', () => {
+    expect(normalizeAlphaVantageBars(undefined)).toEqual([])
+    expect(normalizeAlphaVantageBars({ Note: 'rate limit reached' })).toEqual([])
+    expect(normalizeAlphaVantageBars({ 'Time Series (Daily)': { '2026-09-19': 'nope' } })).toEqual([])
   })
 })

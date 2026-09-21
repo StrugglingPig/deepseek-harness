@@ -25,6 +25,7 @@ import type {
   FinanceProviderDescriptor,
   FinanceProviderRequest,
   FinanceProviderResponse,
+  MarketBar,
   MarketSnapshot,
 } from './types.ts'
 
@@ -165,6 +166,34 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       ))
     }
     return provider.loadCoinGeckoCommunity(request, signal)
+  }
+
+  /**
+   * Load daily bars from the backup equity source.
+   * @param symbol - Ticker symbol.
+   * @param signal - Optional caller cancellation.
+   * @returns Ascending bars, empty when the provider has no backup source.
+   */
+  loadAlphaVantageBars(symbol: string, signal?: AbortSignal): Promise<readonly MarketBar[]> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadAlphaVantageBars === undefined) {
+      return Promise.resolve([])
+    }
+    return provider.loadAlphaVantageBars(symbol, signal)
+  }
+
+  /**
+   * Load crypto market rows from the fallback source.
+   * @param symbols - Ticker symbols to read.
+   * @param signal - Optional caller cancellation.
+   * @returns Normalized quotes, empty when the provider has no fallback source.
+   */
+  loadCoinGeckoMarkets(symbols: readonly string[], signal?: AbortSignal): Promise<readonly FinanceCoinMarketCapQuote[]> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadCoinGeckoMarkets === undefined) {
+      return Promise.resolve([])
+    }
+    return provider.loadCoinGeckoMarkets(symbols, signal)
   }
 
   /**

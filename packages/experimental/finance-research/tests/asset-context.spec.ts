@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub, cryptoMetricsFromQuote,
+  cryptoQuotesFromSources,
   equityMetricsFromFundamentals, equityMetricsFromValuation, usMetricsFromFundamentals,
 } from '../src/asset-context.ts'
 
@@ -228,5 +229,20 @@ describe('US equity context', () => {
     const classification = usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, sector: 'TECHNOLOGY' })
     expect(classification.map(metric => [metric.key, metric.text])).toEqual([['sector', 'TECHNOLOGY']])
     expect(usMetricsFromFundamentals(undefined)).toEqual([])
+  })
+})
+
+describe('crypto quote source fallback', () => {
+  const primary = [{ id: 1, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', price: 1 }]
+  const fallback = [{ id: 2, name: 'Bitcoin', symbol: 'BTC', currency: 'USD', price: 2 }]
+
+  it('keeps the primary answer when it publishes rows', async () => {
+    await expect(cryptoQuotesFromSources(['BTC'], async () => primary, async () => fallback)).resolves.toEqual(primary)
+  })
+
+  it('falls back when the primary fails or returns nothing', async () => {
+    await expect(cryptoQuotesFromSources(['BTC'], async () => { throw new Error('cmc down') }, async () => fallback))
+      .resolves.toEqual(fallback)
+    await expect(cryptoQuotesFromSources(['BTC'], async () => [], async () => fallback)).resolves.toEqual(fallback)
   })
 })

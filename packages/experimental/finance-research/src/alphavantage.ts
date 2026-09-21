@@ -1,6 +1,6 @@
 /** Alpha Vantage response normalization. */
 
-import type { FinanceUsFundamentals } from './types.ts'
+import type { FinanceUsFundamentals, MarketBar } from './types.ts'
 
 /** Response fields that name a top-level figure, with its normalized metric key. */
 const OVERVIEW_FIELDS: Readonly<Record<string, string>> = {
@@ -67,4 +67,29 @@ export function normalizeUsFundamentals(payload: unknown, symbol: string): Finan
     ...exchange === undefined ? {} : { exchange },
     indicators,
   }
+}
+
+/** Key of the daily series in an Alpha Vantage time-series response. */
+const DAILY_SERIES_KEY = 'Time Series (Daily)'
+
+/**
+ * Normalize one Alpha Vantage daily series into bars.
+ * @param payload - Upstream JSON.
+ * @returns Ascending bars, or an empty list for a notice or an unusable series.
+ */
+export function normalizeAlphaVantageBars(payload: unknown): MarketBar[] {
+  const series = record(record(payload)?.[DAILY_SERIES_KEY])
+  if (series === undefined) return []
+  const bars = Object.entries(series).flatMap(([day, value]) => {
+    const row = record(value)
+    if (row === undefined) return []
+    const open = finite(row['1. open'])
+    const high = finite(row['2. high'])
+    const low = finite(row['3. low'])
+    const close = finite(row['4. close'])
+    if (open === undefined || high === undefined || low === undefined || close === undefined) return []
+    const volume = finite(row['6. volume']) ?? finite(row['5. volume']) ?? 0
+    return [{ timestamp: `${day}T00:00:00.000Z`, open, high, low, close, volume }]
+  })
+  return bars.sort((left, right) => left.timestamp.localeCompare(right.timestamp))
 }

@@ -160,6 +160,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **CoinGecko 社区数据需要免费 demo Key** — 在金融设置中打开开关并保存密钥；未配置时币圈报告保留市场章节，并列出仍缺少的社区输入。
 - **仓库活跃度受 GitHub 限流影响** — 社区区块会读取 CoinGecko 关联的仓库，未认证的 GitHub 请求按来源地址共享每小时 60 次限额。
 - **A 股估值取自百度股市通、行业基准取自巨潮** — 估值区块读取市盈率、市净率与市值，行业区块读取公开的行业市盈率，因为东财的公司概况接口并非所有网络都能访问。
+- **单源字段各有备用源** — 美股 K 线在 Yahoo 失败时回退到 Alpha Vantage，币圈行情在 CoinMarketCap 失败时回退到 CoinGecko；A 股财务在指标表不可用时回退到同花顺表。
 - **美股基本面需要 Alpha Vantage Key** — 在金融设置中打开开关并保存密钥；免费档每天 25 次请求，未配置时美股报告保留价格、宏观与技术面章节。
 - **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
 - **报告语言目前只有 `en` 和 `zh`** — `auto` 会把其他语言标签解析为英文；新增语言需要先提供对应报告词典。
