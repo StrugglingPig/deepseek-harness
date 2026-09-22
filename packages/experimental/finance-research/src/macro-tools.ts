@@ -216,6 +216,10 @@ export const MACRO_REPORT_CONTEXT_IDS: readonly string[] = [
   'us-core-pce', 'us-unemployment-rate',
   'cn-cpi', 'cn-ppi', 'cn-policy-rate', 'cn-social-financing',
   'global-gdp-growth', 'global-inflation',
+  // Commodity benchmarks and currency legs carry the sections an asset report
+  // renders from the same context rather than from a per-commodity upstream.
+  'brent-crude', 'natural-gas', 'copper-price',
+  'usd-cny', 'usd-jpy', 'eur-usd', 'cn-3m-interbank-rate', 'jp-10y-yield',
 ]
 
 /**

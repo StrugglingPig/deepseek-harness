@@ -15,6 +15,10 @@ export type MacroSourceId = typeof MACRO_SOURCES[number]
 export const MACRO_CATEGORIES = [
   'growth', 'inflation', 'employment', 'consumption', 'investment',
   'money-credit', 'fiscal', 'external', 'policy', 'market',
+  // Commodity and currency series carry the supply-demand balance and the rate
+  // legs a commodity or FX report reads, so they stay out of the general macro
+  // block and render in the commodity-balance and fx-drivers sections.
+  'commodity', 'currency',
 ] as const
 /** One macro category. */
 export type MacroCategory = typeof MACRO_CATEGORIES[number]
@@ -367,6 +371,42 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
     'Energy is the fastest inflation pass-through and a geopolitics thermometer.',
     ['energy equities', 'inflation', 'CAD', 'NOK'],
     { fred: { seriesId: 'DCOILWTICO' } }),
+
+  // Commodity benchmarks
+  indicator('brent-crude', 'Brent crude oil price', '布伦特原油价格', 'commodity', 'global', 'USD/barrel', 'daily', 'leading',
+    'The seaborne benchmark prices the waterborne market and the Brent-WTI spread the logistics bottleneck.',
+    ['energy equities', 'inflation', 'CAD', 'NOK'],
+    { fred: { seriesId: 'DCOILBRENTEU' } }),
+  indicator('natural-gas', 'US natural gas price (Henry Hub)', '美国天然气价格', 'commodity', 'us', 'USD/MMBtu', 'daily', 'leading',
+    'Gas sets marginal power cost, so it transmits into electricity, fertilizers, and industrial margins.',
+    ['utilities', 'fertilizers', 'industrial equities'],
+    { fred: { seriesId: 'DHHNGSP' } }),
+  indicator('copper-price', 'Copper price (global, USD per metric ton)', '铜价', 'commodity', 'global', 'USD/metric ton', 'monthly', 'coincident',
+    'Copper is the industrial-cycle proxy; its trend separates a supply shock from demand exhaustion.',
+    ['industrial metals', 'mining equities', 'CNY'],
+    { fred: { seriesId: 'PCOPPUSDM' } }),
+
+  // Currency legs
+  indicator('usd-cny', 'USD/CNY exchange rate', '美元兑人民币汇率', 'currency', 'cn', 'CNY per USD', 'daily', 'coincident',
+    'USD/CNY carries the rate differential and the trade balance; a break higher tightens CN financial conditions.',
+    ['CNY', 'CN equities', 'EM assets'],
+    { fred: { seriesId: 'DEXCHUS' } }),
+  indicator('usd-jpy', 'USD/JPY exchange rate', '美元兑日元汇率', 'currency', 'global', 'JPY per USD', 'daily', 'coincident',
+    'USD/JPY is the cleanest read on the carry trade and on global risk appetite.',
+    ['JPY', 'carry trades', 'global equities'],
+    { fred: { seriesId: 'DEXJPUS' } }),
+  indicator('eur-usd', 'EUR/USD exchange rate', '欧元兑美元汇率', 'currency', 'global', 'USD per EUR', 'daily', 'coincident',
+    'EUR/USD prices the two largest policy blocs against each other and dominates the dollar index.',
+    ['EUR', 'USD', 'European equities'],
+    { fred: { seriesId: 'DEXUSEU' } }),
+  indicator('cn-3m-interbank-rate', 'China 3-month interbank rate', '中国 3 个月银行间利率', 'currency', 'cn', '%', 'monthly', 'coincident',
+    'The CN funding leg of the rate differential; it also shows when domestic liquidity turns.',
+    ['CNY', 'CN equities', 'CN bonds'],
+    { fred: { seriesId: 'IR3TIB01CNM156N' } }),
+  indicator('jp-10y-yield', 'Japan 10-year government bond yield', '日本 10 年期国债收益率', 'currency', 'global', '%', 'monthly', 'coincident',
+    'The JPY funding leg; a sustained rise unwinds carry positions funded in yen.',
+    ['JPY', 'global bonds', 'carry trades'],
+    { fred: { seriesId: 'IRLTLT01JPM156N' } }),
 ]
 
 const BY_ID = new Map<string, MacroIndicator>(MACRO_INDICATORS.map(entry => [entry.id, entry]))

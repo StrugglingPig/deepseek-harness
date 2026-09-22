@@ -303,6 +303,59 @@ describe('macro blocks inside an asset report', () => {
     expect(sectionOf(report, 'Ownership And Insiders')).toContain('insider transactions')
   })
 
+  it('renders commodity and currency series and keeps the inputs they still lack', async () => {
+    const macro = [
+      macroSeries('brent-crude', 130.8, 'commodity', 'global', 'USD/barrel', '2026-09-15'),
+      macroSeries('usd-cny', 6.6975, 'currency', 'cn', 'CNY per USD', '2026-09-18'),
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'GLD', reportType: 'commodity-fx-deep-dive' },
+      undefined,
+      'en',
+      macro as never,
+    )
+    const balance = sectionOf(report, 'Supply And Demand Balance')
+    expect(balance).toContain('brent-crude')
+    expect(balance).toContain('Still missing: ')
+    expect(balance).toContain('inventories')
+    const fx = sectionOf(report, 'FX Drivers')
+    expect(fx).toContain('usd-cny')
+    expect(fx).toContain('Still missing: ')
+  })
+
+  it('keeps the input-demanding block when no commodity or currency series loaded', async () => {
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'GLD', reportType: 'commodity-fx-deep-dive' },
+      undefined,
+      'en',
+    )
+    const balance = sectionOf(report, 'Supply And Demand Balance')
+    expect(balance).toContain('inventories')
+    expect(balance).not.toContain('Still missing: ')
+    expect(sectionOf(report, 'FX Drivers')).toContain('rate differentials')
+  })
+
+  it('renders published headlines in the event context when the snapshot carries them', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'catalyst', key: 'newsHeadlines', value: 0, text: 'Apple unveils the next iPhone', unit: '', asOf: '', source: 'finnhub' },
+      { group: 'catalyst', key: 'latestFilingForm', value: 0, text: '10-Q', unit: '', asOf: '', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-event' },
+      undefined,
+      'en',
+      [],
+      metrics,
+    )
+    const context = sectionOf(report, 'Event Context')
+    expect(context).toContain('Recent headlines: Apple unveils the next iPhone')
+    expect(context).toContain('Still missing: ')
+    expect(context).toContain('event timeline')
+  })
+
   it('falls back to the missing-input block when no macro series were loaded', async () => {
     const report = await buildResearchReport(
       fixtureProvider,

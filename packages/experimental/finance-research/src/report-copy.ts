@@ -25,7 +25,7 @@ export type ReportLabelKey =
   | 'stanceAccumulate' | 'stanceWatch' | 'stanceReduce' | 'viewStance' | 'viewConfidence'
   | 'viewReasons' | 'viewInvalidation' | 'viewGaps' | 'maStack' | 'rsiOverbought' | 'rsiOversold'
   | 'rsiNeutral' | 'macdBullish' | 'macdBearish'
-  | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor'
+  | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor' | 'partialMissing'
 
 /** Interpolated line templates owned by the report writer. */
 export type ReportTemplateKey =
@@ -151,6 +151,7 @@ const EN: ReportCopy = {
     gapCount: 'Missing inputs: ',
     obvAverage: '20-bar average ',
     watchFor: 'What to watch',
+    partialMissing: 'Still missing: ',
     asOf: 'As-of: ',
     price: 'Price: ',
     change: 'Change: ',
@@ -296,6 +297,13 @@ const EN: ReportCopy = {
     latestFilingForm: 'Newest material SEC filing',
     latestFilingDate: 'Newest material filing date',
     reportedFinancials: 'Newest reported statements',
+    athChangePercentage: 'Drawdown from all-time high',
+    atlChangePercentage: 'Gain from all-time low',
+    btcDominance: 'Bitcoin market cap dominance',
+    ethDominance: 'Ether market cap dominance',
+    activeCryptocurrencies: 'Tracked cryptocurrencies',
+    githubReleases1y: 'Releases (last 12 months)',
+    githubLatestRelease: 'Newest release date',
     roa: 'Return on assets',
     beta: 'Beta',
     industry: 'Industry',
@@ -371,6 +379,7 @@ const EN: ReportCopy = {
     'project-and-community': { requires: ['developer activity', 'community size', 'sentiment'], checks: ['Is development still active?', 'Is the community growing or fading?', 'Does sentiment diverge from price?'] },
     'ownership-and-insiders': { requires: ['insider transactions', 'ownership breakdown', 'institutional holders'], checks: ['Are insiders accumulating or selling?', 'How concentrated is ownership?', 'Which holders set the agenda?'] },
     catalysts: { requires: ['scheduled events', 'news flow', 'filing calendar'], checks: ['Which dated event can move the price next?', 'Is the news flow confirming or contradicting the trend?', 'What would invalidate the standing catalyst list?'] },
+    allocation: { requires: ['index valuation and earnings', 'fund flows and positioning', 'macro regime series'], checks: ['What does the current regime imply for each asset class?', 'How much risk does the budget allow?', 'What would force a rebalance?'] },
   },
 }
 
@@ -429,6 +438,7 @@ const ZH: ReportCopy = {
     gapCount: '缺少输入：',
     obvAverage: '20 根均值 ',
     watchFor: '关注方向',
+    partialMissing: '本节仍缺以下输入：',
     asOf: '截至：',
     price: '价格：',
     change: '涨跌幅：',
@@ -660,6 +670,7 @@ const ZH: ReportCopy = {
     'project-and-community': { requires: ['开发活跃度', '社区规模', '情绪'], checks: ['开发是否仍然活跃？', '社区在增长还是流失？', '情绪与价格是否背离？'] },
     'ownership-and-insiders': { requires: ['内部人交易', '股权结构', '机构持仓'], checks: ['内部人在增持还是减持？', '股权集中度如何？', '谁在影响公司议程？'] },
     catalysts: { requires: ['日程事件', '新闻流', '公告日程'], checks: ['下一个可能推动价格的事件是什么？', '新闻流在确认还是否定趋势？', '什么会推翻这份催化剂清单？'] },
+    allocation: { requires: ['指数估值与盈利', '资金流与仓位', '宏观状态序列'], checks: ['当前状态对各资产类别意味着什么？', '风险预算允许多大仓位？', '什么会触发再平衡？'] },
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -696,6 +707,13 @@ const ZH: ReportCopy = {
     latestFilingForm: '最近一次重大公告类型',
     latestFilingDate: '最近一次重大公告日期',
     reportedFinancials: '最近披露的财报期间',
+    athChangePercentage: '距历史最高点回撤',
+    atlChangePercentage: '距历史最低点涨幅',
+    btcDominance: '比特币市值占比',
+    ethDominance: '以太坊市值占比',
+    activeCryptocurrencies: '追踪币种数量',
+    githubReleases1y: '近 12 个月发版次数',
+    githubLatestRelease: '最近一次发版日期',
     roa: '总资产收益率',
     beta: 'Beta',
     industry: '所属行业',

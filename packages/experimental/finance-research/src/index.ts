@@ -31,8 +31,8 @@ import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECO
 import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import {
-  cryptoMetricsForSymbol, cryptoQuotesFromSources, equityMetricsFromFundamentals, equityMetricsFromValuation,
-  usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
+  cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromFundamentals,
+  equityMetricsFromValuation, usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
 } from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
@@ -1233,16 +1233,20 @@ export function apply(ctx: Context, config: Config): void {
       // A quoted pair carries its base asset; anything else is treated as a listed ticker.
       const isPair = request.symbol.includes('-')
       if (isPair) {
-        return cryptoMetricsForSymbol(
-          request.symbol,
-          symbols => cryptoQuotesFromSources(
-            symbols,
-            request => provider.loadCoinMarketCapQuotes({ symbols: request }),
-            request => provider.loadCoinGeckoMarkets(request),
+        const [metrics, global] = await Promise.all([
+          cryptoMetricsForSymbol(
+            request.symbol,
+            symbols => cryptoQuotesFromSources(
+              symbols,
+              request => provider.loadCoinMarketCapQuotes({ symbols: request }),
+              request => provider.loadCoinGeckoMarkets(request),
+            ),
+            id => provider.loadCoinGeckoCommunity({ id }),
+            repository => provider.loadGithubRepo({ repository }),
           ),
-          id => provider.loadCoinGeckoCommunity({ id }),
-          repository => provider.loadGithubRepo({ repository }),
-        )
+          provider.loadCoinGeckoGlobal(),
+        ])
+        return [...metrics, ...cryptoMetricsFromGlobal(global)]
       }
       try {
         return usMetricsFromFundamentals(await provider.loadUsFundamentals({ symbol: request.symbol }))

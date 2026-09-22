@@ -2,8 +2,8 @@
 
 import { githubSlug } from './github.ts'
 import type {
-  FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote, FinanceGithubRepo, FinanceStockFundamentals,
-  FinanceStockValuation, FinanceUsFundamentals,
+  FinanceCoinGeckoCommunity, FinanceCoinGeckoGlobal, FinanceCoinMarketCapQuote, FinanceGithubRepo,
+  FinanceStockFundamentals, FinanceStockValuation, FinanceUsFundamentals,
 } from './types.ts'
 
 /**
@@ -20,9 +20,10 @@ export const REPORT_METRIC_KEYS = [
   'peVsIndustry', 'peVsIndustryMedian', 'peers', 'profitGrowth', 'psRatio', 'rank', 'redditSubscribers',
   'revenueGrowth', 'roa', 'roe', 'sentimentDown', 'sentimentUp', 'telegramUsers', 'totalSupply',
   'twitterFollowers', 'volume24h', 'volumeChange24h', 'watchlistUsers', 'beta',
-  'analystBuy', 'analystHold', 'analystSell', 'epsSurprise', 'insiderBoughtShares', 'insiderNetShares',
-  'insiderSentiment', 'insiderSoldShares', 'latestFilingDate', 'latestFilingForm', 'newsHeadlines',
-  'nextEarnings', 'reportedFinancials',
+  'activeCryptocurrencies', 'analystBuy', 'analystHold', 'analystSell', 'athChangePercentage',
+  'atlChangePercentage', 'btcDominance', 'epsSurprise', 'ethDominance', 'githubLatestRelease',
+  'githubReleases1y', 'insiderBoughtShares', 'insiderNetShares', 'insiderSentiment', 'insiderSoldShares',
+  'latestFilingDate', 'latestFilingForm', 'newsHeadlines', 'nextEarnings', 'reportedFinancials',
 ] as const
 
 /** One metric key a report knows how to label. */
@@ -193,7 +194,29 @@ const COMMUNITY_METRICS: readonly (readonly [AssetMetricGroup, ReportMetricKey, 
   ['development', 'githubSubscribers', ''],
   ['development', 'githubCommits4w', ''],
   ['development', 'githubClosedIssues', ''],
+  ['market', 'athChangePercentage', '%'],
+  ['market', 'atlChangePercentage', '%'],
 ]
+
+/** Market-wide figures a CoinGecko global snapshot contributes. */
+const CRYPTO_GLOBAL_METRICS: readonly (readonly [ReportMetricKey, string])[] = [
+  ['btcDominance', '%'],
+  ['ethDominance', '%'],
+  ['activeCryptocurrencies', ''],
+]
+
+/**
+ * Turn one CoinGecko global snapshot into market-age metrics.
+ * @param global - Normalized snapshot, when one loaded.
+ * @returns Market metrics; figures the upstream omitted are skipped.
+ */
+export function cryptoMetricsFromGlobal(global: FinanceCoinGeckoGlobal | undefined): AssetMetric[] {
+  if (global === undefined) return []
+  return CRYPTO_GLOBAL_METRICS.flatMap(([key, unit]) => {
+    const value = global[key as keyof FinanceCoinGeckoGlobal]
+    return typeof value === 'number' ? [{ group: 'market' as const, key, value, unit, asOf: '', source: 'coingecko' }] : []
+  })
+}
 
 /**
  * Turn one CoinGecko snapshot into report metrics.
@@ -215,6 +238,7 @@ const GITHUB_METRICS: readonly (readonly [ReportMetricKey, keyof FinanceGithubRe
   ['githubWatchers', 'watchers'],
   ['githubOpenIssues', 'openIssues'],
   ['githubCommits4w', 'commits4w'],
+  ['githubReleases1y', 'releases1y'],
 ]
 
 /**
@@ -224,10 +248,16 @@ const GITHUB_METRICS: readonly (readonly [ReportMetricKey, keyof FinanceGithubRe
  */
 export function cryptoMetricsFromGithub(repo: FinanceGithubRepo | undefined): AssetMetric[] {
   if (repo === undefined) return []
-  return GITHUB_METRICS.flatMap(([key, field]) => {
+  const metrics: AssetMetric[] = GITHUB_METRICS.flatMap(([key, field]) => {
     const value = repo[field]
     return typeof value === 'number' ? [{ group: 'development' as const, key, value, unit: '', asOf: '', source: 'github' }] : []
   })
+  if (repo.latestRelease !== undefined) {
+    metrics.push({
+      group: 'development', key: 'githubLatestRelease', value: 0, text: repo.latestRelease, unit: '', asOf: '', source: 'github',
+    })
+  }
+  return metrics
 }
 
 /** Multiples the valuation bridge reports, with their dimension and unit. */

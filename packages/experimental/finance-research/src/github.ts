@@ -53,6 +53,32 @@ export function normalizeGithubCommitActivity(payload: unknown, weeks = 4): numb
 }
 
 /**
+ * Count the releases published inside a trailing window and date the newest one.
+ * @param payload - Upstream `/repos/{owner}/{name}/releases` JSON.
+ * @param today - Date the window ends on.
+ * @param windowDays - Length of the trailing window in days.
+ * @returns The release count and the newest release date, or undefined when the feed published none.
+ */
+export function normalizeGithubReleases(
+  payload: unknown,
+  today: Date,
+  windowDays: number,
+): { readonly releases: number; readonly latestRelease: string } | undefined {
+  if (!Array.isArray(payload)) return undefined
+  const from = new Date(today.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10)
+  const dates = payload.flatMap((entry) => {
+    const published = record(entry)?.published_at
+    return typeof published === 'string' && published.length >= 10 ? [published.slice(0, 10)] : []
+  })
+  if (dates.length === 0) return undefined
+  const sorted = [...dates].sort()
+  return {
+    releases: sorted.filter(date => date >= from).length,
+    latestRelease: sorted[sorted.length - 1] as string,
+  }
+}
+
+/**
  * Read the first GitHub repository linked by a community snapshot.
  * @param repos - Repository URLs as published upstream.
  * @returns The `owner/name` slug, or undefined when no GitHub URL is usable.

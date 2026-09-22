@@ -5,15 +5,16 @@ export { FinanceDataError } from './error.ts'
 import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
-import { normalizeCoinGeckoCommunity, normalizeCoinGeckoMarkets } from './coingecko.ts'
+import { normalizeCoinGeckoCommunity, normalizeCoinGeckoGlobal, normalizeCoinGeckoMarkets } from './coingecko.ts'
 import { normalizeFinnhubExtras, normalizeFinnhubFundamentals, type FinnhubExtras } from './finnhub.ts'
-import { normalizeGithubCommitActivity, normalizeGithubRepo } from './github.ts'
+import { normalizeGithubCommitActivity, normalizeGithubReleases, normalizeGithubRepo } from './github.ts'
 import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
 import { isFuturesScope, normalizeFuturesAccount, normalizeSpotAccount } from './private.ts'
 import { FinanceHttpTransport } from './transport.ts'
 import type {
   FinanceCoinGeckoCommunity,
+  FinanceCoinGeckoGlobal,
   FinanceUsFundamentals,
   FinanceUsFundamentalsRequest,
   FinanceCoinGeckoCommunityRequest,
@@ -47,6 +48,8 @@ const DEFAULT_COINMARKETCAP_BASE_URL = 'https://pro-api.coinmarketcap.com'
 const DEFAULT_COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
 const DEFAULT_GITHUB_BASE_URL = 'https://api.github.com'
 const DEFAULT_FINNHUB_BASE_URL = 'https://finnhub.io/api/v1'
+/** Trailing window a GitHub release count covers. */
+const GITHUB_RELEASE_WINDOW_DAYS = 365
 
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = 'https://gamma-api.polymarket.com'
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = 'https://clob.polymarket.com'
@@ -449,13 +452,28 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       query: {
         localization: false,
         tickers: false,
-        market_data: false,
+        market_data: true,
         community_data: true,
         developer_data: true,
         sparkline: false,
       },
     }, signal)
     return normalizeCoinGeckoCommunity(response.data)
+  }
+
+  /**
+   * Load the global crypto market snapshot from CoinGecko.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized snapshot, or undefined when CoinGecko omits the fields.
+   */
+  async loadCoinGeckoGlobal(signal?: AbortSignal): Promise<FinanceCoinGeckoGlobal | undefined> {
+    try {
+      const response = await this.request({ base: 'coingecko', path: '/global', auth: 'api-key' }, signal)
+      return normalizeCoinGeckoGlobal(response.data)
+    } catch {
+      // Global context is optional; a report keeps the per-coin metrics without it.
+      return undefined
+    }
   }
 
   /**
@@ -561,17 +579,61 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       const response = await this.request({ base: 'github', path, auth: 'api-key' }, signal)
       const repo = normalizeGithubRepo(response.data, request.repository)
       if (repo === undefined) return undefined
-      try {
-        // GitHub answers 202 with an empty body while it computes this series.
-        const activity = await this.request({ base: 'github', path: `${path}/stats/commit_activity`, auth: 'api-key' }, signal)
-        const commits4w = normalizeGithubCommitActivity(activity.data)
-        return commits4w === undefined ? repo : { ...repo, commits4w }
-      } catch {
-        return repo
-      }
+      const withActivity = await this.withGithubActivity(repo, path, signal)
+      return await this.withGithubReleases(withActivity, path, signal)
     } catch {
       // A repository the API rate-limits or cannot find simply contributes no metrics.
       return undefined
+    }
+  }
+
+  /**
+   * Merge the trailing commit-activity series into a GitHub snapshot.
+   * @param repo - Snapshot read from the repository endpoint.
+   * @param path - Repository API path.
+   * @param signal - Optional caller cancellation.
+   * @returns The snapshot with commit activity when GitHub publishes it.
+   */
+  private async withGithubActivity(
+    repo: FinanceGithubRepo,
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<FinanceGithubRepo> {
+    try {
+      // GitHub answers 202 with an empty body while it computes this series.
+      const activity = await this.request({ base: 'github', path: `${path}/stats/commit_activity`, auth: 'api-key' }, signal)
+      const commits4w = normalizeGithubCommitActivity(activity.data)
+      return commits4w === undefined ? repo : { ...repo, commits4w }
+    } catch {
+      return repo
+    }
+  }
+
+  /**
+   * Merge the trailing release feed into a GitHub snapshot.
+   * @param repo - Snapshot read from the repository endpoint.
+   * @param path - Repository API path.
+   * @param signal - Optional caller cancellation.
+   * @returns The snapshot with release counts when GitHub publishes them.
+   */
+  private async withGithubReleases(
+    repo: FinanceGithubRepo,
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<FinanceGithubRepo> {
+    try {
+      const response = await this.request({
+        base: 'github',
+        path: `${path}/releases`,
+        auth: 'api-key',
+        query: { per_page: 30 },
+      }, signal)
+      const releases = normalizeGithubReleases(response.data, this.options.now(), GITHUB_RELEASE_WINDOW_DAYS)
+      return releases === undefined
+        ? repo
+        : { ...repo, releases1y: releases.releases, latestRelease: releases.latestRelease }
+    } catch {
+      return repo
     }
   }
 

@@ -1,6 +1,6 @@
 /** CoinGecko REST response normalization. */
 
-import type { FinanceCoinGeckoCommunity, FinanceCoinMarketCapQuote } from './types.ts'
+import type { FinanceCoinGeckoCommunity, FinanceCoinGeckoGlobal, FinanceCoinMarketCapQuote } from './types.ts'
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,6 +46,9 @@ export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoC
   const sentimentDown = finite(coin.sentiment_votes_down_percentage)
   const watchlistUsers = finite(coin.watchlist_portfolio_users)
   const genesisDate = text(coin.genesis_date)
+  const market = record(coin.market_data)
+  const athChangePercentage = finite(market?.ath_change_percentage)
+  const atlChangePercentage = finite(market?.atl_change_percentage)
   const links = record(coin.links)
   const reposUrl = links === undefined ? undefined : record(links.repos_url)
   const repoLinks = reposUrl === undefined ? undefined : reposUrl.github
@@ -70,7 +73,33 @@ export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoC
     ...watchlistUsers === undefined ? {} : { watchlistUsers },
     ...genesisDate === undefined ? {} : { genesisDate },
     ...githubRepos === undefined ? {} : { githubRepos },
+    ...athChangePercentage === undefined ? {} : { athChangePercentage },
+    ...atlChangePercentage === undefined ? {} : { atlChangePercentage },
   }
+}
+
+/**
+ * Normalize a CoinGecko `/global` response into market-wide crypto context.
+ * @param payload - Upstream CoinGecko JSON.
+ * @returns The normalized snapshot, or undefined when the payload carries no data.
+ */
+export function normalizeCoinGeckoGlobal(payload: unknown): FinanceCoinGeckoGlobal | undefined {
+  const data = record(record(payload)?.data)
+  if (data === undefined) return undefined
+  const marketCap = finite(record(data.total_market_cap)?.usd)
+  const volume = finite(record(data.total_volume)?.usd)
+  const marketCapPercentage = record(data.market_cap_percentage)
+  const btcDominance = finite(marketCapPercentage?.btc)
+  const ethDominance = finite(marketCapPercentage?.eth)
+  const activeCryptocurrencies = finite(data.active_cryptocurrencies)
+  const snapshot: FinanceCoinGeckoGlobal = {
+    ...marketCap === undefined ? {} : { totalMarketCapUsd: marketCap },
+    ...volume === undefined ? {} : { totalVolumeUsd: volume },
+    ...btcDominance === undefined ? {} : { btcDominance },
+    ...ethDominance === undefined ? {} : { ethDominance },
+    ...activeCryptocurrencies === undefined ? {} : { activeCryptocurrencies },
+  }
+  return Object.keys(snapshot).length === 0 ? undefined : snapshot
 }
 
 /** One CoinGecko markets row, mapped onto the shared normalized quote record. */

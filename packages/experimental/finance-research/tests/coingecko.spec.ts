@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeCoinGeckoCommunity, normalizeCoinGeckoMarkets } from '../src/coingecko.ts'
+import { normalizeCoinGeckoCommunity, normalizeCoinGeckoGlobal, normalizeCoinGeckoMarkets } from '../src/coingecko.ts'
 
 describe('CoinGecko normalization', () => {
   it('reads community and developer counts', () => {
@@ -45,6 +45,37 @@ describe('CoinGecko normalization', () => {
       genesisDate: '2009-01-03',
       githubRepos: ['https://github.com/bitcoin/bitcoin'],
     })
+  })
+
+  it('reads the all-time-high and all-time-low changes from the market block', () => {
+    const community = normalizeCoinGeckoCommunity({
+      id: 'bitcoin',
+      name: 'Bitcoin',
+      market_data: { ath_change_percentage: -21.4, atl_change_percentage: 132_000_000 },
+    })
+    expect(community).toMatchObject({ id: 'bitcoin', name: 'Bitcoin', athChangePercentage: -21.4, atlChangePercentage: 132_000_000 })
+    expect(normalizeCoinGeckoCommunity({ id: 'bitcoin', name: 'Bitcoin' }))
+      .toEqual({ id: 'bitcoin', name: 'Bitcoin' })
+  })
+
+  it('reads the global crypto market snapshot', () => {
+    expect(normalizeCoinGeckoGlobal({
+      data: {
+        active_cryptocurrencies: 21_358,
+        total_market_cap: { usd: 2_902_076_300_969.686 },
+        total_volume: { usd: 148_653_166_754.13 },
+        market_cap_percentage: { btc: 57.3, eth: 12.1, usdt: 5.9 },
+      },
+    })).toEqual({
+      totalMarketCapUsd: 2_902_076_300_969.686,
+      totalVolumeUsd: 148_653_166_754.13,
+      btcDominance: 57.3,
+      ethDominance: 12.1,
+      activeCryptocurrencies: 21_358,
+    })
+    // A payload with no usable figure reports nothing rather than an empty record.
+    expect(normalizeCoinGeckoGlobal({ data: {} })).toBeUndefined()
+    expect(normalizeCoinGeckoGlobal({})).toBeUndefined()
   })
 
   it('omits counts the upstream did not publish', () => {

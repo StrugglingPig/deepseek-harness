@@ -249,6 +249,44 @@ describe('HTTP finance market data provider', () => {
     await expect(failing.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
   })
 
+  it('loads a CoinGecko community snapshot with the all-time change figures', async () => {
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      coinGeckoBaseUrl: 'https://api.coingecko.test/v3',
+      fetch: async () => new Response(JSON.stringify({
+        id: 'bitcoin',
+        name: 'Bitcoin',
+        market_data: { ath_change_percentage: -21.4, atl_change_percentage: 132_000_000 },
+      }), { status: 200 }),
+    })
+    await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' })).resolves.toMatchObject({
+      id: 'bitcoin', athChangePercentage: -21.4, atlChangePercentage: 132_000_000,
+    })
+  })
+
+  it('loads the global crypto market snapshot and tolerates a failure', async () => {
+    const urls: string[] = []
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      coinGeckoBaseUrl: 'https://api.coingecko.test/v3',
+      fetch: async (input: string | URL | Request) => {
+        urls.push(urlOf(input))
+        const body = { data: { active_cryptocurrencies: 21_358, market_cap_percentage: { btc: 57.3 } } }
+        return new Response(JSON.stringify(body), { status: 200 })
+      },
+    })
+    await expect(provider.loadCoinGeckoGlobal()).resolves.toEqual({ btcDominance: 57.3, activeCryptocurrencies: 21_358 })
+    expect(urls.some(url => url.includes('/global'))).toBe(true)
+
+    // Global context is optional, so a failing call resolves to undefined.
+    const failing = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      coinGeckoBaseUrl: 'https://api.coingecko.test/v3',
+      fetch: async () => new Response('nope', { status: 500 }),
+    })
+    await expect(failing.loadCoinGeckoGlobal()).resolves.toBeUndefined()
+  })
+
   it('loads a US fundamentals snapshot from Finnhub, tolerating a failed call', async () => {
     const requested: string[] = []
     const provider = createHttpFinanceMarketDataProvider({
@@ -354,6 +392,13 @@ describe('HTTP finance market data provider', () => {
         if (url.includes('/stats/commit_activity')) {
           return new Response(JSON.stringify([{ total: 10 }, { total: 20 }, { total: 30 }, { total: 40 }, { total: 50 }]), { status: 200 })
         }
+        if (url.includes('/releases')) {
+          return new Response(JSON.stringify([
+            { published_at: '2026-08-15T10:00:00Z' },
+            { published_at: '2026-05-02T10:00:00Z' },
+            { published_at: '2024-01-02T10:00:00Z' },
+          ]), { status: 200 })
+        }
         return new Response(JSON.stringify({
           name: 'bitcoin', stargazers_count: 85_000, forks_count: 36_000, subscribers_count: 4_000, open_issues_count: 600,
         }), { status: 200 })
@@ -361,6 +406,7 @@ describe('HTTP finance market data provider', () => {
     })
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).resolves.toEqual({
       repository: 'bitcoin/bitcoin', stars: 85_000, forks: 36_000, watchers: 4_000, openIssues: 600, commits4w: 140,
+      releases1y: 2, latestRelease: '2026-08-15',
     })
     expect(urls.some(url => url.includes('/repos/bitcoin/bitcoin'))).toBe(true)
 
@@ -394,9 +440,12 @@ describe('HTTP finance market data provider', () => {
     const activityFails = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
       githubBaseUrl: 'https://api.github.test',
-      fetch: async (input: string | URL | Request) => urlOf(input).includes('/stats/commit_activity')
-        ? new Response('server error', { status: 500 })
-        : new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 }),
+      fetch: async (input: string | URL | Request) => {
+        const url = urlOf(input)
+        if (url.includes('/stats/commit_activity')) return new Response('server error', { status: 500 })
+        if (url.includes('/releases')) return new Response('server error', { status: 500 })
+        return new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 })
+      },
     })
     await expect(activityFails.loadGithubRepo({ repository: 'bitcoin/bitcoin' }))
       .resolves.toEqual({ repository: 'bitcoin/bitcoin', stars: 85_000 })

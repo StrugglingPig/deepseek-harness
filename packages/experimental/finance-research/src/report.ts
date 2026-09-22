@@ -125,6 +125,28 @@ function macroBlock(
   }
 }
 
+/**
+ * Add the inputs a partially covered block still lacks.
+ * @param context - Section context carrying the report copy.
+ * @param id - Section being rendered.
+ * @param rendered - Block rendered from the data that did load.
+ * @returns The rendered block, or the input-demanding block when it carried no data.
+ */
+function partialBlock(context: SectionContext, id: ReportSectionId, rendered: ResearchReportSection): ResearchReportSection {
+  const copy = context.copy
+  if (rendered.content.includes(copy.labels.blockMissing)) return rendered
+  const block = copy.blocks[id] as ReportBlockCopy
+  return {
+    title: rendered.title,
+    content: [
+      rendered.content,
+      '',
+      `- ${copy.labels.partialMissing}${block.requires.join(', ')}`,
+      ...block.checks.map(item => `- ${item}`),
+    ].join('\n'),
+  }
+}
+
 /** Input-demanding block: inputs the snapshot lacks, plus the questions it would answer. */
 function inputBlock(context: SectionContext, id: ReportSectionId, extras: readonly string[] = []): ResearchReportSection {
   const copy = context.copy
@@ -391,17 +413,18 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       }
     }
     case 'allocation': {
+      // The ATR budget is computable from the price history; the regime, flow, and
+      // valuation inputs the section also needs stay listed as missing.
       const atrPercent = analysis.risk.atrPercent
       const size = Math.min(100, 1 / Math.max(atrPercent, 0.0001) * 100)
-      return {
+      return partialBlock(context, id, {
         title: copy.sections.allocation,
         content: [
           `- ${copy.labels.riskBudget}1%`,
           `- ${copy.labels.atrStop}${percent(atrPercent)}`,
           `- ${copy.labels.positionSize}${percent(size)}`,
-          `- ${copy.labels.blockMissing}`,
         ].join('\n'),
-      }
+      })
     }
     case 'catalysts': {
       // Scheduled dates and headlines are what a catalyst block can act on; the
@@ -420,6 +443,10 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
     }
     case 'ownership-and-insiders':
       return metricBlock(context, id, ['insider'])
+    case 'commodity-balance':
+      return partialBlock(context, id, macroBlock(context, id, ['commodity']))
+    case 'fx-drivers':
+      return partialBlock(context, id, macroBlock(context, id, ['currency']))
     case 'monitoring-plan':
       return {
         title: copy.sections.monitoringPlan,
@@ -441,10 +468,17 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       const latest = snapshot.bars.at(-1) as { readonly close: number; readonly volume: number }
       const previous = snapshot.bars.at(-2) as { readonly close: number }
       const change = (latest.close - previous.close) / Math.max(Math.abs(previous.close), Number.EPSILON) * 100
-      return inputBlock(context, id, [
+      const reaction = [
         `${copy.labels.change}${percent(change)}`,
         `${copy.labels.volume}${latest.volume}`,
-      ])
+      ]
+      // Published headlines and the newest filing stand in for the event record.
+      const published = metricBlock(context, id, ['catalyst'])
+      if (published.content.includes(copy.labels.blockMissing)) return inputBlock(context, id, reaction)
+      return partialBlock(context, id, {
+        title: copy.sections.eventContext,
+        content: [published.content, '', ...reaction].join('\n'),
+      })
     }
     case 'strategy-gaps':
       return {
@@ -492,8 +526,6 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return macroBlock(context, id, ['growth', 'inflation', 'employment', 'consumption', 'investment', 'money-credit', 'fiscal', 'external', 'policy', 'market'])
     case 'rates-credit':
       return macroBlock(context, id, ['market', 'money-credit', 'policy', 'fiscal'])
-    default:
-      return inputBlock(context, id)
   }
 }
 

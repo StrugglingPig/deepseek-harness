@@ -168,6 +168,24 @@ export interface FinanceCoinGeckoCommunity {
   readonly watchlistUsers?: number
   readonly genesisDate?: string
   readonly githubRepos?: readonly string[]
+  /** Percent change from the all-time high; negative when the coin trades below it. */
+  readonly athChangePercentage?: number
+  /** Percent change from the all-time low. */
+  readonly atlChangePercentage?: number
+}
+
+/** One normalized CoinGecko global market snapshot. */
+export interface FinanceCoinGeckoGlobal {
+  /** Total cryptocurrency market capitalisation in USD. */
+  readonly totalMarketCapUsd?: number
+  /** Total 24-hour trading volume in USD. */
+  readonly totalVolumeUsd?: number
+  /** Bitcoin share of the total market capitalisation, in percent. */
+  readonly btcDominance?: number
+  /** Ether share of the total market capitalisation, in percent. */
+  readonly ethDominance?: number
+  /** Number of tracked cryptocurrencies. */
+  readonly activeCryptocurrencies?: number
 }
 
 /** One GitHub repository lookup. */
@@ -184,6 +202,10 @@ export interface FinanceGithubRepo {
   readonly watchers?: number
   readonly openIssues?: number
   readonly commits4w?: number
+  /** Releases published in the trailing year. */
+  readonly releases1y?: number
+  /** Publication date of the newest release, as `YYYY-MM-DD`. */
+  readonly latestRelease?: string
 }
 
 /** One CoinMarketCap OHLCV request. */
@@ -380,6 +402,8 @@ export interface FinanceMarketDataProvider {
   ): Promise<FinanceCoinGeckoCommunity | undefined>
   /** Load crypto market rows from the fallback source when the provider supports it. */
   loadCoinGeckoMarkets?(symbols: readonly string[], signal?: AbortSignal): Promise<readonly FinanceCoinMarketCapQuote[]>
+  /** Load the global crypto market snapshot when the provider supports it. */
+  loadCoinGeckoGlobal?(signal?: AbortSignal): Promise<FinanceCoinGeckoGlobal | undefined>
   /** Load one US equity fundamentals snapshot when the provider supports it. */
   loadUsFundamentals?(
     request: FinanceUsFundamentalsRequest,

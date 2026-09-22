@@ -7,6 +7,7 @@ import { HttpFinanceMarketDataProvider } from './http.ts'
 import { BinanceWebSocketStreamProvider, CoinMarketCapWebSocketStreamProvider, type FinanceWebSocketLike, type FinanceWebSocketOptions } from './stream.ts'
 import type {
   FinanceCoinGeckoCommunity,
+  FinanceCoinGeckoGlobal,
   FinanceUsFundamentals,
   FinanceUsFundamentalsRequest,
   FinanceGithubRepo,
@@ -165,6 +166,19 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       ))
     }
     return provider.loadCoinGeckoCommunity(request, signal)
+  }
+
+  /**
+   * Load the global crypto market snapshot from the current HTTP provider.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized snapshot, or undefined when the provider publishes none.
+   */
+  loadCoinGeckoGlobal(signal?: AbortSignal): Promise<FinanceCoinGeckoGlobal | undefined> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadCoinGeckoGlobal === undefined) {
+      return Promise.resolve(undefined)
+    }
+    return provider.loadCoinGeckoGlobal(signal)
   }
 
   /**

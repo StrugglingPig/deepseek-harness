@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub, cryptoMetricsFromQuote,
+  cryptoMetricsFromGlobal, cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub,
+  cryptoMetricsFromQuote,
   cryptoQuotesFromSources,
   equityMetricsFromFundamentals, equityMetricsFromValuation, usMetricsFromFundamentals,
 } from '../src/asset-context.ts'
@@ -64,6 +65,24 @@ describe('crypto market context', () => {
     expect(withoutTimestamp).toEqual([
       { group: 'market', key: 'rank', value: 1, unit: '', asOf: '', source: 'coinmarketcap' },
     ])
+  })
+
+  it('turns a global snapshot into market-wide metrics', () => {
+    const metrics = cryptoMetricsFromGlobal({
+      totalMarketCapUsd: 2.9e12,
+      totalVolumeUsd: 1.4e11,
+      btcDominance: 57.3,
+      ethDominance: 12.1,
+      activeCryptocurrencies: 21_358,
+    })
+    const byKey = new Map<string, (typeof metrics)[number]>(metrics.map(metric => [metric.key, metric]))
+    expect(byKey.get('btcDominance')).toMatchObject({ group: 'market', value: 57.3, unit: '%', source: 'coingecko' })
+    expect(byKey.get('ethDominance')).toMatchObject({ value: 12.1 })
+    expect(byKey.get('activeCryptocurrencies')).toMatchObject({ value: 21_358 })
+    // Figures outside the metric list, such as the totals, are not rendered.
+    expect(byKey.has('totalMarketCapUsd')).toBe(false)
+    expect(cryptoMetricsFromGlobal(undefined)).toEqual([])
+    expect(cryptoMetricsFromGlobal({})).toEqual([])
   })
 
   it('looks a quoted pair up by its base asset', async () => {
@@ -134,12 +153,15 @@ describe('crypto development context', () => {
   it('maps a GitHub repository snapshot into development metrics', () => {
     expect(cryptoMetricsFromGithub({
       repository: 'bitcoin/bitcoin', stars: 85_000, forks: 36_000, watchers: 4_000, openIssues: 600, commits4w: 140,
+      releases1y: 2, latestRelease: '2026-08-15',
     })).toEqual([
       { group: 'development', key: 'githubStars', value: 85_000, unit: '', asOf: '', source: 'github' },
       { group: 'development', key: 'githubForks', value: 36_000, unit: '', asOf: '', source: 'github' },
       { group: 'development', key: 'githubWatchers', value: 4_000, unit: '', asOf: '', source: 'github' },
       { group: 'development', key: 'githubOpenIssues', value: 600, unit: '', asOf: '', source: 'github' },
       { group: 'development', key: 'githubCommits4w', value: 140, unit: '', asOf: '', source: 'github' },
+      { group: 'development', key: 'githubReleases1y', value: 2, unit: '', asOf: '', source: 'github' },
+      { group: 'development', key: 'githubLatestRelease', value: 0, text: '2026-08-15', unit: '', asOf: '', source: 'github' },
     ])
     expect(cryptoMetricsFromGithub(undefined)).toEqual([])
   })
