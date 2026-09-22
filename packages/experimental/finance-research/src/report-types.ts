@@ -21,7 +21,7 @@ export const REPORT_SECTION_IDS = [
   'investment-view', 'summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis',
   'methodology-coverage', 'investor-lenses', 'valuation-framework', 'financial-quality', 'earnings-review',
   'event-context', 'industry-landscape', 'competitive-position', 'macro-drivers', 'rates-credit',
-  'project-and-community',
+  'project-and-community', 'ownership-and-insiders',
   'commodity-balance', 'fx-drivers', 'fund-flows', 'onchain-tokenomics', 'allocation', 'scenario-analysis',
   'catalysts', 'monitoring-plan', 'data-requirements', 'strategy-gaps', 'risk-and-limitations',
 ] as const
@@ -55,7 +55,7 @@ const CATEGORY_FORMS: Readonly<Record<ReportCategory, readonly ReportForm[]>> = 
 const CATEGORY_BLOCKS: Readonly<Record<ReportCategory, readonly ReportSectionId[]>> = {
   macro: ['macro-drivers', 'rates-credit'],
   industry: ['industry-landscape', 'competitive-position'],
-  equity: ['industry-landscape', 'valuation-framework', 'earnings-review', 'financial-quality', 'competitive-position'],
+  equity: ['industry-landscape', 'valuation-framework', 'earnings-review', 'financial-quality', 'competitive-position', 'ownership-and-insiders'],
   fund: ['fund-flows', 'valuation-framework'],
   'fixed-income': ['rates-credit', 'macro-drivers'],
   'commodity-fx': ['commodity-balance', 'fx-drivers'],

@@ -73,3 +73,236 @@ export function normalizeFinnhubFundamentals(
     indicators,
   }
 }
+
+/** One news headline Finnhub returns for a company. */
+function latestHeadlines(payload: unknown, limit: number): readonly string[] {
+  if (!Array.isArray(payload)) return []
+  return payload
+    .flatMap(entry => text(record(entry)?.headline) === undefined ? [] : [text(record(entry)?.headline) as string])
+    .slice(0, limit)
+}
+
+/**
+ * Read the next scheduled earnings date from a Finnhub earnings calendar.
+ * @param payload - `/calendar/earnings` payload, or undefined when that call failed.
+ * @param today - Date the answer is resolved against.
+ * @returns The earliest date on or after `today`, or undefined when none is scheduled.
+ */
+export function nextEarningsDate(payload: unknown, today: Date): string | undefined {
+  const rows = record(payload)?.earningsCalendar
+  if (!Array.isArray(rows)) return undefined
+  const todayText = today.toISOString().slice(0, 10)
+  return rows
+    .flatMap(entry => text(record(entry)?.date) === undefined ? [] : [text(record(entry)?.date) as string])
+    .filter(date => date >= todayText)
+    .sort()[0]
+}
+
+/**
+ * Read the newest reported EPS surprise from a Finnhub earnings history.
+ * @param payload - `/stock/earnings` payload, or undefined when that call failed.
+ * @returns The surprise percentage, or undefined when the payload carries none.
+ */
+export function latestEpsSurprise(payload: unknown): number | undefined {
+  if (!Array.isArray(payload)) return undefined
+  const values = payload.flatMap((entry) => {
+    const surprise = finite(record(entry)?.surprisePercent)
+    return surprise === undefined ? [] : [surprise]
+  })
+  return values[0]
+}
+
+/**
+ * Read the newest monthly insider sentiment.
+ * @param payload - `/stock/insider-sentiment` payload, or undefined when that call failed.
+ * @returns The month's net share change and its sentiment score, when published.
+ */
+export function latestInsiderSentiment(payload: unknown): { readonly netShares?: number; readonly sentiment?: number } {
+  const rows = record(payload)?.data
+  if (!Array.isArray(rows)) return {}
+  const latest: unknown = rows.at(-1)
+  const entry = record(latest)
+  const netShares = finite(entry?.change)
+  const sentiment = finite(entry?.mspr)
+  return {
+    ...netShares === undefined ? {} : { netShares },
+    ...sentiment === undefined ? {} : { sentiment },
+  }
+}
+
+/**
+ * Read the newest analyst rating counts from a Finnhub recommendation trend.
+ * @param payload - `/stock/recommendation` payload, or undefined when that call failed.
+ * @returns The newest period and its buy, hold, and sell counts.
+ */
+export function latestAnalystConsensus(payload: unknown): {
+  readonly period?: string
+  readonly buy?: number
+  readonly hold?: number
+  readonly sell?: number
+} {
+  if (!Array.isArray(payload)) return {}
+  // Trends are ordered by the period the ratings were published for.
+  const trends = payload.flatMap((row) => {
+    const entry = record(row)
+    const period = text(entry?.period)
+    return entry === undefined || period === undefined ? [] : [{ entry, period }]
+  })
+  const newest = trends.sort((left, right) => right.period.localeCompare(left.period))[0]
+  if (newest === undefined) return {}
+  const strongBuy = finite(newest.entry.strongBuy)
+  const buy = finite(newest.entry.buy)
+  const hold = finite(newest.entry.hold)
+  const sell = finite(newest.entry.sell)
+  const strongSell = finite(newest.entry.strongSell)
+  const bull = strongBuy === undefined && buy === undefined
+    ? undefined
+    : (strongBuy ?? 0) + (buy ?? 0)
+  const bear = sell === undefined && strongSell === undefined
+    ? undefined
+    : (sell ?? 0) + (strongSell ?? 0)
+  return {
+    period: newest.period,
+    ...bull === undefined ? {} : { buy: bull },
+    ...hold === undefined ? {} : { hold },
+    ...bear === undefined ? {} : { sell: bear },
+  }
+}
+
+/**
+ * Total the disclosed insider share purchases and sales over a trailing window.
+ * @param payload - `/stock/insider-transactions` payload, or undefined when that call failed.
+ * @param today - Date the window ends on.
+ * @param windowDays - Length of the trailing window in days.
+ * @returns Bought and sold share totals, when the feed published either.
+ */
+export function insiderTradeTotals(
+  payload: unknown,
+  today: Date,
+  windowDays: number,
+): { readonly bought?: number; readonly sold?: number } {
+  const rows = record(payload)?.data
+  if (!Array.isArray(rows)) return {}
+  const from = new Date(today.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10)
+  let bought = 0
+  let sold = 0
+  let published = 0
+  for (const row of rows) {
+    const entry = record(row)
+    const date = text(entry?.transactionDate)
+    const change = finite(entry?.change)
+    if (date === undefined || change === undefined || date < from) continue
+    published += 1
+    if (change > 0) bought += change
+    else sold -= change
+  }
+  if (published === 0) return {}
+  return {
+    ...bought === 0 ? {} : { bought },
+    ...sold === 0 ? {} : { sold },
+  }
+}
+
+/**
+ * Read the newest SEC filing that is not an insider ownership form.
+ * @param payload - `/stock/filings` payload, or undefined when that call failed.
+ * @returns The filing form and its filed date, or the newest filing when every entry is an ownership form.
+ */
+export function latestMaterialFiling(payload: unknown): { readonly form?: string; readonly date?: string } {
+  if (!Array.isArray(payload)) return {}
+  const filings = payload.flatMap((entry) => {
+    const body = record(entry)
+    const form = text(body?.form)
+    const filed = text(body?.filedDate)
+    if (body === undefined || form === undefined || filed === undefined) return []
+    return [{ body, form, date: filed.slice(0, 10) }]
+  })
+  // Forms 3, 4, 5, and 144 report insider ownership, which the insider metrics already cover.
+  const material = filings.filter(entry => !['3', '4', '5', '144'].includes(entry.form))
+  const newest = (material.length === 0 ? filings : material)
+    .sort((left, right) => right.date.localeCompare(left.date))[0]
+  return newest === undefined ? {} : { form: newest.form, date: newest.date }
+}
+
+/**
+ * Name the fiscal period and SEC form the newest reported statements came from.
+ * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
+ * @returns A label such as `FY2025 10-K`, or undefined when no period was published.
+ */
+export function latestReportedFinancials(payload: unknown): string | undefined {
+  const rows = record(payload)?.data
+  if (!Array.isArray(rows)) return undefined
+  for (const row of rows) {
+    const entry = record(row)
+    const year = finite(entry?.year)
+    const form = text(entry?.form)
+    if (year === undefined || form === undefined) continue
+    const quarter = finite(entry?.quarter)
+    const period = quarter === undefined || quarter === 0 ? `FY${year}` : `Q${quarter} ${year}`
+    return `${period} ${form}`
+  }
+  return undefined
+}
+
+/** Free-tier extras a Finnhub lookup adds to the fundamentals snapshot. */
+export interface FinnhubExtras {
+  readonly headlines?: readonly string[]
+  readonly nextEarnings?: string
+  readonly epsSurprise?: number
+  readonly insiderNetShares?: number
+  readonly insiderSentiment?: number
+  readonly analystPeriod?: string
+  readonly analystBuy?: number
+  readonly analystHold?: number
+  readonly analystSell?: number
+  readonly insiderBoughtShares?: number
+  readonly insiderSoldShares?: number
+  readonly latestFilingForm?: string
+  readonly latestFilingDate?: string
+  readonly reportedFinancials?: string
+}
+
+/**
+ * Normalize the free-tier extras Finnhub publishes beside the fundamentals.
+ * @param payloads - Company news, calendar, earnings, insider, analyst, filings, and reported statements.
+ * @param today - Date the earnings calendar and the insider window are resolved against.
+ * @returns Extras that carry at least one value.
+ */
+export function normalizeFinnhubExtras(
+  payloads: {
+    readonly news?: unknown
+    readonly calendar?: unknown
+    readonly earnings?: unknown
+    readonly insider?: unknown
+    readonly recommendation?: unknown
+    readonly transactions?: unknown
+    readonly filings?: unknown
+    readonly reported?: unknown
+  },
+  today: Date,
+): FinnhubExtras {
+  const headlines = latestHeadlines(payloads.news, 3)
+  const nextEarnings = nextEarningsDate(payloads.calendar, today)
+  const epsSurprise = latestEpsSurprise(payloads.earnings)
+  const insider = latestInsiderSentiment(payloads.insider)
+  const analyst = latestAnalystConsensus(payloads.recommendation)
+  const trades = insiderTradeTotals(payloads.transactions, today, 90)
+  const filing = latestMaterialFiling(payloads.filings)
+  const reportedFinancials = latestReportedFinancials(payloads.reported)
+  return {
+    ...headlines.length === 0 ? {} : { headlines },
+    ...nextEarnings === undefined ? {} : { nextEarnings },
+    ...epsSurprise === undefined ? {} : { epsSurprise },
+    ...insider.netShares === undefined ? {} : { insiderNetShares: insider.netShares },
+    ...insider.sentiment === undefined ? {} : { insiderSentiment: insider.sentiment },
+    ...analyst.period === undefined ? {} : { analystPeriod: analyst.period },
+    ...analyst.buy === undefined ? {} : { analystBuy: analyst.buy },
+    ...analyst.hold === undefined ? {} : { analystHold: analyst.hold },
+    ...analyst.sell === undefined ? {} : { analystSell: analyst.sell },
+    ...trades.bought === undefined ? {} : { insiderBoughtShares: trades.bought },
+    ...trades.sold === undefined ? {} : { insiderSoldShares: trades.sold },
+    ...filing.form === undefined ? {} : { latestFilingForm: filing.form },
+    ...filing.date === undefined ? {} : { latestFilingDate: filing.date },
+    ...reportedFinancials === undefined ? {} : { reportedFinancials },
+  }
+}

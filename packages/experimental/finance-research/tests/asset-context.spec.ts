@@ -232,6 +232,42 @@ describe('US equity context', () => {
     expect(usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, peers: [] })).toEqual([])
     expect(usMetricsFromFundamentals(undefined)).toEqual([])
   })
+
+  it('maps the free-tier extras into catalyst, growth, and insider metrics', () => {
+    const metrics = usMetricsFromFundamentals({
+      symbol: 'AAPL',
+      indicators: {
+        epsSurprise: 3.7, insiderNetShares: -1_200, insiderSentiment: 22.1,
+        analystBuy: 34, analystHold: 15, analystSell: 4,
+        insiderBoughtShares: 4_000, insiderSoldShares: 1_439,
+      },
+      headlines: ['Apple unveils the next iPhone', 'Apple raises its buyback'],
+      nextEarnings: '2026-10-22',
+      analystPeriod: '2026-09-01',
+      latestFilingForm: '10-Q',
+      latestFilingDate: '2026-08-01',
+      reportedFinancials: 'FY2025 10-K',
+    })
+    const byKey = new Map<string, (typeof metrics)[number]>(metrics.map(metric => [metric.key, metric]))
+    expect(byKey.get('epsSurprise')).toMatchObject({ group: 'growth', value: 3.7, unit: '%', source: 'finnhub' })
+    expect(byKey.get('nextEarnings')).toMatchObject({ group: 'catalyst', text: '2026-10-22' })
+    expect(byKey.get('newsHeadlines')).toMatchObject({
+      group: 'catalyst', text: 'Apple unveils the next iPhone / Apple raises its buyback',
+    })
+    expect(byKey.get('insiderNetShares')).toMatchObject({ group: 'insider', value: -1_200 })
+    expect(byKey.get('insiderSentiment')).toMatchObject({ group: 'insider', value: 22.1 })
+    expect(byKey.get('insiderBoughtShares')).toMatchObject({ group: 'insider', value: 4_000 })
+    expect(byKey.get('insiderSoldShares')).toMatchObject({ group: 'insider', value: 1_439 })
+    // Analyst counts carry the period the ratings were published for.
+    expect(byKey.get('analystBuy')).toMatchObject({ group: 'valuation', value: 34, asOf: '2026-09-01' })
+    expect(byKey.get('analystHold')).toMatchObject({ group: 'valuation', value: 15 })
+    expect(byKey.get('analystSell')).toMatchObject({ group: 'valuation', value: 4 })
+    expect(byKey.get('latestFilingForm')).toMatchObject({ group: 'catalyst', text: '10-Q' })
+    expect(byKey.get('latestFilingDate')).toMatchObject({ group: 'catalyst', text: '2026-08-01' })
+    expect(byKey.get('reportedFinancials')).toMatchObject({ group: 'profitability', text: 'FY2025 10-K' })
+    // An empty headline list contributes nothing rather than an empty line.
+    expect(usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, headlines: [] })).toEqual([])
+  })
 })
 
 describe('crypto quote source fallback', () => {

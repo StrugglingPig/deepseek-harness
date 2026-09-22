@@ -35,7 +35,7 @@ describe('finance research report', () => {
     expect(report.sections.map(section => section.title)).toEqual([
       'Investment View', 'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action',
       'Industry Landscape', 'Valuation Framework', 'Earnings Review', 'Financial Quality',
-      'Competitive Position', 'Technical Indicators', 'Multi-Indicator Synthesis', 'Methodology Coverage',
+      'Competitive Position', 'Ownership And Insiders', 'Technical Indicators', 'Multi-Indicator Synthesis', 'Methodology Coverage',
       'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
     ])
     expect(report.markdown).toContain('# Apple Inc. (AAPL) · Equity Deep dive')
@@ -193,7 +193,7 @@ describe('finance research report', () => {
     expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
       '投资结论', '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为',
-      '行业格局', '估值框架', '业绩点评', '财务质量', '竞争格局', '技术指标', '多指标综合',
+      '行业格局', '估值框架', '业绩点评', '财务质量', '竞争格局', '股权与内部人', '技术指标', '多指标综合',
       '方法论覆盖', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')
@@ -268,6 +268,39 @@ describe('macro blocks inside an asset report', () => {
     expect(blocks).toContain('source fred')
     expect(blocks).toContain('(projection)')
     expect(blocks).toContain('Macro Drivers')
+  })
+
+  it('renders scheduled catalysts and insider metrics when the extras are loaded', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'catalyst', key: 'nextEarnings', value: 0, text: '2026-10-22', unit: '', asOf: '', source: 'finnhub' },
+      { group: 'catalyst', key: 'newsHeadlines', value: 0, text: 'Apple unveils the next iPhone', unit: '', asOf: '', source: 'finnhub' },
+      { group: 'insider', key: 'insiderNetShares', value: -1_200, unit: '', asOf: '', source: 'finnhub' },
+      { group: 'insider', key: 'insiderSentiment', value: 22.1, unit: '', asOf: '', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-earnings' },
+      undefined,
+      'en',
+      [],
+      metrics,
+    )
+    const catalysts = sectionOf(report, 'Catalysts')
+    expect(catalysts).toContain('Next scheduled earnings: 2026-10-22')
+    expect(catalysts).toContain('Recent headlines: Apple unveils the next iPhone')
+    expect(catalysts).toContain('**What to watch**')
+    // The standing list stays under the dated events.
+    expect(catalysts).toContain('- earnings and guidance')
+    expect(catalysts).not.toContain('Missing inputs')
+    const insiders = sectionOf(report, 'Ownership And Insiders')
+    expect(insiders).toContain('Insider net share change (month): -1.2K')
+    expect(insiders).toContain('Insider sentiment (MSPR): 22.1')
+  })
+
+  it('asks for the missing catalysts and ownership inputs when nothing was loaded', async () => {
+    const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL', reportType: 'equity-earnings' })
+    expect(sectionOf(report, 'Catalysts')).toContain('scheduled events')
+    expect(sectionOf(report, 'Ownership And Insiders')).toContain('insider transactions')
   })
 
   it('falls back to the missing-input block when no macro series were loaded', async () => {

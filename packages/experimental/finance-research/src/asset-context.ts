@@ -20,6 +20,9 @@ export const REPORT_METRIC_KEYS = [
   'peVsIndustry', 'peVsIndustryMedian', 'peers', 'profitGrowth', 'psRatio', 'rank', 'redditSubscribers',
   'revenueGrowth', 'roa', 'roe', 'sentimentDown', 'sentimentUp', 'telegramUsers', 'totalSupply',
   'twitterFollowers', 'volume24h', 'volumeChange24h', 'watchlistUsers', 'beta',
+  'analystBuy', 'analystHold', 'analystSell', 'epsSurprise', 'insiderBoughtShares', 'insiderNetShares',
+  'insiderSentiment', 'insiderSoldShares', 'latestFilingDate', 'latestFilingForm', 'newsHeadlines',
+  'nextEarnings', 'reportedFinancials',
 ] as const
 
 /** One metric key a report knows how to label. */
@@ -28,7 +31,7 @@ export type ReportMetricKey = typeof REPORT_METRIC_KEYS[number]
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
 export const ASSET_METRIC_GROUPS = [
   'valuation', 'profitability', 'growth', 'balance', 'cash',
-  'market', 'supply', 'development', 'community', 'industry', 'competition',
+  'market', 'supply', 'development', 'community', 'industry', 'competition', 'catalyst', 'insider',
 ] as const
 
 /** One asset metric dimension. */
@@ -294,7 +297,7 @@ export function equityMetricsFromValuation(valuation: FinanceStockValuation | un
   return metrics
 }
 
-/** Overview figures Alpha Vantage reports, with their dimension and unit. */
+/** Overview figures Finnhub reports, with their dimension and unit. */
 const US_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string])[] = [
   ['marketCap', 'valuation', 'USD'],
   ['peRatio', 'valuation', ''],
@@ -326,6 +329,36 @@ export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | 
     metrics.push({
       group: 'industry', key: 'industry', value: 0, text: fundamentals.industry, unit: '', asOf: '', source: 'finnhub',
     })
+  }
+  const epsSurprise = fundamentals.indicators.epsSurprise
+  if (epsSurprise !== undefined) {
+    metrics.push(METRIC('growth', 'epsSurprise', epsSurprise, '%', '', 'finnhub'))
+  }
+  // The analyst counts share the rating period the upstream published them for.
+  const analystPeriod = fundamentals.analystPeriod ?? ''
+  for (const key of ['analystBuy', 'analystHold', 'analystSell'] as const) {
+    const value = fundamentals.indicators[key]
+    if (value !== undefined) metrics.push(METRIC('valuation', key, value, '', analystPeriod, 'finnhub'))
+  }
+  // The calendar, the headlines, and the newest material filing are what a catalyst block can act on.
+  if (fundamentals.nextEarnings !== undefined) {
+    metrics.push(METRIC_TEXT('catalyst', 'nextEarnings', fundamentals.nextEarnings))
+  }
+  if (fundamentals.headlines !== undefined && fundamentals.headlines.length > 0) {
+    metrics.push(METRIC_TEXT('catalyst', 'newsHeadlines', fundamentals.headlines.join(' / ')))
+  }
+  if (fundamentals.latestFilingForm !== undefined) {
+    metrics.push(METRIC_TEXT('catalyst', 'latestFilingForm', fundamentals.latestFilingForm))
+  }
+  if (fundamentals.latestFilingDate !== undefined) {
+    metrics.push(METRIC_TEXT('catalyst', 'latestFilingDate', fundamentals.latestFilingDate))
+  }
+  if (fundamentals.reportedFinancials !== undefined) {
+    metrics.push(METRIC_TEXT('profitability', 'reportedFinancials', fundamentals.reportedFinancials))
+  }
+  for (const key of ['insiderBoughtShares', 'insiderNetShares', 'insiderSentiment', 'insiderSoldShares'] as const) {
+    const value = fundamentals.indicators[key]
+    if (value !== undefined) metrics.push(METRIC('insider', key, value, '', '', 'finnhub'))
   }
   if (fundamentals.peers !== undefined && fundamentals.peers.length > 0) {
     metrics.push({
@@ -360,4 +393,21 @@ export async function cryptoQuotesFromSources(
     // The fallback below covers a failing primary source.
   }
   return loadFallback(symbols)
+}
+
+/** One numeric metric record. */
+function METRIC(
+  group: AssetMetricGroup,
+  key: ReportMetricKey,
+  value: number,
+  unit: string,
+  asOf: string,
+  source: string,
+): AssetMetric {
+  return { group, key, value, unit, asOf, source }
+}
+
+/** One textual metric record. */
+function METRIC_TEXT(group: AssetMetricGroup, key: ReportMetricKey, text: string): AssetMetric {
+  return { group, key, value: 0, text, unit: '', asOf: '', source: 'finnhub' }
 }

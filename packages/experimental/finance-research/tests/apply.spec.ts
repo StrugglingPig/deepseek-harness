@@ -51,7 +51,7 @@ const CONFIG: Required<Config> = {
   requestRetryBaseDelayMs: 1,
   requestRetryMaxDelayMs: 1,
   requestsPerMinute: 60,
-  requestBurst: 1,
+  requestBurst: 10,
   binanceWebSocketBaseUrl: 'wss://stream.test',
   coinMarketCapWebSocketBaseUrl: 'wss://pro-stream.test/v1',
   marketStreamTimeoutMs: 100,

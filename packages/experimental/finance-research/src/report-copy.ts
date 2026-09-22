@@ -7,7 +7,7 @@ import type { MethodologyCategory } from './methodology.ts'
 export type ReportSectionKey =
   | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'priceAction' | 'technicalIndicators' | 'synthesis'
   | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'valuationFramework' | 'financialQuality'
-  | 'investmentView' | 'projectAndCommunity'
+  | 'investmentView' | 'projectAndCommunity' | 'ownershipAndInsiders'
   | 'earningsReview' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
   | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
   | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
@@ -25,7 +25,7 @@ export type ReportLabelKey =
   | 'stanceAccumulate' | 'stanceWatch' | 'stanceReduce' | 'viewStance' | 'viewConfidence'
   | 'viewReasons' | 'viewInvalidation' | 'viewGaps' | 'maStack' | 'rsiOverbought' | 'rsiOversold'
   | 'rsiNeutral' | 'macdBullish' | 'macdBearish'
-  | 'riskBars' | 'gapCount' | 'obvAverage'
+  | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor'
 
 /** Interpolated line templates owned by the report writer. */
 export type ReportTemplateKey =
@@ -123,6 +123,7 @@ const EN: ReportCopy = {
     fundFlows: 'Fund Flows And Positioning',
     onchainTokenomics: 'On-chain And Tokenomics',
     projectAndCommunity: 'Project And Community',
+    ownershipAndInsiders: 'Ownership And Insiders',
     allocation: 'Allocation And Risk Budget',
     scenarioAnalysis: 'Scenario Analysis',
     catalysts: 'Catalysts',
@@ -149,6 +150,7 @@ const EN: ReportCopy = {
     riskBars: 'size the position from the ATR stop below',
     gapCount: 'Missing inputs: ',
     obvAverage: '20-bar average ',
+    watchFor: 'What to watch',
     asOf: 'As-of: ',
     price: 'Price: ',
     change: 'Change: ',
@@ -281,6 +283,19 @@ const EN: ReportCopy = {
     epsTtm: 'EPS (TTM)',
     peers: 'Peers',
     epsGrowth: 'EPS growth (TTM YoY)',
+    epsSurprise: 'Latest EPS surprise',
+    nextEarnings: 'Next scheduled earnings',
+    newsHeadlines: 'Recent headlines',
+    insiderNetShares: 'Insider net share change (month)',
+    insiderSentiment: 'Insider sentiment (MSPR)',
+    insiderBoughtShares: 'Insider shares bought (90d)',
+    insiderSoldShares: 'Insider shares sold (90d)',
+    analystBuy: 'Analyst buy ratings',
+    analystHold: 'Analyst hold ratings',
+    analystSell: 'Analyst sell ratings',
+    latestFilingForm: 'Newest material SEC filing',
+    latestFilingDate: 'Newest material filing date',
+    reportedFinancials: 'Newest reported statements',
     roa: 'Return on assets',
     beta: 'Beta',
     industry: 'Industry',
@@ -354,6 +369,8 @@ const EN: ReportCopy = {
     'fund-flows': { requires: ['fund holdings', 'flows and premium-discount', 'benchmark and fees'], checks: ['What exposure does the fund actually carry?', 'How do flows interact with the price trend?', 'What tracking or liquidity cost applies?'] },
     'onchain-tokenomics': { requires: ['on-chain activity metrics', 'token unlock schedule', 'exchange and ETF flows'], checks: ['Is network usage growing with price?', 'What supply pressure comes from unlocks?', 'Which venue or issuer concentrates flow?'] },
     'project-and-community': { requires: ['developer activity', 'community size', 'sentiment'], checks: ['Is development still active?', 'Is the community growing or fading?', 'Does sentiment diverge from price?'] },
+    'ownership-and-insiders': { requires: ['insider transactions', 'ownership breakdown', 'institutional holders'], checks: ['Are insiders accumulating or selling?', 'How concentrated is ownership?', 'Which holders set the agenda?'] },
+    catalysts: { requires: ['scheduled events', 'news flow', 'filing calendar'], checks: ['Which dated event can move the price next?', 'Is the news flow confirming or contradicting the trend?', 'What would invalidate the standing catalyst list?'] },
   },
 }
 
@@ -384,6 +401,7 @@ const ZH: ReportCopy = {
     fundFlows: '资金与持仓',
     onchainTokenomics: '链上与代币经济',
     projectAndCommunity: '项目进展与社区',
+    ownershipAndInsiders: '股权与内部人',
     allocation: '配置与风险预算',
     scenarioAnalysis: '情景分析',
     catalysts: '催化剂',
@@ -410,6 +428,7 @@ const ZH: ReportCopy = {
     riskBars: '仓位应按下方 ATR 止损设定',
     gapCount: '缺少输入：',
     obvAverage: '20 根均值 ',
+    watchFor: '关注方向',
     asOf: '截至：',
     price: '价格：',
     change: '涨跌幅：',
@@ -639,6 +658,8 @@ const ZH: ReportCopy = {
     'fund-flows': { requires: ['基金持仓', '资金流与折溢价', '基准与费率'], checks: ['基金实际承担了什么暴露？', '资金流与价格趋势如何相互影响？', '跟踪误差或流动性成本是多少？'] },
     'onchain-tokenomics': { requires: ['链上活跃度指标', '代币解锁计划', '交易所与 ETF 资金流'], checks: ['网络使用量是否与价格同步增长？', '解锁带来多大的供应压力？', '资金流集中在哪些交易所或发行方？'] },
     'project-and-community': { requires: ['开发活跃度', '社区规模', '情绪'], checks: ['开发是否仍然活跃？', '社区在增长还是流失？', '情绪与价格是否背离？'] },
+    'ownership-and-insiders': { requires: ['内部人交易', '股权结构', '机构持仓'], checks: ['内部人在增持还是减持？', '股权集中度如何？', '谁在影响公司议程？'] },
+    catalysts: { requires: ['日程事件', '新闻流', '公告日程'], checks: ['下一个可能推动价格的事件是什么？', '新闻流在确认还是否定趋势？', '什么会推翻这份催化剂清单？'] },
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -662,6 +683,19 @@ const ZH: ReportCopy = {
     epsTtm: '每股收益(TTM)',
     peers: '同业可比公司',
     epsGrowth: '每股收益同比',
+    epsSurprise: '最近一次 EPS 超预期幅度',
+    nextEarnings: '下次财报日',
+    newsHeadlines: '近期新闻标题',
+    insiderNetShares: '内部人月度净买卖股数',
+    insiderSentiment: '内部人情绪（MSPR）',
+    insiderBoughtShares: '内部人 90 日买入股数',
+    insiderSoldShares: '内部人 90 日卖出股数',
+    analystBuy: '分析师买入评级数',
+    analystHold: '分析师持有评级数',
+    analystSell: '分析师卖出评级数',
+    latestFilingForm: '最近一次重大公告类型',
+    latestFilingDate: '最近一次重大公告日期',
+    reportedFinancials: '最近披露的财报期间',
     roa: '总资产收益率',
     beta: 'Beta',
     industry: '所属行业',

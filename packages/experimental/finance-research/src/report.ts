@@ -144,6 +144,7 @@ function inputBlock(context: SectionContext, id: ReportSectionId, extras: readon
 const sectionIdKeys: Record<ReportSectionId, keyof ReportCopy['sections']> = {
   'investment-view': 'investmentView',
   'project-and-community': 'projectAndCommunity',
+  'ownership-and-insiders': 'ownershipAndInsiders',
   summary: 'summary',
   'research-question': 'researchQuestion',
   'market-snapshot': 'marketSnapshot',
@@ -402,14 +403,23 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         ].join('\n'),
       }
     }
-    case 'catalysts':
+    case 'catalysts': {
+      // Scheduled dates and headlines are what a catalyst block can act on; the
+      // category list stays as the standing watch list.
+      const scheduled = metricBlock(context, id, ['catalyst'])
+      if (scheduled.content.includes(copy.labels.blockMissing)) return scheduled
       return {
         title: copy.sections.catalysts,
         content: [
+          scheduled.content,
+          '',
+          `**${copy.labels.watchFor}**`,
           ...category.catalysts.map(item => `- ${item}`),
-          `- ${copy.labels.blockMissing}`,
         ].join('\n'),
       }
+    }
+    case 'ownership-and-insiders':
+      return metricBlock(context, id, ['insider'])
     case 'monitoring-plan':
       return {
         title: copy.sections.monitoringPlan,

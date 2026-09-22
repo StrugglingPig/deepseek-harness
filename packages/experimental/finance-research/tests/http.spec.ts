@@ -253,6 +253,7 @@ describe('HTTP finance market data provider', () => {
     const requested: string[] = []
     const provider = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
+      requestBurst: 64,
       finnhubBaseUrl: 'https://finnhub.test/api/v1',
       fetch: async (input: string | URL | Request) => {
         const path = new URL(urlOf(input)).pathname
@@ -260,6 +261,41 @@ describe('HTTP finance market data provider', () => {
         if (path.endsWith('/stock/peers')) return new Response(JSON.stringify(['AAPL', 'MSFT']), { status: 200 })
         if (path.endsWith('/stock/metric')) {
           return new Response(JSON.stringify({ metric: { peTTM: 32.5, roeTTM: 1.5 } }), { status: 200 })
+        }
+        if (path.endsWith('/company-news')) {
+          return new Response(JSON.stringify([{ headline: 'Apple unveils the next iPhone' }]), { status: 200 })
+        }
+        if (path.endsWith('/calendar/earnings')) {
+          return new Response(JSON.stringify({ earningsCalendar: [{ date: '2026-10-22', symbol: 'AAPL' }] }), { status: 200 })
+        }
+        if (path.endsWith('/stock/earnings')) {
+          return new Response(JSON.stringify([{ period: '2026-06-30', surprisePercent: 3.7 }]), { status: 200 })
+        }
+        if (path.endsWith('/stock/insider-sentiment')) {
+          return new Response(JSON.stringify({ data: [{ change: -1_200, mspr: 22.1 }] }), { status: 200 })
+        }
+        if (path.endsWith('/stock/recommendation')) {
+          return new Response(JSON.stringify([
+            { period: '2026-08-01', strongBuy: 13, buy: 24, hold: 14, sell: 3, strongSell: 0 },
+            { period: '2026-09-01', strongBuy: 12, buy: 22, hold: 15, sell: 3, strongSell: 1 },
+          ]), { status: 200 })
+        }
+        if (path.endsWith('/stock/insider-transactions')) {
+          return new Response(JSON.stringify({
+            data: [
+              { transactionDate: '2026-08-25', change: -1_439 },
+              { transactionDate: '2026-08-11', change: 4_000 },
+            ],
+          }), { status: 200 })
+        }
+        if (path.endsWith('/stock/filings')) {
+          return new Response(JSON.stringify([
+            { form: '4', filedDate: '2026-08-27 00:00:00' },
+            { form: '10-Q', filedDate: '2026-08-01 00:00:00' },
+          ]), { status: 200 })
+        }
+        if (path.endsWith('/stock/financials-reported')) {
+          return new Response(JSON.stringify({ data: [{ year: 2025, quarter: 0, form: '10-K' }] }), { status: 200 })
         }
         return new Response(JSON.stringify({
           name: 'Apple Inc', ticker: 'AAPL', exchange: 'NASDAQ', finnhubIndustry: 'Technology', marketCapitalization: 3_000_000,
@@ -271,13 +307,25 @@ describe('HTTP finance market data provider', () => {
       name: 'Apple Inc',
       industry: 'Technology',
       peers: ['AAPL', 'MSFT'],
-      indicators: { peRatio: 32.5, roe: 1.5, marketCap: 3_000_000_000_000 },
+      headlines: ['Apple unveils the next iPhone'],
+      nextEarnings: '2026-10-22',
+      analystPeriod: '2026-09-01',
+      latestFilingForm: '10-Q',
+      latestFilingDate: '2026-08-01',
+      reportedFinancials: 'FY2025 10-K',
+      indicators: {
+        peRatio: 32.5, roe: 1.5, marketCap: 3_000_000_000_000,
+        epsSurprise: 3.7, insiderNetShares: -1_200, insiderSentiment: 22.1,
+        analystBuy: 34, analystHold: 15, analystSell: 4,
+        insiderBoughtShares: 4_000, insiderSoldShares: 1_439,
+      },
     })
     expect(requested.some(path => path.endsWith('/stock/profile2'))).toBe(true)
 
     // Every call failing leaves no snapshot, and a partial answer still normalizes.
     const failing = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
+      requestBurst: 64,
       finnhubBaseUrl: 'https://finnhub.test/api/v1',
       fetch: async () => new Response('nope', { status: 500 }),
     })
@@ -285,6 +333,7 @@ describe('HTTP finance market data provider', () => {
 
     const partial = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
+      requestBurst: 64,
       finnhubBaseUrl: 'https://finnhub.test/api/v1',
       fetch: async (input: string | URL | Request) => urlOf(input).includes('/stock/profile2')
         ? new Response('nope', { status: 500 })

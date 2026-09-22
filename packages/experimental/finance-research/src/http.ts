@@ -6,7 +6,7 @@ import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
 import { normalizeCoinGeckoCommunity, normalizeCoinGeckoMarkets } from './coingecko.ts'
-import { normalizeFinnhubFundamentals } from './finnhub.ts'
+import { normalizeFinnhubExtras, normalizeFinnhubFundamentals, type FinnhubExtras } from './finnhub.ts'
 import { normalizeGithubCommitActivity, normalizeGithubRepo } from './github.ts'
 import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
@@ -220,6 +220,20 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   fred: 'fredBaseUrl',
   worldbank: 'worldBankBaseUrl',
   imf: 'imfBaseUrl',
+}
+
+/**
+ * Fold the numeric Finnhub extras into the reported-figure record.
+ * @param base - Figures the profile and metric answers already published.
+ * @param extras - Normalized free-tier extras; text fields are ignored here.
+ * @returns The reported figures with every numeric extra merged in.
+ */
+function withNumericExtras(base: Readonly<Record<string, number>>, extras: FinnhubExtras): Record<string, number> {
+  const merged: Record<string, number> = { ...base }
+  for (const [key, value] of Object.entries(extras)) {
+    if (typeof value === 'number') merged[key] = value
+  }
+  return merged
 }
 
 function queryValue(value: FinanceJsonValue): string {
@@ -496,12 +510,40 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
         return undefined
       }
     }
-    const [profile, metric, peers] = await Promise.all([
-      read('/stock/profile2'),
-      read('/stock/metric?metric=all'.split('?')[0] as string),
-      read('/stock/peers'),
-    ])
-    return normalizeFinnhubFundamentals(profile, metric, peers, symbol)
+    // Every endpoint the free tier publishes beside the fundamentals.
+    const today = this.options.now()
+    const day = (offset: number): string => new Date(today.getTime() + offset * 86_400_000).toISOString().slice(0, 10)
+    const [profile, metric, peers, news, calendar, earnings, insider, recommendation, transactions, filings, reported] =
+      await Promise.all([
+        read('/stock/profile2'),
+        read('/stock/metric'),
+        read('/stock/peers'),
+        read(`/company-news?from=${day(-7)}&to=${day(0)}`),
+        read(`/calendar/earnings?from=${day(0)}&to=${day(90)}`),
+        read('/stock/earnings'),
+        read(`/stock/insider-sentiment?from=${day(-90)}&to=${day(0)}`),
+        read('/stock/recommendation'),
+        read('/stock/insider-transactions'),
+        read('/stock/filings'),
+        read('/stock/financials-reported'),
+      ])
+    const fundamentals = normalizeFinnhubFundamentals(profile, metric, peers, symbol)
+    if (fundamentals === undefined) return undefined
+    // The numeric extras join the other reported figures; dates and headlines stay textual.
+    const extras = normalizeFinnhubExtras(
+      { news, calendar, earnings, insider, recommendation, transactions, filings, reported },
+      today,
+    )
+    return {
+      ...fundamentals,
+      indicators: withNumericExtras(fundamentals.indicators, extras),
+      ...extras.headlines === undefined ? {} : { headlines: extras.headlines },
+      ...extras.nextEarnings === undefined ? {} : { nextEarnings: extras.nextEarnings },
+      ...extras.analystPeriod === undefined ? {} : { analystPeriod: extras.analystPeriod },
+      ...extras.latestFilingForm === undefined ? {} : { latestFilingForm: extras.latestFilingForm },
+      ...extras.latestFilingDate === undefined ? {} : { latestFilingDate: extras.latestFilingDate },
+      ...extras.reportedFinancials === undefined ? {} : { reportedFinancials: extras.reportedFinancials },
+    }
   }
 
   /**

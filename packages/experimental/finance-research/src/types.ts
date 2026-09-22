@@ -293,6 +293,18 @@ export interface FinanceUsFundamentals {
   readonly exchange?: string
   /** Symbols Finnhub reports as the company's peers. */
   readonly peers?: readonly string[]
+  /** Recent company headlines, newest first. */
+  readonly headlines?: readonly string[]
+  /** Next scheduled earnings date, when the calendar publishes one. */
+  readonly nextEarnings?: string
+  /** Period the analyst rating counts belong to, such as `2026-09-01`. */
+  readonly analystPeriod?: string
+  /** Newest SEC filing form that is not an insider ownership form. */
+  readonly latestFilingForm?: string
+  /** Filed date of the newest SEC filing form, as `YYYY-MM-DD`. */
+  readonly latestFilingDate?: string
+  /** Fiscal period and SEC form of the newest reported statements, such as `FY2025 10-K`. */
+  readonly reportedFinancials?: string
   /** Reported figures keyed by normalized metric name. */
   readonly indicators: Readonly<Record<string, number>>
 }
