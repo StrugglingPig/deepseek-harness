@@ -130,6 +130,27 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Technical Indicators')).toContain('overbought')
   })
 
+  it('renders the comparable-company table when peer figures loaded', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'competition', key: 'peRatio', value: 32.5, unit: '', asOf: '', source: 'finnhub', subject: 'AAPL' },
+      { group: 'competition', key: 'roe', value: 137.2, unit: '%', asOf: '', source: 'finnhub', subject: 'AAPL' },
+      { group: 'competition', key: 'peRatio', value: 28.1, unit: '', asOf: '', source: 'finnhub', subject: 'MSFT' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      metrics,
+    )
+    const comparables = sectionOf(report, 'Competitive Position')
+    expect(comparables).toContain('| Company |')
+    expect(comparables).toContain('| AAPL | 32.5 | 137.20% |')
+    // A peer that did not publish a figure still gets its row.
+    expect(comparables).toContain('| MSFT | 28.1 | — |')
+  })
+
   it('fills the fundamental blocks from the supplied metrics', async () => {
     const metrics: AssetMetric[] = [
       { group: 'valuation', key: 'eps', value: 36.8243, unit: 'CNY', asOf: '2026-06-30', source: 'akshare' },

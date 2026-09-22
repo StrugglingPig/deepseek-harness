@@ -33,7 +33,7 @@ import { buildResearchReport } from './report.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import {
   cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromFundamentals,
-  equityMetricsFromValuation, usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
+  equityMetricsFromValuation, usComparableMetrics, usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
 } from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
@@ -123,6 +123,8 @@ export interface Config {
   readonly timeoutMs?: number
   /** Maximum live history bars requested. */
   readonly barLimit?: number
+  /** Maximum peer companies a comparable-company table reads. */
+  readonly peerLimit?: number
   /** Yahoo Finance origin. */
   readonly yahooBaseUrl?: string
   /** Binance Spot REST origin. */
@@ -215,6 +217,7 @@ export const Config: z<Config> = z.object({
   uiLocale: z.string().pattern(LOCALE_ID_PATTERN).required(false),
   timeoutMs: z.number().min(1).default(15_000),
   barLimit: z.number().step(1).min(50).default(80),
+  peerLimit: z.number().step(1).min(1).max(20).default(6),
   yahooBaseUrl: z.string().default('https://query1.finance.yahoo.com'),
   binanceBaseUrl: z.string().default('https://api.binance.com'),
   binanceUsdmBaseUrl: z.string().default('https://fapi.binance.com'),
@@ -1161,6 +1164,7 @@ export function apply(ctx: Context, config: Config): void {
     ...config.uiLocale === undefined ? {} : { uiLocale: config.uiLocale },
     timeoutMs: resolved.timeoutMs,
     barLimit: resolved.barLimit,
+    peerLimit: resolved.peerLimit,
     yahooBaseUrl: resolved.yahooBaseUrl,
     binanceBaseUrl: resolved.binanceBaseUrl,
     binanceUsdmBaseUrl: resolved.binanceUsdmBaseUrl,
@@ -1268,7 +1272,14 @@ export function apply(ctx: Context, config: Config): void {
         return [...metrics, ...cryptoMetricsFromGlobal(global)]
       }
       try {
-        return usMetricsFromFundamentals(await provider.loadUsFundamentals({ symbol: request.symbol }))
+        const fundamentals = await provider.loadUsFundamentals({ symbol: request.symbol })
+        const peers = fundamentals?.peers ?? []
+        // Peer figures fill the comparable table; a failure leaves its rows out.
+        const peerMetrics = await provider.loadUsPeerMetrics(peers)
+        return [
+          ...usMetricsFromFundamentals(fundamentals),
+          ...usComparableMetrics(fundamentals, peerMetrics),
+        ]
       } catch {
         // A report keeps its price and macro sections when fundamentals are unavailable.
         return []

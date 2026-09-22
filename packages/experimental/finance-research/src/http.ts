@@ -39,6 +39,7 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 15_000
 const DEFAULT_BAR_LIMIT = 80
+const DEFAULT_PEER_LIMIT = 6
 const DEFAULT_YAHOO_BASE_URL = 'https://query1.finance.yahoo.com'
 const DEFAULT_FRED_BASE_URL = 'https://api.stlouisfed.org'
 const DEFAULT_EIA_BASE_URL = 'https://api.eia.gov/v2'
@@ -117,6 +118,8 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly timeoutMs?: number
   /** Maximum bars requested from each history endpoint. */
   readonly barLimit?: number
+  /** Maximum peer companies a comparable-company table reads. */
+  readonly peerLimit?: number
   /** Yahoo Finance origin. */
   readonly yahooBaseUrl?: string
   /** Binance Spot REST origin. */
@@ -174,6 +177,7 @@ export interface HttpFinanceMarketDataProviderOptions {
 interface ResolvedOptions {
   readonly transport: FinanceHttpTransport
   readonly barLimit: number
+  readonly peerLimit: number
   readonly yahooBaseUrl: string
   readonly binanceBaseUrl: string
   readonly binanceUsdmBaseUrl: string
@@ -304,6 +308,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
         ...options.sleep === undefined ? {} : { sleep: options.sleep },
       }),
       barLimit: options.barLimit ?? DEFAULT_BAR_LIMIT,
+      peerLimit: options.peerLimit ?? DEFAULT_PEER_LIMIT,
       yahooBaseUrl: options.yahooBaseUrl ?? DEFAULT_YAHOO_BASE_URL,
       binanceBaseUrl: options.binanceBaseUrl ?? DEFAULT_BINANCE_BASE_URL,
       binanceUsdmBaseUrl: options.binanceUsdmBaseUrl ?? 'https://fapi.binance.com',
@@ -576,6 +581,34 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       ...extras.latestFilingDate === undefined ? {} : { latestFilingDate: extras.latestFilingDate },
       ...extras.reportedFinancials === undefined ? {} : { reportedFinancials: extras.reportedFinancials },
     }
+  }
+
+  /**
+   * Load the reported figures for the peer companies a comparable table quotes.
+   * @param symbols - Peer tickers, as the peer endpoint published them.
+   * @param signal - optional caller cancellation.
+   * @returns One fundamentals record per peer that answered; failures are dropped.
+   */
+  async loadUsPeerMetrics(
+    symbols: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceUsFundamentals[]> {
+    const wanted = [...new Set(symbols.map(symbol => symbol.toUpperCase()))].slice(0, this.options.peerLimit)
+    const answers = await Promise.all(wanted.map(async (symbol) => {
+      try {
+        const response = await this.request({
+          base: 'finnhub',
+          path: '/stock/metric',
+          auth: 'api-key',
+          query: { symbol },
+        }, signal)
+        return normalizeFinnhubFundamentals(undefined, response.data, undefined, symbol)
+      } catch {
+        // A peer that does not answer simply leaves the table one row short.
+        return undefined
+      }
+    }))
+    return answers.flatMap(answer => answer === undefined ? [] : [answer])
   }
 
   /**

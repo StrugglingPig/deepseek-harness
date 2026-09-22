@@ -36,6 +36,7 @@ export interface FinanceRuntimeSettings {
   readonly uiLocale?: string
   readonly timeoutMs: number
   readonly barLimit: number
+  readonly peerLimit: number
   readonly yahooBaseUrl: string
   readonly binanceBaseUrl: string
   readonly binanceUsdmBaseUrl: string
@@ -96,6 +97,7 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
     return new HttpFinanceMarketDataProvider({
       timeoutMs: settings.timeoutMs,
       barLimit: settings.barLimit,
+      peerLimit: settings.peerLimit,
       yahooBaseUrl: settings.yahooBaseUrl,
       binanceBaseUrl: settings.binanceBaseUrl,
       binanceUsdmBaseUrl: settings.binanceUsdmBaseUrl,
@@ -171,6 +173,23 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       ))
     }
     return provider.loadCoinGeckoCommunity(request, signal)
+  }
+
+  /**
+   * Load the reported figures behind a comparable-company table.
+   * @param symbols - Peer tickers to read.
+   * @param signal - optional caller cancellation.
+   * @returns One record per peer that answered, empty when the provider has no peer reader.
+   */
+  loadUsPeerMetrics(
+    symbols: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceUsFundamentals[]> {
+    const provider = this.current()
+    if (this.readSettings().provider !== 'http' || provider.loadUsPeerMetrics === undefined) {
+      return Promise.resolve([])
+    }
+    return provider.loadUsPeerMetrics(symbols, signal)
   }
 
   /**

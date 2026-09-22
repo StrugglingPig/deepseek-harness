@@ -18,7 +18,7 @@ import type { ReportMetricKey } from './asset-context.ts'
 export type ReportColumnKey =
   | 'name' | 'value' | 'source' | 'region' | 'date' | 'timing' | 'direction'
   | 'confidence' | 'status' | 'scenario' | 'price' | 'relative' | 'item' | 'method'
-  | 'signal' | 'weight' | 'note'
+  | 'signal' | 'weight' | 'note' | 'company'
 
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
@@ -307,6 +307,7 @@ const EN: ReportCopy = {
     signal: 'Signal',
     weight: 'Weight',
     note: 'Note',
+    company: 'Company',
   },
   metrics: {
     eps: 'Diluted EPS',
@@ -773,6 +774,7 @@ const ZH: ReportCopy = {
     signal: '信号',
     weight: '权重',
     note: '说明',
+    company: '公司',
   },
   metrics: {
     eps: '摊薄每股收益',

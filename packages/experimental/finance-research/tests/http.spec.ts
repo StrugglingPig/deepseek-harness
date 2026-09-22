@@ -249,6 +249,29 @@ describe('HTTP finance market data provider', () => {
     await expect(failing.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
   })
 
+  it('loads comparable figures for the peer list and caps the fan-out', async () => {
+    const requested: string[] = []
+    const provider = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      requestBurst: 64,
+      maxRetries: 0,
+      peerLimit: 2,
+      finnhubBaseUrl: 'https://finnhub.test/api/v1',
+      fetch: async (input: string | URL | Request) => {
+        const url = new URL(urlOf(input))
+        requested.push(url.searchParams.get('symbol') ?? '')
+        if (url.searchParams.get('symbol') === 'DELL') return new Response('nope', { status: 500 })
+        return new Response(JSON.stringify({ metric: { peTTM: 28.1, roeTTM: 35 } }), { status: 200 })
+      },
+    })
+    await expect(provider.loadUsPeerMetrics(['msft', 'DELL', 'HPQ'])).resolves.toEqual([
+      { symbol: 'MSFT', indicators: { peRatio: 28.1, roe: 35 } },
+    ])
+    // The limit caps how many peers one report reads, and duplicates collapse.
+    expect(requested).toEqual(['MSFT', 'DELL'])
+    await expect(provider.loadUsPeerMetrics(['msft', 'msft'])).resolves.toHaveLength(1)
+  })
+
   it('loads a CoinGecko community snapshot with the all-time change figures', async () => {
     const provider = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,

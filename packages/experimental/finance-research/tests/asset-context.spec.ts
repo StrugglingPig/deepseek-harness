@@ -3,7 +3,7 @@ import {
   cryptoMetricsFromGlobal, cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub,
   cryptoMetricsFromQuote,
   cryptoQuotesFromSources,
-  equityMetricsFromFundamentals, equityMetricsFromValuation, usMetricsFromFundamentals,
+  equityMetricsFromFundamentals, equityMetricsFromValuation, usComparableMetrics, usMetricsFromFundamentals,
 } from '../src/asset-context.ts'
 
 describe('asset metric context', () => {
@@ -228,6 +228,31 @@ describe('equity valuation context', () => {
       symbol: '600519', indicators: { peStatic: 18.39 }, industryPe: { weighted: 0 },
     })
     expect(zeroBaseline.map(metric => metric.key)).toEqual(['peStatic', 'industryPe'])
+  })
+})
+
+describe('comparable-company context', () => {
+  it('builds one row per subject and skips figures a peer did not publish', () => {
+    const metrics = usComparableMetrics(
+      { symbol: 'AAPL', indicators: { peRatio: 32.5, roe: 137.2 } },
+      [
+        { symbol: 'MSFT', indicators: { peRatio: 28.1, roe: 35.0, revenueGrowth: 14.2 } },
+        { symbol: 'DELL', indicators: {} },
+      ],
+    )
+    expect(metrics.map(metric => [metric.subject, metric.key, metric.value])).toEqual([
+      ['AAPL', 'peRatio', 32.5],
+      ['AAPL', 'roe', 137.2],
+      ['MSFT', 'peRatio', 28.1],
+      ['MSFT', 'roe', 35],
+      ['MSFT', 'revenueGrowth', 14.2],
+    ])
+    expect(metrics[1]).toMatchObject({ group: 'competition', unit: '%', source: 'finnhub' })
+    expect(metrics[4]?.unit).toBe('%')
+    // Without the instrument under review the table still reflects the peers.
+    expect(usComparableMetrics(undefined, [{ symbol: 'MSFT', indicators: { peRatio: 28.1 } }]))
+      .toHaveLength(1)
+    expect(usComparableMetrics(undefined, [])).toEqual([])
   })
 })
 

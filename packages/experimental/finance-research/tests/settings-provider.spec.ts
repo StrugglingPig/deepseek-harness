@@ -10,6 +10,7 @@ const SETTINGS: FinanceRuntimeSettings = {
   reportLanguage: 'auto',
   timeoutMs: 1_000,
   barLimit: 60,
+  peerLimit: 6,
   yahooBaseUrl: 'https://yahoo.test',
   binanceBaseUrl: 'https://spot.test',
   binanceUsdmBaseUrl: 'https://usdm.test',
@@ -80,6 +81,7 @@ describe('settings-backed finance providers', () => {
       code: 'PROVIDER_UNAVAILABLE',
     })
     await expect(provider.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
+    await expect(provider.loadUsPeerMetrics(['AAPL'])).resolves.toEqual([])
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })

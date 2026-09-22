@@ -404,6 +404,11 @@ export interface FinanceMarketDataProvider {
   loadCoinGeckoMarkets?(symbols: readonly string[], signal?: AbortSignal): Promise<readonly FinanceCoinMarketCapQuote[]>
   /** Load the global crypto market snapshot when the provider supports it. */
   loadCoinGeckoGlobal?(signal?: AbortSignal): Promise<FinanceCoinGeckoGlobal | undefined>
+  /** Load the reported figures behind a comparable-company table when the provider supports it. */
+  loadUsPeerMetrics?(
+    symbols: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceUsFundamentals[]>
   /** Load one US equity fundamentals snapshot when the provider supports it. */
   loadUsFundamentals?(
     request: FinanceUsFundamentalsRequest,

@@ -19,6 +19,7 @@ const CONFIG: Required<Config> = {
   uiLocale: 'en',
   timeoutMs: 1_000,
   barLimit: 60,
+  peerLimit: 6,
   yahooBaseUrl: 'https://yahoo.test',
   binanceBaseUrl: 'https://spot.test',
   binanceUsdmBaseUrl: 'https://usdm.test',

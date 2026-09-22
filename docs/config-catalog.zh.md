@@ -712,6 +712,8 @@ export interface Config {
   readonly timeoutMs?: number
   /** Maximum live history bars requested. */
   readonly barLimit?: number
+  /** Maximum peer companies a comparable-company table reads. */
+  readonly peerLimit?: number
   /** Yahoo Finance origin. */
   readonly yahooBaseUrl?: string
   /** Binance Spot REST origin. */

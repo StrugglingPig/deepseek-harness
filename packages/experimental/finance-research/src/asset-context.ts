@@ -51,6 +51,8 @@ export interface AssetMetric {
   /** Reporting period or observation time, as published upstream. */
   readonly asOf: string
   readonly source: string
+  /** Instrument this metric describes, when a block compares several of them. */
+  readonly subject?: string
 }
 
 /** Ratios the A-share fundamentals bridge reports, with their dimension and unit. */
@@ -402,6 +404,39 @@ export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | 
     })
   }
   return metrics
+}
+
+/** Comparable-company columns, in the order the table renders them. */
+const COMPARABLE_METRIC_KEYS: readonly ReportMetricKey[] = [
+  'peRatio', 'pbRatio', 'roe', 'revenueGrowth', 'epsGrowth', 'dividendYield',
+]
+
+/** Comparable figures with the unit the US metric catalog reports them in. */
+const COMPARABLE_METRICS = US_METRICS.filter(([key]) => COMPARABLE_METRIC_KEYS.includes(key))
+
+/**
+ * Build the comparable-company rows a competitive-position block renders.
+ * @param primary - Fundamentals of the instrument under review, when loaded.
+ * @param peers - Fundamentals of the peer companies, in the upstream's order.
+ * @returns One metric per subject and comparable figure; a missing figure is skipped.
+ */
+export function usComparableMetrics(
+  primary: FinanceUsFundamentals | undefined,
+  peers: readonly FinanceUsFundamentals[],
+): AssetMetric[] {
+  const subjects = [...primary === undefined ? [] : [primary], ...peers]
+  return subjects.flatMap(subject => COMPARABLE_METRICS.flatMap(([key, , unit]) => {
+    const value = subject.indicators[key]
+    return value === undefined ? [] : [{
+      group: 'competition' as const,
+      key,
+      value,
+      unit,
+      asOf: '',
+      source: 'finnhub',
+      subject: subject.symbol,
+    }]
+  }))
 }
 
 /**

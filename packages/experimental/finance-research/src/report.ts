@@ -172,6 +172,33 @@ function macroRow(series: MacroSeries, copy: ReportCopy): readonly string[] {
 }
 
 /**
+ * Render the comparable-company table a competitive-position block carries.
+ * @param context - Section context carrying the metrics and copy.
+ * @returns The table, or undefined when no peer figures loaded.
+ */
+function comparableTable(context: SectionContext): ResearchReportSection | undefined {
+  const copy = context.copy
+  const rows = context.metrics.filter(metric => metric.subject !== undefined)
+  if (rows.length === 0) return undefined
+  const subjects = [...new Set(rows.map(row => row.subject as string))]
+  // Columns follow the order the rows arrive in, so the table mirrors the catalog.
+  const keys = [...new Set(rows.map(row => row.key))]
+  return {
+    title: copy.sections.competitivePosition,
+    content: table(
+      [copy.columns.company, ...keys.map(key => copy.metrics[key])],
+      subjects.map(subject => [
+        subject,
+        ...keys.map((key) => {
+          const match = rows.find(row => row.subject === subject && row.key === key)
+          return match === undefined ? '—' : metricValue(match)
+        }),
+      ]),
+    ),
+  }
+}
+
+/**
  * Add the inputs a partially covered block still lacks.
  * @param context - Section context carrying the report copy.
  * @param id - Section being rendered.
@@ -608,8 +635,10 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return metricBlock(context, id, ['growth'])
     case 'industry-landscape':
       return metricBlock(context, id, ['industry'])
-    case 'competitive-position':
-      return metricBlock(context, id, ['competition'])
+    case 'competitive-position': {
+      const comparables = comparableTable(context)
+      return comparables ?? metricBlock(context, id, ['competition'])
+    }
     case 'onchain-tokenomics':
       return metricBlock(context, id, ['supply', 'development'])
     case 'project-and-community':

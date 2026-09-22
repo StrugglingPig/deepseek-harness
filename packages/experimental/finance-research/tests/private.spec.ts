@@ -167,6 +167,7 @@ describe('Binance private account data', () => {
       reportLanguage: 'auto',
       timeoutMs: 1_000,
       barLimit: 60,
+      peerLimit: 6,
       yahooBaseUrl: 'https://yahoo.test',
       binanceBaseUrl: 'https://spot.test',
       binanceUsdmBaseUrl: 'https://usdm.test',
