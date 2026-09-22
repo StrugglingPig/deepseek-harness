@@ -9,10 +9,10 @@
 **支撑该结论的证据**
 - 4/5 个加权信号指向看涨
 - 最强信号 趋势：看涨，权重 0.3
-- 风险预算：ATR 占价格 2.76%；仓位应按下方 ATR 止损设定
+- 风险预算：ATR 占价格 2.82%；仓位应按下方 ATR 止损设定
 
 **结论推翻条件**
-- 收盘跌破 78,847.42（20 日均线）将推翻看涨结论。
+- 收盘跌破 79,312.80（20 日均线）将推翻看涨结论。
 
 **本报告暂时看不到的维度**
 - 缺少输入：链上指标; 解锁与供应计划; 交易所与 ETF 资金流
@@ -31,7 +31,7 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 - US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
 - GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
 - US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,343.00 100M CNY (2026-08-01, coincident, source akshare)
+- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
 - CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
 - US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
 - US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
@@ -41,20 +41,20 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 ## 行情快照
 
 - 截至：2026-09-22T00:00:00.000Z
-- 价格：85,258.08 USD
-- 涨跌幅：5.07%
-- K 线数：184
+- 价格：85,263.30 USD
+- 涨跌幅：-1.55%
+- K 线数：185
 - 数据来源：yahoo-finance
 
 ## 技术指标
 
-- 均线排列：看涨 (SMA 20 78,847.42 / SMA 50 73,644.21)
-- RSI 14: 67.7 — 中性区间
-- MACD 在信号线上方: 1,861.674 / 1,550.243 (311.431)
-- ATR 14: 2,355.53 (2.76%)
-- Bollinger: 74,205.81 / 78,847.42 / 83,489.03
-- EMA 12 / 26: 79,708.75 / 77,847.08
-- OBV: 63.41B (20 根均值 -35.66B)
+- 均线排列：看涨 (SMA 20 79,312.80 / SMA 50 74,107.15)
+- RSI 14: 67.6 — 中性区间
+- MACD 在信号线上方: 2,249.699 / 1,707.299 (542.400)
+- ATR 14: 2,402.54 (2.82%)
+- Bollinger: 73,634.55 / 79,312.80 / 84,991.05
+- EMA 12 / 26: 80,738.36 / 78,488.66
+- OBV: 1.45B (20 根均值 -33.78B)
 
 ## 数据需求
 
@@ -69,6 +69,6 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 
 ## 风险与限制
 
-- ATR 占价格比例：2.76%
+- ATR 占价格比例：2.82%
 - 快照来源：yahoo-finance；上游可用性、延迟与数据质量仍属外部因素。
 - 本报告是研究自动化输出，不构成投资建议。

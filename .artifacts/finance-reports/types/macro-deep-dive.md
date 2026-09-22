@@ -38,7 +38,7 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 - US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
 - GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
 - US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,343.00 100M CNY (2026-08-01, coincident, source akshare)
+- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
 - CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
 - US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
 - US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
@@ -64,7 +64,7 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 
 ## 利率与信用
 
-- CN China total social financing: 3,343.00 100M CNY (2026-08-01, coincident, source akshare)
+- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
 - CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
 - US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
 - US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
