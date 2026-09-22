@@ -327,7 +327,7 @@ export class FinanceCardController {
     const response = await this.ctx.remote.credentials.describe([
       BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF, COINGECKO_API_KEY_REF,
       GITHUB_TOKEN_REF, FINNHUB_API_KEY_REF,
-      FRED_API_KEY_REF,
+      FRED_API_KEY_REF, EIA_API_KEY_REF,
       IFIND_USER_REF, IFIND_PASSWORD_REF, IFIND_REFRESH_TOKEN_REF,
     ])
     if (!response.ok) return
@@ -395,13 +395,18 @@ export class FinanceCardController {
    * @param ref - Changed credential reference.
    */
   refreshCredential(ref: string): void {
-    if (
-      ref === BINANCE_API_KEY_REF || ref === BINANCE_API_SECRET_REF || ref === COINMARKETCAP_API_KEY_REF
-      || ref === FRED_API_KEY_REF
-      || ref === IFIND_USER_REF || ref === IFIND_PASSWORD_REF || ref === IFIND_REFRESH_TOKEN_REF
-    ) {
-      void this.readCredentials()
-    }
+    // Every credential the page renders has to refresh its status, or a key
+    // written on another surface keeps showing as unset here.
+    if (this.watchedCredentials().includes(ref)) void this.readCredentials()
+  }
+
+  /** Credential references whose status this page renders. */
+  private watchedCredentials(): readonly string[] {
+    return [
+      BINANCE_API_KEY_REF, BINANCE_API_SECRET_REF, COINMARKETCAP_API_KEY_REF, COINGECKO_API_KEY_REF,
+      GITHUB_TOKEN_REF, FINNHUB_API_KEY_REF, FRED_API_KEY_REF, EIA_API_KEY_REF,
+      IFIND_USER_REF, IFIND_PASSWORD_REF, IFIND_REFRESH_TOKEN_REF,
+    ]
   }
 
   private async writeCredential(ref: string, value: string): Promise<boolean> {

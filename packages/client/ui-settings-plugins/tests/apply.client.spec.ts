@@ -247,6 +247,13 @@ describe('ui-settings-plugins apply', () => {
     declareRoot(slots)
     await ctx.plugin({ inject: [...inject], apply }).await()
     await vi.waitFor(() => { expect(describeCredentials).toHaveBeenCalled() })
+    // Every credential the finance card renders has to be described, or the page
+    // reports a configured key as unset.
+    const describedRefs = (): readonly (readonly string[])[] =>
+      describeCredentials.mock.calls.map(call => (call as unknown as [readonly string[]])[0])
+    await vi.waitFor(() => {
+      expect(describedRefs().some(refs => refs.includes('FINANCE_EIA_API_KEY'))).toBe(true)
+    })
     describeCredentials.mockClear()
 
     // A key written on another surface changes no settings section, so this
@@ -254,6 +261,9 @@ describe('ui-settings-plugins apply', () => {
     remote.emit('credentials/reference-updated', ['DEEPSEEK_API_KEY'])
 
     await vi.waitFor(() => { expect(describeCredentials).toHaveBeenCalledTimes(1) })
+
+    remote.emit('credentials/reference-updated', ['FINANCE_EIA_API_KEY'])
+    await vi.waitFor(() => { expect(describeCredentials).toHaveBeenCalledTimes(2) })
   })
 
   it('refreshes the subagent catalog after model inputs change or the connection resets', async () => {

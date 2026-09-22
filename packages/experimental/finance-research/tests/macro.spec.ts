@@ -309,12 +309,22 @@ describe('FRED loader', () => {
 })
 
 describe('EIA loader', () => {
-  it('reads the seriesid route and skips blank periods', async () => {
+  it('reads the seriesid route, reorders newest-first rows, and skips blank periods', async () => {
     const seen: unknown[] = []
     const eia = new EiaMacroLoader(transport({
-      response: { data: [{ period: '2026-09-04', value: 415_000 }, { period: '2026-09-11', value: '' }, { period: 7, value: 1 }] },
+      // EIA answers newest first, so the loader has to reorder before the
+      // provider decides which observation is current.
+      response: { data: [
+        { period: '2026-09-11', value: '' },
+        { period: '2026-09-04', value: 415_000 },
+        { period: '2026-08-28', value: 424_460 },
+        { period: 7, value: 1 },
+      ] },
     }, request => seen.push(request)), () => true)
-    await expect(eia.load(query(crudeStocks))).resolves.toEqual([{ date: '2026-09-04', value: 415_000 }])
+    await expect(eia.load(query(crudeStocks))).resolves.toEqual([
+      { date: '2026-08-28', value: 424_460 },
+      { date: '2026-09-04', value: 415_000 },
+    ])
     expect(seen[0]).toMatchObject({
       base: 'eia',
       path: '/seriesid/PET.WCESTUS1.W',

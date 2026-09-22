@@ -123,18 +123,20 @@ export class EiaMacroLoader implements MacroSeriesLoader {
       query: {},
       auth: 'api-key',
     }, signal)
-    // EIA returns one row per period with the value as a number or a blank string.
+    // EIA returns one row per period, newest first, with the value as a number
+    // or a blank string; the series is oldest-first like every other loader.
     const rows = record(record(response.data)?.response)?.data
     if (!Array.isArray(rows)) {
       throw new FinanceDataError('EIA returned no data rows', 'MACRO_SOURCE_FAILED')
     }
-    return rows.flatMap((row) => {
+    const observations = rows.flatMap((row) => {
       const entry = record(row)
       const date = entry?.period
       const value = finite(entry?.value)
       if (typeof date !== 'string' || value === undefined) return []
       return [{ date, value }]
     })
+    return observations.sort((left, right) => left.date.localeCompare(right.date))
   }
 }
 
