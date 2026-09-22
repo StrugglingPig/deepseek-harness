@@ -25,18 +25,18 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
@@ -57,43 +57,43 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 行业格局
 
-- 所属行业: Technology (source finnhub)
+- 所属行业: Technology (来源 finnhub)
 
 ## 估值框架
 
-- 市值: 4.95T USD (source finnhub)
-- 市盈率: 38.31 (source finnhub)
-- 市净率: 50.98 (source finnhub)
-- 市销率: 10.58 (source finnhub)
-- 股息率: 0.51% (source finnhub)
-- 分析师买入评级数: 34 (2026-09-01, source finnhub)
-- 分析师持有评级数: 15 (2026-09-01, source finnhub)
-- 分析师卖出评级数: 4 (2026-09-01, source finnhub)
+- 市值: 4.95T USD (来源 finnhub)
+- 市盈率: 38.31 (来源 finnhub)
+- 市净率: 50.98 (来源 finnhub)
+- 市销率: 10.58 (来源 finnhub)
+- 股息率: 0.51% (来源 finnhub)
+- 分析师买入评级数: 34 (2026-09-01, 来源 finnhub)
+- 分析师持有评级数: 15 (2026-09-01, 来源 finnhub)
+- 分析师卖出评级数: 4 (2026-09-01, 来源 finnhub)
 
 ## 财务质量
 
-- 每股收益(TTM): 8.72 USD (source finnhub)
-- 销售净利率: 27.62% (source finnhub)
-- 营业利润率: 33.17% (source finnhub)
-- 总资产收益率: 34.55% (source finnhub)
-- 净资产收益率: 137.18% (source finnhub)
-- 最近披露的财报期间: FY2025 10-K (source finnhub)
+- 每股收益(TTM): 8.72 USD (来源 finnhub)
+- 销售净利率: 27.62% (来源 finnhub)
+- 营业利润率: 33.17% (来源 finnhub)
+- 总资产收益率: 34.55% (来源 finnhub)
+- 净资产收益率: 137.18% (来源 finnhub)
+- 最近披露的财报期间: FY2025 10-K (来源 finnhub)
 
 ## 竞争格局
 
-- 同业可比公司: AAPL, DELL, SNDK, WDC, HPE, NTAP, P, HPQ, SMCI, IONQ, GPGI, INFQ (source finnhub)
+- 同业可比公司: AAPL, DELL, SNDK, WDC, HPE, NTAP, P, HPQ, SMCI, IONQ, GPGI, INFQ (来源 finnhub)
 
 ## 股权与内部人
 
-- 内部人月度净买卖股数: -2.88K (source finnhub)
-- 内部人情绪（MSPR）: -100 (source finnhub)
-- 内部人 90 日卖出股数: 2.88K (source finnhub)
+- 内部人月度净买卖股数: -2.88K (来源 finnhub)
+- 内部人情绪（MSPR）: -100 (来源 finnhub)
+- 内部人 90 日卖出股数: 2.88K (来源 finnhub)
 
 ## 业绩点评
 
-- 营业收入同比: 14.24% (source finnhub)
-- 每股收益同比: 32.61% (source finnhub)
-- 最近一次 EPS 超预期幅度: -0.89% (source finnhub)
+- 营业收入同比: 14.24% (来源 finnhub)
+- 每股收益同比: 32.61% (来源 finnhub)
+- 最近一次 EPS 超预期幅度: -0.89% (来源 finnhub)
 
 ## 多指标综合
 
@@ -109,10 +109,10 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 催化剂
 
-- 下次财报日: 2026-10-28 (source finnhub)
-- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (source finnhub)
-- 最近一次重大公告类型: 10-Q (source finnhub)
-- 最近一次重大公告日期: 2026-07-31 (source finnhub)
+- 下次财报日: 2026-10-28 (来源 finnhub)
+- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (来源 finnhub)
+- 最近一次重大公告类型: 10-Q (来源 finnhub)
+- 最近一次重大公告日期: 2026-07-31 (来源 finnhub)
 
 **关注方向**
 - 业绩与指引

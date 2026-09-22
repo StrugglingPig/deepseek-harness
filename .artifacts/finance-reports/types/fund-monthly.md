@@ -32,18 +32,18 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
@@ -64,18 +64,18 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 
 ## 资金与持仓
 
-- Beta: 1.09 (source finnhub)
+- Beta: 1.09 (来源 finnhub)
 
 ## 估值框架
 
-- 市值: 4.95T USD (source finnhub)
-- 市盈率: 38.31 (source finnhub)
-- 市净率: 50.98 (source finnhub)
-- 市销率: 10.58 (source finnhub)
-- 股息率: 0.51% (source finnhub)
-- 分析师买入评级数: 34 (2026-09-01, source finnhub)
-- 分析师持有评级数: 15 (2026-09-01, source finnhub)
-- 分析师卖出评级数: 4 (2026-09-01, source finnhub)
+- 市值: 4.95T USD (来源 finnhub)
+- 市盈率: 38.31 (来源 finnhub)
+- 市净率: 50.98 (来源 finnhub)
+- 市销率: 10.58 (来源 finnhub)
+- 股息率: 0.51% (来源 finnhub)
+- 分析师买入评级数: 34 (2026-09-01, 来源 finnhub)
+- 分析师持有评级数: 15 (2026-09-01, 来源 finnhub)
+- 分析师卖出评级数: 4 (2026-09-01, 来源 finnhub)
 
 ## 技术指标
 

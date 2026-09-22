@@ -12,7 +12,7 @@
 - 风险预算：ATR 占价格 2.82%；仓位应按下方 ATR 止损设定
 
 **结论推翻条件**
-- 收盘跌破 79,312.80（20 日均线）将推翻看涨结论。
+- 收盘跌破 79,316.27（20 日均线）将推翻看涨结论。
 
 **本报告暂时看不到的维度**
 - 缺少输入：链上指标; 解锁与供应计划; 交易所与 ETF 资金流
@@ -32,97 +32,97 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
 - 截至：2026-09-22T00:00:00.000Z
-- 价格：85,263.30 USD
-- 涨跌幅：-1.55%
+- 价格：85,332.59 USD
+- 涨跌幅：-1.47%
 - K 线数：185
 - 数据来源：yahoo-finance
 
 ## 价格行为
 
-- 区间收益：4.91%
-- 区间位置：91.64% (62,226.58 - 87,363.76)
-- 距区间高点回撤：-2.40%
+- 区间收益：5.00%
+- 区间位置：91.92% (62,226.58 - 87,363.76)
+- 距区间高点回撤：-2.32%
 - 成交量对 20 根均值：1.42x
 - ATR 占价格比例：2.82%
 - K 线数：60
 
 ## 链上与代币经济
 
-- 流通量: 20.09M (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 总供应量: 20.09M (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 最大供应量: 21M (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- GitHub Star: 90.23K (source github)
-- GitHub Fork: 39.4K (source github)
-- GitHub 关注者: 4.1K (source github)
-- GitHub 未关闭 issue: 729 (source github)
-- GitHub 近 4 周提交: 200 (source github)
-- 近 12 个月发版次数: 11 (source github)
-- 最近一次发版日期: 2026-07-10 (source github)
+- 流通量: 20.09M (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 总供应量: 20.09M (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 最大供应量: 21M (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- GitHub Star: 90.23K (来源 github)
+- GitHub Fork: 39.4K (来源 github)
+- GitHub 关注者: 4.1K (来源 github)
+- GitHub 未关闭 issue: 729 (来源 github)
+- GitHub 近 4 周提交: 200 (来源 github)
+- 近 12 个月发版次数: 11 (来源 github)
+- 最近一次发版日期: 2026-07-10 (来源 github)
 
 ## 项目进展与社区
 
-- 社区看多比例: 85.37% (source coingecko)
-- 社区看空比例: 14.63% (source coingecko)
-- CoinGecko 关注人数: 2.45M (source coingecko)
-- GitHub Star: 90.23K (source github)
-- GitHub Fork: 39.4K (source github)
-- GitHub 关注者: 4.1K (source github)
-- GitHub 未关闭 issue: 729 (source github)
-- GitHub 近 4 周提交: 200 (source github)
-- 近 12 个月发版次数: 11 (source github)
-- 最近一次发版日期: 2026-07-10 (source github)
+- 社区看多比例: 85.43% (来源 coingecko)
+- 社区看空比例: 14.57% (来源 coingecko)
+- CoinGecko 关注人数: 2.45M (来源 coingecko)
+- GitHub Star: 90.23K (来源 github)
+- GitHub Fork: 39.4K (来源 github)
+- GitHub 关注者: 4.1K (来源 github)
+- GitHub 未关闭 issue: 729 (来源 github)
+- GitHub 近 4 周提交: 200 (来源 github)
+- 近 12 个月发版次数: 11 (来源 github)
+- 最近一次发版日期: 2026-07-10 (来源 github)
 
 ## 资金与持仓
 
-- 市值排名: 1 (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 市值: 1.71T USD (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 全稀释市值: 1.79T USD (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 市值占比: 59.09% (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 24小时成交额: 59.89B USD (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 24小时成交额变化: 170.51% (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 24小时涨跌: 4.57% (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 7日涨跌: 10.57% (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 30日涨跌: 12.04% (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 90日涨跌: 36.09% (2026-09-22T07:45:59.000Z, source coinmarketcap)
-- 距历史最高点回撤: -32.42% (source coingecko)
-- 距历史最低点涨幅: 125551.47% (source coingecko)
-- 比特币市值占比: 58.78% (source coingecko)
-- 以太坊市值占比: 11.42% (source coingecko)
-- 追踪币种数量: 21.36K (source coingecko)
+- 市值排名: 1 (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 市值: 1.71T USD (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 全稀释市值: 1.79T USD (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 市值占比: 59.08% (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 24小时成交额: 60.5B USD (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 24小时成交额变化: 170.69% (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 24小时涨跌: 4.36% (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 7日涨跌: 10.91% (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 30日涨跌: 12.33% (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 90日涨跌: 36.29% (2026-09-22T07:57:59.000Z, 来源 coinmarketcap)
+- 距历史最高点回撤: -32.35% (来源 coingecko)
+- 距历史最低点涨幅: 125683.51% (来源 coingecko)
+- 比特币市值占比: 58.78% (来源 coingecko)
+- 以太坊市值占比: 11.41% (来源 coingecko)
+- 追踪币种数量: 21.36K (来源 coingecko)
 
 ## 技术指标
 
-- 均线排列：看涨 (SMA 20 79,312.80 / SMA 50 74,107.15)
-- RSI 14: 67.6 — 中性区间
-- MACD 在信号线上方: 2,249.699 / 1,707.299 (542.400)
+- 均线排列：看涨 (SMA 20 79,316.27 / SMA 50 74,108.54)
+- RSI 14: 67.8 — 中性区间
+- MACD 在信号线上方: 2,255.227 / 1,708.405 (546.822)
 - ATR 14: 2,402.54 (2.82%)
-- Bollinger: 73,634.55 / 79,312.80 / 84,991.05
-- EMA 12 / 26: 80,738.36 / 78,488.66
-- OBV: 1.45B (20 根均值 -33.78B)
+- Bollinger: 73,623.43 / 79,316.27 / 85,009.10
+- EMA 12 / 26: 80,749.02 / 78,493.80
+- OBV: 842.91M (20 根均值 -33.81B)
 
 ## 多指标综合
 
-- 趋势：看涨（权重 0.3，数值 5205.650703124993）
-- 动量：中性（权重 0.2，数值 67.59549008359814）
-- MACD：看涨（权重 0.25，数值 542.3995598231472）
-- 均值回归：看跌（权重 0.1，数值 79312.803515625）
-- 参与度：看涨（权重 0.15，数值 35231745427.05）
+- 趋势：看涨（权重 0.3，数值 5207.72960937499）
+- 动量：中性（权重 0.2，数值 67.83789006752424）
+- MACD：看涨（权重 0.25，数值 546.8219244955139）
+- 均值回归：看跌（权重 0.1，数值 79316.268359375）
+- 参与度：看涨（权重 0.15，数值 34656236947.05）
 
 综合评分：0.6
 置信度：60%
@@ -130,17 +130,17 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 
 ## 方法论覆盖
 
-- 均线趋势：看涨，置信度 75%，状态 可计算。EMA12 80738.36292797807 对比 EMA26 78488.6640419203
+- 均线趋势：看涨，置信度 75%，状态 可计算。EMA12 80749.02398567038 对比 EMA26 78493.79714377216
 - 唐奇安通道：中性，置信度 70%，状态 可计算。20 日区间 74944.59375–87363.7578125
 - ADX 趋势：看涨，置信度 58%，状态 可计算。ADX 58.19
 - SuperTrend：看跌，置信度 65%，状态 部分可计算。ATR 通道趋势方向
 - ROC：看涨，置信度 70%，状态 可计算。20 根 K 线变化率
 - MACD：看涨，置信度 70%，状态 可计算。MACD 柱状图方向
-- RSI：看涨，置信度 60%，状态 可计算。RSI14 67.59549008359814
+- RSI：看涨，置信度 60%，状态 可计算。RSI14 67.83789006752424
 - RSI 均值回归：中性，置信度 55%，状态 可计算。RSI 极值状态
 - 布林带均值回归：看跌，置信度 55%，状态 可计算。布林带 z-score
 - KDJ：看涨，置信度 55%，状态 可计算。K/D 交叉与位置
-- 量价关系：看跌，置信度 55%，状态 可计算。成交量 59896090624 对比 20 期均值 30916973973.8
+- 量价关系：看跌，置信度 55%，状态 可计算。成交量 60501889024 对比 20 期均值 30947263893.8
 - OBV：看涨，置信度 60%，状态 可计算。OBV 对比 20 根均值
 - VWAP：看涨，置信度 45%，状态 部分可计算。20 根滚动 VWAP 代理
 - 筹码分布：看涨，置信度 45%，状态 部分可计算。OHLCV 分桶筹码分布，不是日内足迹
@@ -163,36 +163,36 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 - Peter Lynch（合理价格的成长）：数据不足。
   - 风险：缺少成长与盈利预测。
 - George Soros（反身性与宏观）：偏积极。
-  - 均线趋势: bullish (75%)
-  - MACD: bullish (70%)
+  - 均线趋势: 看涨 (75%)
+  - MACD: 看涨 (70%)
   - 风险：缺少宏观仓位与反身性输入。
 - Ray Dalio（宏观与风险平衡）：偏积极。
-  - ADX 趋势: bullish (58%)
-  - 波动率突破: neutral (55%)
+  - ADX 趋势: 看涨 (58%)
+  - 波动率突破: 中性 (55%)
   - 风险：缺少宏观状态与组合数据。
 - Jim Simons（量化信号）：中性。
-  - RSI: bullish (60%)
-  - 布林带均值回归: bearish (55%)
+  - RSI: 看涨 (60%)
+  - 布林带均值回归: 看跌 (55%)
   - 风险：缺少回测、成本模型与样本外验证。
 - Jesse Livermore（趋势跟随）：中性。
-  - 唐奇安通道: neutral (70%)
-  - ADX 趋势: bullish (58%)
-  - SuperTrend: bearish (65%)
+  - 唐奇安通道: 中性 (70%)
+  - ADX 趋势: 看涨 (58%)
+  - SuperTrend: 看跌 (65%)
   - 风险：缺少仓位管理与执行假设。
 - Howard Marks（周期与风险）：中性。
-  - 波动率突破: neutral (55%)
-  - 周期分析: neutral (30%)
+  - 波动率突破: 中性 (55%)
+  - 周期分析: 中性 (30%)
   - 风险：仅凭单一资产无法判断周期位置。
 - Nassim Taleb（尾部风险与凸性）：中性。
-  - 波动率突破: neutral (55%)
-  - 周期分析: neutral (30%)
+  - 波动率突破: 中性 (55%)
+  - 周期分析: 中性 (30%)
   - 风险：缺少尾部分布与期权数据。
 
 ## 情景分析
 
-- 乐观情景（+2 ATR）：90,068.37 (5.64%)
-- 基准情景（现价）：85,263.30
-- 悲观情景（-2 ATR）：80,458.23 (-5.64%)
+- 乐观情景（+2 ATR）：90,137.66 (5.63%)
+- 基准情景（现价）：85,332.59
+- 悲观情景（-2 ATR）：80,527.52 (-5.63%)
 - ATR 占价格比例：2.82%
 
 ## 策略缺口

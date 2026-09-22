@@ -32,18 +32,18 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
@@ -64,11 +64,11 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 行业格局
 
-- 所属行业: Technology (source finnhub)
+- 所属行业: Technology (来源 finnhub)
 
 ## 竞争格局
 
-- 同业可比公司: AAPL, DELL, SNDK, WDC, HPE, NTAP, P, HPQ, SMCI, IONQ, GPGI, INFQ (source finnhub)
+- 同业可比公司: AAPL, DELL, SNDK, WDC, HPE, NTAP, P, HPQ, SMCI, IONQ, GPGI, INFQ (来源 finnhub)
 
 ## 多指标综合
 
@@ -115,10 +115,10 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 催化剂
 
-- 下次财报日: 2026-10-28 (source finnhub)
-- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (source finnhub)
-- 最近一次重大公告类型: 10-Q (source finnhub)
-- 最近一次重大公告日期: 2026-07-31 (source finnhub)
+- 下次财报日: 2026-10-28 (来源 finnhub)
+- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (来源 finnhub)
+- 最近一次重大公告类型: 10-Q (来源 finnhub)
+- 最近一次重大公告日期: 2026-07-31 (来源 finnhub)
 
 **关注方向**
 - 需求数据与渠道调研

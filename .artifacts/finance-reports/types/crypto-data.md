@@ -12,7 +12,7 @@
 - 风险预算：ATR 占价格 2.82%；仓位应按下方 ATR 止损设定
 
 **结论推翻条件**
-- 收盘跌破 79,312.80（20 日均线）将推翻看涨结论。
+- 收盘跌破 79,316.27（20 日均线）将推翻看涨结论。
 
 **本报告暂时看不到的维度**
 - 缺少输入：链上指标; 解锁与供应计划; 交易所与 ETF 资金流
@@ -25,36 +25,36 @@ Bitcoin USD (BTC-USD) 呈看涨。4 个信号与综合方向一致。
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
 - 截至：2026-09-22T00:00:00.000Z
-- 价格：85,263.30 USD
-- 涨跌幅：-1.55%
+- 价格：85,332.59 USD
+- 涨跌幅：-1.47%
 - K 线数：185
 - 数据来源：yahoo-finance
 
 ## 技术指标
 
-- 均线排列：看涨 (SMA 20 79,312.80 / SMA 50 74,107.15)
-- RSI 14: 67.6 — 中性区间
-- MACD 在信号线上方: 2,249.699 / 1,707.299 (542.400)
+- 均线排列：看涨 (SMA 20 79,316.27 / SMA 50 74,108.54)
+- RSI 14: 67.8 — 中性区间
+- MACD 在信号线上方: 2,255.227 / 1,708.405 (546.822)
 - ATR 14: 2,402.54 (2.82%)
-- Bollinger: 73,634.55 / 79,312.80 / 84,991.05
-- EMA 12 / 26: 80,738.36 / 78,488.66
-- OBV: 1.45B (20 根均值 -33.78B)
+- Bollinger: 73,623.43 / 79,316.27 / 85,009.10
+- EMA 12 / 26: 80,749.02 / 78,493.80
+- OBV: 842.91M (20 根均值 -33.81B)
 
 ## 数据需求
 

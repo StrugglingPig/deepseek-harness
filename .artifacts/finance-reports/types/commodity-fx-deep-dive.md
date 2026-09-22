@@ -32,18 +32,18 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
@@ -64,14 +64,14 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 
 ## 供需平衡
 
-- GLOBAL Brent crude oil price: 130.80 USD/barrel (2026-09-15, leading, source fred)
-- US US natural gas price (Henry Hub): 2.97 USD/MMBtu (2026-09-15, leading, source fred)
-- GLOBAL Copper price (global, USD per metric ton): 13,542.82 USD/metric ton (2026-07-01, coincident, source fred)
-- US US crude oil ending stocks excluding SPR: 423,429.00 thousand barrels (2026-09-11, coincident, source eia)
-- US US working natural gas in underground storage: 3,298.00 billion cubic feet (2026-09-11, coincident, source eia)
-- US WTI crude managed-money net position: 135,905.00 contracts (2026-09-15, coincident, source cftc)
-- GLOBAL Gold non-commercial net position: 230,338.00 contracts (2026-09-15, coincident, source cftc)
-- GLOBAL Copper non-commercial net position: 75,134.00 contracts (2026-09-15, coincident, source cftc)
+- GLOBAL 布伦特原油价格: 130.80 美元/桶 (2026-09-15, 领先, 来源 fred)
+- US 美国天然气价格: 2.97 美元/百万英热单位 (2026-09-15, 领先, 来源 fred)
+- GLOBAL 铜价: 13,542.82 美元/吨 (2026-07-01, 同步, 来源 fred)
+- US 美国原油商业库存（不含战略储备）: 423,429.00 千桶 (2026-09-11, 同步, 来源 eia)
+- US 美国地下储气库工作气量: 3,298.00 十亿立方英尺 (2026-09-11, 同步, 来源 eia)
+- US WTI 原油管理基金净持仓: 135,905.00 张 (2026-09-15, 同步, 来源 cftc)
+- GLOBAL 黄金非商业净持仓: 230,338.00 张 (2026-09-15, 同步, 来源 cftc)
+- GLOBAL 铜非商业净持仓: 75,134.00 张 (2026-09-15, 同步, 来源 cftc)
 
 - 本节仍缺以下输入：成本曲线与期限结构
 - 市场处于过剩还是缺口？
@@ -80,14 +80,14 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 
 ## 汇率驱动
 
-- CN USD/CNY exchange rate: 6.70 CNY per USD (2026-09-18, coincident, source fred)
-- GLOBAL USD/JPY exchange rate: 156.87 JPY per USD (2026-09-18, coincident, source fred)
-- GLOBAL EUR/USD exchange rate: 1.15 USD per EUR (2026-09-18, coincident, source fred)
-- CN China 3-month interbank rate: 1.54 % (2026-07-01, coincident, source fred)
-- GLOBAL Japan 10-year government bond yield: 2.94 % (2026-08-01, coincident, source fred)
-- US US dollar index non-commercial net position: 10,593.00 contracts (2026-09-15, coincident, source cftc)
-- GLOBAL Euro FX non-commercial net position: -26,993.00 contracts (2026-09-15, coincident, source cftc)
-- GLOBAL Japanese yen non-commercial net position: 120,359.00 contracts (2026-09-15, coincident, source cftc)
+- CN 美元兑人民币汇率: 6.70 元/美元 (2026-09-18, 同步, 来源 fred)
+- GLOBAL 美元兑日元汇率: 156.87 日元/美元 (2026-09-18, 同步, 来源 fred)
+- GLOBAL 欧元兑美元汇率: 1.15 美元/欧元 (2026-09-18, 同步, 来源 fred)
+- CN 中国 3 个月银行间利率: 1.54 % (2026-07-01, 同步, 来源 fred)
+- GLOBAL 日本 10 年期国债收益率: 2.94 % (2026-08-01, 同步, 来源 fred)
+- US 美元指数非商业净持仓: 10,593.00 张 (2026-09-15, 同步, 来源 cftc)
+- GLOBAL 欧元非商业净持仓: -26,993.00 张 (2026-09-15, 同步, 来源 cftc)
+- GLOBAL 日元非商业净持仓: 120,359.00 张 (2026-09-15, 同步, 来源 cftc)
 
 ## 技术指标
 
@@ -146,29 +146,29 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 - Peter Lynch（合理价格的成长）：数据不足。
   - 风险：缺少成长与盈利预测。
 - George Soros（反身性与宏观）：偏谨慎。
-  - 均线趋势: bearish (75%)
-  - MACD: bearish (70%)
+  - 均线趋势: 看跌 (75%)
+  - MACD: 看跌 (70%)
   - 风险：缺少宏观仓位与反身性输入。
 - Ray Dalio（宏观与风险平衡）：中性。
-  - ADX 趋势: neutral (13%)
-  - 波动率突破: neutral (55%)
+  - ADX 趋势: 中性 (13%)
+  - 波动率突破: 中性 (55%)
   - 风险：缺少宏观状态与组合数据。
 - Jim Simons（量化信号）：偏谨慎。
-  - RSI: bearish (60%)
-  - 布林带均值回归: neutral (55%)
+  - RSI: 看跌 (60%)
+  - 布林带均值回归: 中性 (55%)
   - 风险：缺少回测、成本模型与样本外验证。
 - Jesse Livermore（趋势跟随）：偏谨慎。
-  - 唐奇安通道: neutral (70%)
-  - ADX 趋势: neutral (13%)
-  - SuperTrend: bearish (65%)
+  - 唐奇安通道: 中性 (70%)
+  - ADX 趋势: 中性 (13%)
+  - SuperTrend: 看跌 (65%)
   - 风险：缺少仓位管理与执行假设。
 - Howard Marks（周期与风险）：中性。
-  - 波动率突破: neutral (55%)
-  - 周期分析: neutral (30%)
+  - 波动率突破: 中性 (55%)
+  - 周期分析: 中性 (30%)
   - 风险：仅凭单一资产无法判断周期位置。
 - Nassim Taleb（尾部风险与凸性）：中性。
-  - 波动率突破: neutral (55%)
-  - 周期分析: neutral (30%)
+  - 波动率突破: 中性 (55%)
+  - 周期分析: 中性 (30%)
   - 风险：缺少尾部分布与期权数据。
 
 ## 情景分析

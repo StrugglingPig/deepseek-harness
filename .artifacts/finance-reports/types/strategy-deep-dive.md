@@ -32,18 +32,18 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 
 ## 宏观驱动
 
-- GLOBAL World GDP growth (annual %): 3.10 % (2026, lagging, source imf)
-- CN China CPI (YoY): 0.80 % (2026-08, lagging, source akshare)
-- CN China PPI (YoY): 3.80 % (2026-08, leading, source akshare)
-- US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
-- GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
-- US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,363.00 100M CNY (2026-08-01, coincident, source akshare)
-- CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
-- US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
-- US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
-- US US 10y-2y Treasury spread: 0.20 % (2026-09-21, leading, source fred)
-- US US high-yield credit spread (OAS): 2.68 % (2026-09-18, leading, source fred)
+- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
+- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
+- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
+- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
+- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
+- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
+- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
+- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
+- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
+- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
+- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
 
 ## 行情快照
 
@@ -75,7 +75,7 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 
 ## 行业格局
 
-- 所属行业: Technology (source finnhub)
+- 所属行业: Technology (来源 finnhub)
 
 ## 技术指标
 
@@ -134,29 +134,29 @@ State Street SPDR S&P 500 ETF Trust (SPY) 呈中性。2 个信号与综合方向
 - Peter Lynch（合理价格的成长）：数据不足。
   - 风险：缺少成长与盈利预测。
 - George Soros（反身性与宏观）：中性。
-  - 均线趋势: bullish (75%)
-  - MACD: bearish (70%)
+  - 均线趋势: 看涨 (75%)
+  - MACD: 看跌 (70%)
   - 风险：缺少宏观仓位与反身性输入。
 - Ray Dalio（宏观与风险平衡）：偏积极。
-  - ADX 趋势: neutral (5%)
-  - 波动率突破: bullish (55%)
+  - ADX 趋势: 中性 (5%)
+  - 波动率突破: 看涨 (55%)
   - 风险：缺少宏观状态与组合数据。
 - Jim Simons（量化信号）：偏积极。
-  - RSI: bullish (60%)
-  - 布林带均值回归: neutral (55%)
+  - RSI: 看涨 (60%)
+  - 布林带均值回归: 中性 (55%)
   - 风险：缺少回测、成本模型与样本外验证。
 - Jesse Livermore（趋势跟随）：偏积极。
-  - 唐奇安通道: neutral (70%)
-  - ADX 趋势: neutral (5%)
-  - SuperTrend: bullish (65%)
+  - 唐奇安通道: 中性 (70%)
+  - ADX 趋势: 中性 (5%)
+  - SuperTrend: 看涨 (65%)
   - 风险：缺少仓位管理与执行假设。
 - Howard Marks（周期与风险）：偏积极。
-  - 波动率突破: bullish (55%)
-  - 周期分析: neutral (30%)
+  - 波动率突破: 看涨 (55%)
+  - 周期分析: 中性 (30%)
   - 风险：仅凭单一资产无法判断周期位置。
 - Nassim Taleb（尾部风险与凸性）：偏积极。
-  - 波动率突破: bullish (55%)
-  - 周期分析: neutral (30%)
+  - 波动率突破: 看涨 (55%)
+  - 周期分析: 中性 (30%)
   - 风险：缺少尾部分布与期权数据。
 
 ## 情景分析
