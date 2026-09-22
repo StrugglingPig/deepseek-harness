@@ -155,6 +155,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **Normalized crypto snapshots are explicit** — 归一化 `load()` 路径映射 `BTC` 和 `ETH`；其他 Binance 符号通过 `finance_provider_request` 查询。
 - **Provider-native data is upstream JSON** — 结果遵循 Provider 字段名、响应结构、限流、认证和端点可用性，而不是本包的统一快照 Schema。
 - **私有账户只读** — 签名 Binance 请求限制为 GET/query 端点；不提供下单、撤单或提现操作。
+- **上游被拦截属于传输层问题，不是本包的配置项** — launcher 会在插件挂载前为整个进程安装唯一一套出站代理策略，因此被本网络拦截的 Yahoo、CoinGecko、CoinMarketCap 由该策略转发，而不是由本包控制；请在 `~/.dsh/.env` 中设置 `HTTPS_PROXY`，并注意 launcher 会拒绝仓库 `.env` 里的代理变量，避免某个 checkout 重定向出口流量。
 - **监控采用规划器模式** — `finance_monitor_plan` 返回可持久化的 `schedule_create` 参数；盘前和盘后是一次性检查，报告后请求下一时段。
 - **CoinMarketCap 受套餐和 Credits 限制** — API Key 必须在金融设置中启用，WebSocket 能力取决于账户套餐和 Credits。
 - **CoinGecko 社区数据需要免费 API Key** — 在金融设置中打开开关并保存密钥；未配置时币圈报告保留市场章节，并列出仍缺少的社区输入。
