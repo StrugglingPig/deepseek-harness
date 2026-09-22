@@ -296,11 +296,11 @@ const US_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; re
   epsGrowth: { group: 'growth', unit: '%' },
   eps: { group: 'profitability', unit: 'USD' },
   epsTtm: { group: 'profitability', unit: 'USD' },
-  netMargin: { group: 'profitability', unit: '' },
-  operatingMargin: { group: 'profitability', unit: '' },
-  roa: { group: 'profitability', unit: '' },
-  roe: { group: 'profitability', unit: '' },
-  revenueGrowth: { group: 'growth', unit: '' },
+  netMargin: { group: 'profitability', unit: '%' },
+  operatingMargin: { group: 'profitability', unit: '%' },
+  roa: { group: 'profitability', unit: '%' },
+  roe: { group: 'profitability', unit: '%' },
+  revenueGrowth: { group: 'growth', unit: '%' },
   beta: { group: 'market', unit: '' },
 }
 
