@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-22-finance-valuation-and-forecast-method.md
-2026-09-22-finance-valuation-and-forecast-method.md: e20f4b57827ef9fc1f1e5ee674311ec3e314a45f
-2026-09-22-finance-valuation-and-forecast-method.zh.md: 7bb03ee8c7b4ab85770ac82cf39806c75b9c4cea
+2026-09-22-finance-valuation-and-forecast-method.md: 96f41066c76bff702500c39d5b980ef3dcdf44bd
+2026-09-22-finance-valuation-and-forecast-method.zh.md: 10b6ade347208c053acfac857e97489465663933

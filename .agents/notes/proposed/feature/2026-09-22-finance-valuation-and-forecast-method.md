@@ -36,7 +36,7 @@ Revenue is built from the segment or industry drivers the report can source, wit
 
 ### 3. One cost of capital per report
 
-Risk-free rate in the cash-flow currency, an equity risk premium, an unlevered industry beta re-levered to the target capital structure, and an after-tax cost of debt, all printed with their sources. The same rate feeds the DCF, the EPV, and any residual-income method. Risk is penalized once: either in the discount rate or in the scenario probabilities, never both, and never by tuning the rate to reach a desired target.
+Constructed in one order for the whole report: the risk-free rate in the cash-flow currency, an equity risk premium, an unlevered industry beta re-levered to the target capital structure, the after-tax cost of debt, then market-value weights. Every component prints with its source and timestamp, and the same rate feeds the DCF, the EPV, and any residual-income method. Risk is penalized once: either in the discount rate or in the scenario probabilities, never both, and never by tuning the rate to reach a desired target. The construction and its outputs are pinned against the reference implementation on a fixed fixture.
 
 ### 4. Warranted multiple instead of a copied median
 
@@ -52,19 +52,23 @@ Bull, base, and bear cases carry explicit probabilities that sum to one, produce
 
 ### 7. Earnings quality gates valuation
 
-Accruals ratio, cash conversion, and where the inputs allow, the Beneish M-Score produce an A–D credibility grade. A C grade caps the action at watch; a D suppresses the valuation and the action entirely and says so in the first screen. Missing inputs print as not obtained rather than being scored by impression.
+Accruals ratio and cash conversion run first, then the distress and manipulation battery the inputs support: Altman Z, Piotroski F, Beneish M, Ohlson O, Zmijewski, Springate, Grover, and Fulmer scores. Together they produce an A–D credibility grade. A C grade caps the action at watch; a D suppresses the valuation and the action entirely and says so in the first screen. Missing inputs print as not obtained rather than being scored by impression.
 
 ### 8. Presentation
 
-The first screen carries a verdict box (intrinsic value view, one-to-three-month trading direction, action, confidence, credibility grade), a tearsheet of sourced figures, and the expectations-gap table. The valuation section carries a football-field range across methods, the assumption table with sources and timestamps, and the sensitivity grid. Numeric values keep their provenance beside them; every assumption is written into the report as the model's own output, never presented as consensus.
+The first screen carries a verdict box (intrinsic value view, one-to-three-month trading direction, action, confidence, credibility grade), a tearsheet of sourced figures, and the expectations-gap table. The valuation section carries a football-field range across methods, the assumption table with sources and timestamps, and the sensitivity grid. Every number prints the endpoint, field, and retrieval time it came from; every assumption is written into the report as the model's own output, never presented as consensus.
 
 ### 9. Validation before the label
 
-The method earns the words target price and fair value only after a backtest reports its twelve-month realized error and hit rate against a control that assumes the price does not change. Until then the report calls the output a model reference value. The backtest reconstructs inputs as of each historical date, so peer multiples and prices are as of then, not today.
+The method earns the words target price and fair value only after an out-of-sample backtest reports its twelve-month realized error and hit rate against a control that assumes the price does not change, and a Diebold-Mariano test shows whether the difference in forecast accuracy is significant rather than noise. Until both pass, the report calls the output a model reference value. The backtest reconstructs inputs as of each historical date, so peer multiples and prices are as of then, not today.
 
-### 10. Data to close first
+### 10. Build in-house, validate against a reference implementation
 
-Reported income statement totals, balance sheet items, and cash-flow items from the same filings endpoint we already read; shares outstanding from market capitalisation and price; a historical multiple series per symbol built from price history and reported earnings; and the A-share absolute financials the bridge does not return today.
+The formulas are ours and run on our own providers. The maintained `JerBouma/FinanceToolkit` project (MIT) serves as a development-time oracle instead of a runtime dependency: a fixed fixture of reported statements is pushed through both implementations, and the reference's cost of capital, discounted cash flow, ratio, and forensic-score outputs are recorded as golden values that our unit tests must match. The library never enters the runtime, so the reports keep one set of endpoints, one source list beside every figure, and no new credential.
+
+### 11. Data to close first
+
+Reported income statement totals, balance sheet items, and cash-flow items from the same filings endpoint we already read; shares outstanding from market capitalisation and price; a historical multiple series per symbol built from price history and reported earnings; and the A-share absolute financials the bridge does not return today. This is the first implementation slice, because every method above needs either the cash-flow statement or the balance sheet.
 
 ## Alternatives considered
 
@@ -73,6 +77,8 @@ Reported income statement totals, balance sheet items, and cash-flow items from 
 **Buy consensus estimates and republish them.** This answers what other analysts think, which is a different question from our own view, and it removes the only part of the exercise we can defend: a reproducible chain from sourced inputs to a stated assumption.
 
 **Discount cash flow only.** One method with a terminal value that often carries most of the value invites false precision, and the free data we can source does not support segment-level cash flows for every industry. Multi-method cross-checking is the discipline that catches a broken DCF.
+
+**Borrow the maintained library at runtime.** `JerBouma/FinanceToolkit` already implements the cost of capital, discounted cash flow, residual income, EVA, PVGO, Graham number, DuPont, and the full manipulation-and-distress battery, all MIT-licensed. Taking it as a runtime dependency would delete owned code, which this repository otherwise prefers. It lost because it brings its own data layer: the toolkit fetches statements from Financial Modeling Prep and falls back to Yahoo Finance, so the report would carry two endpoint lists behind the same figure, a second credential to explain, and numbers sourced differently from the fundamentals the rest of the report quotes. Its full method set also wants an FMP key. Keeping it as a development-time oracle delivers the formula correctness without either cost.
 
 **Machine-learning price forecasting.** Attractive for the appearance of sophistication, but a point estimate without an auditable story cannot be argued with, and training on free data risks look-ahead bias that inflates the backtest. Reconsider only with point-in-time data and an economic story the model can state.
 
@@ -86,7 +92,8 @@ Reported income statement totals, balance sheet items, and cash-flow items from 
 - Terminal-value share and the implied exit multiple print beside their ceilings, and the report says when a ceiling is breached.
 - Growth and margin assumptions print their base-rate percentile, with the structural reason when one exceeds the distribution.
 - WACC is printed with its components, one value per report, and a ±1 percentage point sensitivity table.
-- A backtest over at least fifty historical symbol-dates reports twelve-month error and hit rate against the unchanged-price control, and the report only uses the words target price or fair value after that backtest passes.
+- A backtest over at least fifty historical symbol-dates reports twelve-month error and hit rate against the unchanged-price control, with a Diebold-Mariano test of the accuracy difference, and the report only uses the words target price or fair value after that backtest passes.
+- Cost of capital, discounted cash flow, ratio, and forensic-score outputs match the reference implementation's golden values on a fixed statement fixture, so a formula drift fails a test rather than shipping.
 - Every method is a deterministic pure function with per-file coverage, given an explicit input record that the report prints as an appendix.
 
 ## Risks
@@ -96,4 +103,5 @@ Reported income statement totals, balance sheet items, and cash-flow items from 
 - Published betas and equity risk premiums are noisy inputs. The sensitivity table is the honest answer, and the model must never tune the discount rate toward a target.
 - The backtest itself can lie: reconstructing peer multiples and prices as of each date is required, or the error statistics will be inflated by look-ahead.
 - Reading load grows with methods and scenarios. The football-field range, the gap table, and the verdict box must carry the decision on the first screen, with the detail behind them.
+- Golden values bind our formulas to one reference's conventions. Where we deliberately differ, the test records the difference and the reason rather than loosening the assertion.
 - Scope is the main delivery risk: the package holds per-file coverage and documentation gates, so each method needs its own tests and docs before the next one lands.
