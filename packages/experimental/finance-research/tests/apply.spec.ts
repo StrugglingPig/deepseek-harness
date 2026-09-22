@@ -29,9 +29,9 @@ const CONFIG: Required<Config> = {
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
   enableCoinGeckoRequests: true,
-  enableAlphaVantageRequests: true,
+  enableFinnhubRequests: true,
   githubBaseUrl: 'https://api.github.test',
-  alphaVantageBaseUrl: 'https://www.alphavantage.test',
+  finnhubBaseUrl: 'https://finnhub.test/api/v1',
   enableAkshare: true,
   enableIfind: true,
   ifindTransport: 'http',
@@ -104,8 +104,10 @@ describe('finance apply', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       requestedUrls.push(url)
-      if (url.includes('function=OVERVIEW')) {
-        return new Response(JSON.stringify({ Symbol: 'AAPL', Name: 'Apple Inc', PERatio: '32.5', Sector: 'TECHNOLOGY' }), { status: 200 })
+      if (url.includes('/stock/profile2') || url.includes('/stock/metric') || url.includes('/stock/peers')) {
+        if (url.includes('/stock/peers')) return new Response(JSON.stringify(['AAPL', 'MSFT']), { status: 200 })
+        if (url.includes('/stock/metric')) return new Response(JSON.stringify({ metric: { peTTM: 32.5 } }), { status: 200 })
+        return new Response(JSON.stringify({ name: 'Apple Inc', ticker: 'AAPL', finnhubIndustry: 'Technology' }), { status: 200 })
       }
       if (url.includes('/coins/bitcoin')) {
         return new Response(JSON.stringify({
@@ -333,7 +335,7 @@ describe('finance apply', () => {
       name: 'finance_research_report',
       arguments: { symbol: 'AAPL' },
     })
-    expect(requestedUrls.some(url => url.includes('function=OVERVIEW'))).toBe(true)
+    expect(requestedUrls.some(url => url.includes('/stock/profile2'))).toBe(true)
     vi.unstubAllGlobals()
     await ctx.fiber.dispose()
   })

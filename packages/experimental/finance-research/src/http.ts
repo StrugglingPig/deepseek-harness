@@ -6,7 +6,7 @@ import { z as zod } from 'zod'
 import type { FinanceRequestAuthorizer } from './auth.ts'
 import { classifyAsset } from './data.ts'
 import { normalizeCoinGeckoCommunity, normalizeCoinGeckoMarkets } from './coingecko.ts'
-import { normalizeAlphaVantageBars, normalizeUsFundamentals } from './alphavantage.ts'
+import { normalizeFinnhubFundamentals } from './finnhub.ts'
 import { normalizeGithubCommitActivity, normalizeGithubRepo } from './github.ts'
 import { normalizeCoinMarketCapOhlcv, normalizeCoinMarketCapQuotes } from './coinmarketcap.ts'
 import { FinanceDataError } from './error.ts'
@@ -46,7 +46,8 @@ const DEFAULT_BINANCE_BASE_URL = 'https://api.binance.com'
 const DEFAULT_COINMARKETCAP_BASE_URL = 'https://pro-api.coinmarketcap.com'
 const DEFAULT_COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
 const DEFAULT_GITHUB_BASE_URL = 'https://api.github.com'
-const DEFAULT_ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co'
+const DEFAULT_FINNHUB_BASE_URL = 'https://finnhub.io/api/v1'
+
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = 'https://gamma-api.polymarket.com'
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = 'https://clob.polymarket.com'
 const USER_AGENT = 'deepseek-harness-finance-research/0.0.1'
@@ -131,8 +132,8 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly coinGeckoBaseUrl?: string
   /** GitHub API origin. */
   readonly githubBaseUrl?: string
-  /** Alpha Vantage API origin. */
-  readonly alphaVantageBaseUrl?: string
+  /** Finnhub API origin. */
+  readonly finnhubBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -174,7 +175,7 @@ interface ResolvedOptions {
   readonly coinMarketCapBaseUrl: string
   readonly coinGeckoBaseUrl: string
   readonly githubBaseUrl: string
-  readonly alphaVantageBaseUrl: string
+  readonly finnhubBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -197,7 +198,7 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'polymarket-clob', description: 'Polymarket CLOB public market API', auth: 'none', docs: 'https://clob.polymarket.com' },
   { name: 'coingecko', description: 'CoinGecko community and developer data', auth: 'api-key', docs: 'https://docs.coingecko.com/reference/coins-id' },
   { name: 'github', description: 'GitHub public REST API for repository activity', auth: 'api-key', docs: 'https://docs.github.com/rest' },
-  { name: 'alphavantage', description: 'Alpha Vantage US equity fundamentals', auth: 'api-key', docs: 'https://www.alphavantage.co/documentation/' },
+  { name: 'finnhub', description: 'Finnhub US equity fundamentals and peers', auth: 'api-key', docs: 'https://finnhub.io/docs/api' },
   { name: 'coinmarketcap', description: 'CoinMarketCap Pro REST API', auth: 'api-key', docs: 'https://coinmarketcap.com/api/documentation/' },
   { name: 'fred', description: 'Federal Reserve Economic Data (FRED) series and observations', auth: 'api-key', docs: 'https://fred.stlouisfed.org/docs/api/fred/' },
   { name: 'worldbank', description: 'World Bank indicator API', auth: 'none', docs: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392' },
@@ -214,7 +215,7 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   'polymarket-clob': 'polymarketClobBaseUrl',
   coingecko: 'coinGeckoBaseUrl',
   github: 'githubBaseUrl',
-  alphavantage: 'alphaVantageBaseUrl',
+  finnhub: 'finnhubBaseUrl',
   coinmarketcap: 'coinMarketCapBaseUrl',
   fred: 'fredBaseUrl',
   worldbank: 'worldBankBaseUrl',
@@ -284,7 +285,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       coinMarketCapBaseUrl: options.coinMarketCapBaseUrl ?? DEFAULT_COINMARKETCAP_BASE_URL,
       coinGeckoBaseUrl: options.coinGeckoBaseUrl ?? DEFAULT_COINGECKO_BASE_URL,
       githubBaseUrl: options.githubBaseUrl ?? DEFAULT_GITHUB_BASE_URL,
-      alphaVantageBaseUrl: options.alphaVantageBaseUrl ?? DEFAULT_ALPHAVANTAGE_BASE_URL,
+      finnhubBaseUrl: options.finnhubBaseUrl ?? DEFAULT_FINNHUB_BASE_URL,
       fredBaseUrl: options.fredBaseUrl ?? DEFAULT_FRED_BASE_URL,
       worldBankBaseUrl: options.worldBankBaseUrl ?? DEFAULT_WORLDBANK_BASE_URL,
       imfBaseUrl: options.imfBaseUrl ?? DEFAULT_IMF_BASE_URL,
@@ -304,27 +305,7 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
     if (normalized.length === 0) throw new FinanceDataError('symbol must be a non-empty string', 'INVALID_SYMBOL')
     if (classifyAsset(normalized) === 'prediction') return this.loadPrediction(normalized, signal)
     if (classifyAsset(normalized) === 'crypto') return this.loadCrypto(normalized, signal)
-    try {
-      return await this.loadEquity(normalized, signal)
-    } catch (error: unknown) {
-      if (signal?.aborted === true) throw error
-      // Yahoo is the primary equity source; Alpha Vantage covers its outages when the
-      // user has enabled it, and the snapshot records whichever source answered.
-      const bars = await this.loadAlphaVantageBars(normalized, signal)
-      if (bars.length < 50) throw error
-      const latest = bars.at(-1) as MarketBar
-      const previous = bars[bars.length - 2] as MarketBar
-      return {
-        instrument: { symbol: normalized, name: normalized, assetClass: 'equity', currency: 'USD' },
-        asOf: latest.timestamp,
-        source: { provider: 'alphavantage', retrievedAt: this.options.now().toISOString(), synthetic: false },
-        quote: {
-          price: latest.close,
-          changePercent: previous.close === 0 ? 0 : (latest.close - previous.close) / previous.close * 100,
-        },
-        bars: [...bars],
-      }
-    }
+    return this.loadEquity(normalized, signal)
   }
 
   private async fetchJson(
@@ -464,26 +445,6 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
   }
 
   /**
-   * Load daily bars from Alpha Vantage, used when the primary equity source fails.
-   * @param symbol - Ticker symbol.
-   * @param signal - optional caller cancellation.
-   * @returns Ascending bars, or an empty list when the upstream publishes none.
-   */
-  async loadAlphaVantageBars(symbol: string, signal?: AbortSignal): Promise<readonly MarketBar[]> {
-    try {
-      const response = await this.request({
-        base: 'alphavantage',
-        path: '/query',
-        auth: 'api-key',
-        query: { function: 'TIME_SERIES_DAILY', symbol: symbol.toUpperCase(), outputsize: 'compact' },
-      }, signal)
-      return normalizeAlphaVantageBars(response.data)
-    } catch {
-      return []
-    }
-  }
-
-  /**
    * Load normalized crypto market rows from CoinGecko, used when CMC fails.
    * @param symbols - Ticker symbols to keep, matched case-insensitively.
    * @param signal - optional caller cancellation.
@@ -511,27 +472,36 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
   }
 
   /**
-   * Load one US equity fundamentals overview.
+   * Load one US equity fundamentals snapshot: profile, metrics, and peers.
    * @param request - Ticker symbol.
    * @param signal - optional caller cancellation.
-   * @returns The snapshot, or undefined when the upstream answers with a notice.
+   * @returns The snapshot, or undefined when every Finnhub call fails.
    */
   async loadUsFundamentals(
     request: FinanceUsFundamentalsRequest,
     signal?: AbortSignal,
   ): Promise<FinanceUsFundamentals | undefined> {
-    try {
-      const response = await this.request({
-        base: 'alphavantage',
-        path: '/query',
-        auth: 'api-key',
-        query: { function: 'OVERVIEW', symbol: request.symbol.toUpperCase() },
-      }, signal)
-      return normalizeUsFundamentals(response.data, request.symbol.toUpperCase())
-    } catch {
-      // A rate-limited or unknown symbol simply contributes no fundamentals.
-      return undefined
+    const symbol = request.symbol.toUpperCase()
+    const read = async (path: string): Promise<unknown> => {
+      try {
+        const response = await this.request({
+          base: 'finnhub',
+          path,
+          auth: 'api-key',
+          query: { symbol },
+        }, signal)
+        return response.data
+      } catch {
+        // One failing Finnhub call still leaves the others usable.
+        return undefined
+      }
     }
+    const [profile, metric, peers] = await Promise.all([
+      read('/stock/profile2'),
+      read('/stock/metric?metric=all'.split('?')[0] as string),
+      read('/stock/peers'),
+    ])
+    return normalizeFinnhubFundamentals(profile, metric, peers, symbol)
   }
 
   /**

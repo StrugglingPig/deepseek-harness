@@ -11,7 +11,7 @@ import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
   createCoinGeckoRequestAuthorizer, createCoinMarketCapRequestAuthorizer, createFredRequestAuthorizer,
-  createAlphaVantageRequestAuthorizer,
+  createFinnhubRequestAuthorizer,
   createGithubRequestAuthorizer,
   type FinanceCredentialResolver,
 } from './auth.ts'
@@ -67,7 +67,7 @@ export type { DashboardAsset, DashboardBar, DashboardInterval, DashboardMarketRe
 export {
   BINANCE_API_KEY_REF,
   BINANCE_API_SECRET_REF,
-  ALPHAVANTAGE_API_KEY_REF,
+  FINNHUB_API_KEY_REF,
   COINGECKO_API_KEY_REF,
   COINMARKETCAP_API_KEY_REF,
   FRED_API_KEY_REF,
@@ -78,7 +78,6 @@ export {
   createCoinMarketCapRequestAuthorizer,
   createFredRequestAuthorizer,
   createGithubRequestAuthorizer,
-  createAlphaVantageRequestAuthorizer,
 } from './auth.ts'
 export type {
   BinanceRequestAuthorizerOptions,
@@ -143,8 +142,8 @@ export interface Config {
   readonly coinGeckoBaseUrl?: string
   /** GitHub API origin. */
   readonly githubBaseUrl?: string
-  /** Alpha Vantage API origin. */
-  readonly alphaVantageBaseUrl?: string
+  /** Finnhub API origin. */
+  readonly finnhubBaseUrl?: string
   /** FRED API origin. */
   readonly fredBaseUrl?: string
   /** World Bank API origin. */
@@ -159,8 +158,8 @@ export interface Config {
   readonly enableCoinMarketCapRequests?: boolean
   /** Whether to read CoinGecko community and developer data. */
   readonly enableCoinGeckoRequests?: boolean
-  /** Whether to read Alpha Vantage US equity fundamentals. */
-  readonly enableAlphaVantageRequests?: boolean
+  /** Whether to read Finnhub US equity fundamentals. */
+  readonly enableFinnhubRequests?: boolean
   /** Whether AKShare stock data is available. */
   readonly enableAkshare?: boolean
   /** Whether iFinD stock data is available. */
@@ -219,7 +218,7 @@ export const Config: z<Config> = z.object({
   coinMarketCapBaseUrl: z.string().default('https://pro-api.coinmarketcap.com'),
   coinGeckoBaseUrl: z.string().default('https://api.coingecko.com/api/v3'),
   githubBaseUrl: z.string().default('https://api.github.com'),
-  alphaVantageBaseUrl: z.string().default('https://www.alphavantage.co'),
+  finnhubBaseUrl: z.string().default('https://finnhub.io/api/v1'),
   fredBaseUrl: z.string().default('https://api.stlouisfed.org'),
   worldBankBaseUrl: z.string().default('https://api.worldbank.org'),
   imfBaseUrl: z.string().default('https://www.imf.org/external/datamapper/api/v1'),
@@ -227,7 +226,7 @@ export const Config: z<Config> = z.object({
   enableSignedRequests: z.boolean().default(false),
   enableCoinMarketCapRequests: z.boolean().default(false),
   enableCoinGeckoRequests: z.boolean().default(false),
-  enableAlphaVantageRequests: z.boolean().default(false),
+  enableFinnhubRequests: z.boolean().default(false),
   enableAkshare: z.boolean().default(true),
   enableIfind: z.boolean().default(false),
   ifindTransport: z.union(['http', 'local'] as const).default('http'),
@@ -1162,7 +1161,7 @@ export function apply(ctx: Context, config: Config): void {
     coinMarketCapBaseUrl: resolved.coinMarketCapBaseUrl,
     coinGeckoBaseUrl: resolved.coinGeckoBaseUrl,
     githubBaseUrl: resolved.githubBaseUrl,
-    alphaVantageBaseUrl: resolved.alphaVantageBaseUrl,
+    finnhubBaseUrl: resolved.finnhubBaseUrl,
     fredBaseUrl: resolved.fredBaseUrl,
     worldBankBaseUrl: resolved.worldBankBaseUrl,
     imfBaseUrl: resolved.imfBaseUrl,
@@ -1170,7 +1169,7 @@ export function apply(ctx: Context, config: Config): void {
     enableSignedRequests: resolved.enableSignedRequests,
     enableCoinMarketCapRequests: resolved.enableCoinMarketCapRequests,
     enableCoinGeckoRequests: resolved.enableCoinGeckoRequests,
-    enableAlphaVantageRequests: resolved.enableAlphaVantageRequests,
+    enableFinnhubRequests: resolved.enableFinnhubRequests,
     enableAkshare: resolved.enableAkshare,
     enableIfind: resolved.enableIfind,
     ifindTransport: resolved.ifindTransport,
@@ -1210,9 +1209,9 @@ export function apply(ctx: Context, config: Config): void {
       enabled: () => currentSettings.enableCoinGeckoRequests,
     }),
     createGithubRequestAuthorizer({ resolveCredential: ref => resolveCredential(ref) }),
-    createAlphaVantageRequestAuthorizer({
+    createFinnhubRequestAuthorizer({
       resolveCredential: ref => resolveCredential(ref),
-      enabled: () => currentSettings.enableAlphaVantageRequests,
+      enabled: () => currentSettings.enableFinnhubRequests,
     }),
     createFredRequestAuthorizer({
       resolveCredential: ref => resolveCredential(ref),

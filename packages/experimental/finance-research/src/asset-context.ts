@@ -9,7 +9,7 @@ import type {
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
 export const ASSET_METRIC_GROUPS = [
   'valuation', 'profitability', 'growth', 'balance', 'cash',
-  'market', 'supply', 'development', 'community', 'industry',
+  'market', 'supply', 'development', 'community', 'industry', 'competition',
 ] as const
 
 /** One asset metric dimension. */
@@ -293,7 +293,7 @@ const US_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; re
   psRatio: { group: 'valuation', unit: '' },
   evToEbitda: { group: 'valuation', unit: '' },
   dividendYield: { group: 'valuation', unit: '%' },
-  analystTargetPrice: { group: 'valuation', unit: 'USD' },
+  epsGrowth: { group: 'growth', unit: '%' },
   eps: { group: 'profitability', unit: 'USD' },
   epsTtm: { group: 'profitability', unit: 'USD' },
   netMargin: { group: 'profitability', unit: '' },
@@ -301,8 +301,6 @@ const US_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; re
   roa: { group: 'profitability', unit: '' },
   roe: { group: 'profitability', unit: '' },
   revenueGrowth: { group: 'growth', unit: '' },
-  revenueGrowthQoq: { group: 'growth', unit: '' },
-  earningsGrowthQoq: { group: 'growth', unit: '' },
   beta: { group: 'market', unit: '' },
 }
 
@@ -316,11 +314,23 @@ export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | 
   const metrics: AssetMetric[] = Object.entries(fundamentals.indicators).flatMap(([key, value]) => {
     const entry = US_METRICS[key]
     if (entry === undefined) return []
-    return [{ group: entry.group, key, value, unit: entry.unit, asOf: '', source: 'alphavantage' }]
+    return [{ group: entry.group, key, value, unit: entry.unit, asOf: '', source: 'finnhub' }]
   })
-  for (const [key, value] of [['sector', fundamentals.sector], ['industry', fundamentals.industry]] as const) {
-    if (value === undefined) continue
-    metrics.push({ group: 'industry', key, value: 0, text: value, unit: '', asOf: '', source: 'alphavantage' })
+  if (fundamentals.industry !== undefined) {
+    metrics.push({
+      group: 'industry', key: 'industry', value: 0, text: fundamentals.industry, unit: '', asOf: '', source: 'finnhub',
+    })
+  }
+  if (fundamentals.peers !== undefined && fundamentals.peers.length > 0) {
+    metrics.push({
+      group: 'competition',
+      key: 'peers',
+      value: 0,
+      text: fundamentals.peers.join(', '),
+      unit: '',
+      asOf: '',
+      source: 'finnhub',
+    })
   }
   return metrics
 }

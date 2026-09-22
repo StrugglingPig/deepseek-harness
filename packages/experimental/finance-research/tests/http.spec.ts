@@ -228,45 +228,6 @@ describe('HTTP finance market data provider', () => {
     expect(snapshot.bars).toHaveLength(60)
   })
 
-  it('falls back to the backup equity source when the primary one fails', async () => {
-    const days = Array.from({ length: 60 }, (_, index) => `2026-06-${String(index + 1).padStart(2, '0')}`)
-    const seriesOf = (zeroPreviousClose: boolean): Record<string, Record<string, string>> => {
-      const daily: Record<string, Record<string, string>> = {}
-      days.forEach((day, index) => {
-        const close = zeroPreviousClose && index === 58 ? 0 : 100 + index
-        daily[day] = { '1. open': '100', '2. high': '101', '3. low': '99', '4. close': String(close), '6. volume': '10' }
-      })
-      return daily
-    }
-    const backup = (series: Record<string, Record<string, string>>) => createHttpFinanceMarketDataProvider({
-      ...BASE_OPTIONS,
-      yahooBaseUrl: 'https://yahoo.test',
-      alphaVantageBaseUrl: 'https://www.alphavantage.test',
-      fetch: async (input: string | URL | Request) => urlOf(input).includes('alphavantage')
-        ? new Response(JSON.stringify({ 'Time Series (Daily)': series }), { status: 200 })
-        : new Response('nope', { status: 500 }),
-    })
-
-    const snapshot = await backup(seriesOf(true)).load('AAPL')
-    expect(snapshot.source.provider).toBe('alphavantage')
-    expect(snapshot.bars).toHaveLength(60)
-    // A zero previous close keeps the change calculation from dividing by zero.
-    expect(snapshot.quote.changePercent).toBe(0)
-    // A non-zero previous close produces the percentage it implies.
-    expect((await backup(seriesOf(false)).load('AAPL')).quote.changePercent).toBeCloseTo((159 / 158 - 1) * 100, 4)
-
-    // Too few backup bars keeps the original failure visible.
-    const thin = createHttpFinanceMarketDataProvider({
-      ...BASE_OPTIONS,
-      yahooBaseUrl: 'https://yahoo.test',
-      alphaVantageBaseUrl: 'https://www.alphavantage.test',
-      fetch: async (input: string | URL | Request) => urlOf(input).includes('alphavantage')
-        ? new Response(JSON.stringify({ 'Time Series (Daily)': { '2026-09-19': { '1. open': '1', '2. high': '1', '3. low': '1', '4. close': '1', '6. volume': '1' } } }), { status: 200 })
-        : new Response('nope', { status: 500 }),
-    })
-    await expect(thin.load('AAPL')).rejects.toMatchObject({ code: 'HTTP_ERROR' })
-  })
-
   it('loads crypto market rows from the fallback source and keeps the requested symbols', async () => {
     const provider = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
@@ -288,35 +249,49 @@ describe('HTTP finance market data provider', () => {
     await expect(failing.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
   })
 
-  it('keeps the abort signal visible when the backup equity source is reached', async () => {
-    const controller = new AbortController()
+  it('loads a US fundamentals snapshot from Finnhub, tolerating a failed call', async () => {
+    const requested: string[] = []
     const provider = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
-      yahooBaseUrl: 'https://yahoo.test',
-      alphaVantageBaseUrl: 'https://www.alphavantage.test',
-      fetch: async () => {
-        controller.abort()
-        return new Response('nope', { status: 500 })
+      finnhubBaseUrl: 'https://finnhub.test/api/v1',
+      fetch: async (input: string | URL | Request) => {
+        const path = new URL(urlOf(input)).pathname
+        requested.push(path)
+        if (path.endsWith('/stock/peers')) return new Response(JSON.stringify(['AAPL', 'MSFT']), { status: 200 })
+        if (path.endsWith('/stock/metric')) {
+          return new Response(JSON.stringify({ metric: { peTTM: 32.5, roeTTM: 1.5 } }), { status: 200 })
+        }
+        return new Response(JSON.stringify({
+          name: 'Apple Inc', ticker: 'AAPL', exchange: 'NASDAQ', finnhubIndustry: 'Technology', marketCapitalization: 3_000_000,
+        }), { status: 200 })
       },
     })
-    await expect(provider.load('AAPL', controller.signal)).rejects.toBeDefined()
-  })
-
-  it('loads a US fundamentals overview and treats a notice as no data', async () => {
-    const provider = createHttpFinanceMarketDataProvider({
-      ...BASE_OPTIONS,
-      alphaVantageBaseUrl: 'https://www.alphavantage.test',
-      fetch: fakeFetch({ binance: { ok: true } }),
+    await expect(provider.loadUsFundamentals({ symbol: 'aapl' })).resolves.toMatchObject({
+      symbol: 'AAPL',
+      name: 'Apple Inc',
+      industry: 'Technology',
+      peers: ['AAPL', 'MSFT'],
+      indicators: { peRatio: 32.5, roe: 1.5, marketCap: 3_000_000_000_000 },
     })
-    // The default stub answers every other host with an empty object, which normalizes away.
-    await expect(provider.loadUsFundamentals({ symbol: 'aapl' })).resolves.toBeUndefined()
+    expect(requested.some(path => path.endsWith('/stock/profile2'))).toBe(true)
 
+    // Every call failing leaves no snapshot, and a partial answer still normalizes.
     const failing = createHttpFinanceMarketDataProvider({
       ...BASE_OPTIONS,
-      alphaVantageBaseUrl: 'https://www.alphavantage.test',
-      fetch: async () => new Response('rate limited', { status: 500 }),
+      finnhubBaseUrl: 'https://finnhub.test/api/v1',
+      fetch: async () => new Response('nope', { status: 500 }),
     })
     await expect(failing.loadUsFundamentals({ symbol: 'AAPL' })).resolves.toBeUndefined()
+
+    const partial = createHttpFinanceMarketDataProvider({
+      ...BASE_OPTIONS,
+      finnhubBaseUrl: 'https://finnhub.test/api/v1',
+      fetch: async (input: string | URL | Request) => urlOf(input).includes('/stock/profile2')
+        ? new Response('nope', { status: 500 })
+        : new Response(JSON.stringify({ metric: { peTTM: 32.5 } }), { status: 200 }),
+    })
+    await expect(partial.loadUsFundamentals({ symbol: 'AAPL' }))
+      .resolves.toMatchObject({ symbol: 'AAPL', indicators: { peRatio: 32.5 } })
   })
 
   it('loads a GitHub repository with trailing commit activity', async () => {
@@ -398,7 +373,7 @@ describe('HTTP finance market data provider', () => {
     })
     expect(provider.describe().bases.map(base => base.name)).toEqual([
       'binance-spot', 'binance-usdm', 'binance-coinm', 'binance-options',
-      'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'github', 'alphavantage',
+      'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'github', 'finnhub',
       'coinmarketcap',
       'fred', 'worldbank', 'imf',
     ])

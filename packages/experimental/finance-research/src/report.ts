@@ -470,6 +470,8 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return metricBlock(context, id, ['growth'])
     case 'industry-landscape':
       return metricBlock(context, id, ['industry'])
+    case 'competitive-position':
+      return metricBlock(context, id, ['competition'])
     case 'onchain-tokenomics':
       return metricBlock(context, id, ['supply', 'development'])
     case 'project-and-community':

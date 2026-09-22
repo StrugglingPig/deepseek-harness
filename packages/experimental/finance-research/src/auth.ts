@@ -30,8 +30,8 @@ export const BINANCE_API_KEY_REF = 'FINANCE_BINANCE_API_KEY'
 export const BINANCE_API_SECRET_REF = 'FINANCE_BINANCE_API_SECRET'
 /** Credential reference for the CoinMarketCap API key. */
 export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
-/** Credential reference for the Alpha Vantage API key. */
-export const ALPHAVANTAGE_API_KEY_REF = 'FINANCE_ALPHAVANTAGE_API_KEY'
+/** Credential reference for the Finnhub API key. */
+export const FINNHUB_API_KEY_REF = 'FINANCE_FINNHUB_API_KEY'
 /** Credential reference for the optional GitHub token. */
 export const GITHUB_TOKEN_REF = 'FINANCE_GITHUB_TOKEN'
 /** Credential reference for the CoinGecko demo API key. */
@@ -40,7 +40,7 @@ export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 
 /** Bases whose requests carry an API key; each has exactly one owning authorizer. */
-const API_KEY_BASES: ReadonlySet<string> = new Set(['alphavantage', 'coingecko', 'coinmarketcap', 'fred', 'github'])
+const API_KEY_BASES: ReadonlySet<string> = new Set(['coingecko', 'coinmarketcap', 'finnhub', 'fred', 'github'])
 
 /** Options for CoinMarketCap API-key authorization. */
 export interface CoinMarketCapRequestAuthorizerOptions {
@@ -170,8 +170,8 @@ export function createCoinMarketCapRequestAuthorizer(
   }
 }
 
-/** Options for Alpha Vantage API-key authorization. */
-export interface AlphaVantageRequestAuthorizerOptions {
+/** Options for Finnhub API-key authorization. */
+export interface FinnhubRequestAuthorizerOptions {
   /** Resolve the stored API key at request time. */
   readonly resolveCredential: FinanceCredentialResolver
   /** Whether the user enabled Alpha Vantage requests in settings. */
@@ -179,25 +179,28 @@ export interface AlphaVantageRequestAuthorizerOptions {
 }
 
 /**
- * Create the Alpha Vantage API-key authorizer.
+ * Create the Finnhub API-key authorizer.
+ *
+ * The key travels in the `X-Finnhub-Token` header rather than the query string,
+ * so a request URL never carries it.
  * @param options - credential resolver and feature switch.
- * @returns an authorizer that adds the `apikey` query parameter to Alpha Vantage requests.
+ * @returns an authorizer that adds the Finnhub token header.
  */
-export function createAlphaVantageRequestAuthorizer(
-  options: AlphaVantageRequestAuthorizerOptions,
+export function createFinnhubRequestAuthorizer(
+  options: FinnhubRequestAuthorizerOptions,
 ): FinanceRequestAuthorizer {
-  return async (request, url) => {
+  return async (request, _url, headers) => {
     if (request.auth !== 'api-key') return
-    if (request.base !== 'alphavantage') {
+    if (request.base !== 'finnhub') {
       if (API_KEY_BASES.has(request.base)) return
       throw new FinanceDataError('api-key requests are configured only for the finance upstream bases', 'AUTH_UNSUPPORTED')
     }
-    if (!options.enabled()) throw new FinanceDataError('Alpha Vantage requests are disabled in settings', 'AUTH_DISABLED')
-    const apiKey = await options.resolveCredential(ALPHAVANTAGE_API_KEY_REF)
+    if (!options.enabled()) throw new FinanceDataError('Finnhub requests are disabled in settings', 'AUTH_DISABLED')
+    const apiKey = await options.resolveCredential(FINNHUB_API_KEY_REF)
     if (apiKey === undefined || apiKey.length === 0) {
-      throw new FinanceDataError('Alpha Vantage API key is not configured', 'AUTH_REQUIRED')
+      throw new FinanceDataError('Finnhub API key is not configured', 'AUTH_REQUIRED')
     }
-    url.searchParams.set('apikey', apiKey)
+    headers['X-Finnhub-Token'] = apiKey
   }
 }
 

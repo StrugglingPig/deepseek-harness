@@ -6,8 +6,8 @@ import {
   COINMARKETCAP_API_KEY_REF,
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
-  createAlphaVantageRequestAuthorizer,
-  ALPHAVANTAGE_API_KEY_REF,
+  createFinnhubRequestAuthorizer,
+  FINNHUB_API_KEY_REF,
   createCoinGeckoRequestAuthorizer,
   createGithubRequestAuthorizer,
   GITHUB_TOKEN_REF,
@@ -262,34 +262,34 @@ describe('GitHub request authorizer', () => {
   })
 })
 
-describe('Alpha Vantage request authorizer', () => {
-  const request = { base: 'alphavantage', path: '/query', auth: 'api-key' as const }
+describe('Finnhub request authorizer', () => {
+  const request = { base: 'finnhub', path: '/stock/metric', auth: 'api-key' as const }
 
-  it('adds the key as a query parameter and leaves other bases alone', async () => {
-    const authorize = createAlphaVantageRequestAuthorizer({
-      resolveCredential: async ref => ref === ALPHAVANTAGE_API_KEY_REF ? 'av-key' : undefined,
+  it('adds the token header and leaves other bases alone', async () => {
+    const authorize = createFinnhubRequestAuthorizer({
+      resolveCredential: async ref => ref === FINNHUB_API_KEY_REF ? 'fh-key' : undefined,
       enabled: () => true,
     })
-    const url = new URL('https://www.alphavantage.test/query?function=OVERVIEW')
-    await authorize(request, url, {})
-    expect(url.searchParams.get('apikey')).toBe('av-key')
+    const headers: Record<string, string> = {}
+    await authorize(request, new URL('https://finnhub.test/api/v1/stock/metric'), headers)
+    expect(headers).toEqual({ 'X-Finnhub-Token': 'fh-key' })
 
-    const fredUrl = new URL('https://fred.test/fred/series')
-    await authorize({ base: 'fred', path: '/fred/series', auth: 'api-key' }, fredUrl, {})
-    expect(fredUrl.searchParams.get('apikey')).toBeNull()
+    const fredHeaders: Record<string, string> = {}
+    await authorize({ base: 'fred', path: '/fred/series', auth: 'api-key' }, new URL('https://fred.test'), fredHeaders)
+    expect(fredHeaders).toEqual({})
   })
 
   it('rejects disabled requests, a missing key, and unknown bases', async () => {
-    const disabled = createAlphaVantageRequestAuthorizer({ resolveCredential: async () => 'av-key', enabled: () => false })
+    const disabled = createFinnhubRequestAuthorizer({ resolveCredential: async () => 'fh-key', enabled: () => false })
     await expect(disabled(request, new URL('https://x.test'), {})).rejects.toMatchObject({ code: 'AUTH_DISABLED' })
 
-    const missing = createAlphaVantageRequestAuthorizer({ resolveCredential: async () => undefined, enabled: () => true })
+    const missing = createFinnhubRequestAuthorizer({ resolveCredential: async () => undefined, enabled: () => true })
     await expect(missing(request, new URL('https://x.test'), {})).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
 
-    const unowned = createAlphaVantageRequestAuthorizer({ resolveCredential: async () => 'av-key', enabled: () => true })
+    const unowned = createFinnhubRequestAuthorizer({ resolveCredential: async () => 'fh-key', enabled: () => true })
     await expect(unowned({ base: 'unknown', path: '/x', auth: 'api-key' }, new URL('https://x.test'), {}))
       .rejects.toMatchObject({ code: 'AUTH_UNSUPPORTED' })
-    await expect(unowned({ base: 'alphavantage', path: '/x', auth: 'none' }, new URL('https://x.test'), {}))
+    await expect(unowned({ base: 'finnhub', path: '/x', auth: 'none' }, new URL('https://x.test'), {}))
       .resolves.toBeUndefined()
   })
 })

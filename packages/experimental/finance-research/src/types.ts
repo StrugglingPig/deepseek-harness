@@ -279,7 +279,7 @@ export interface FinanceStockValuation {
   }
 }
 
-/** One Alpha Vantage company overview lookup. */
+/** One Finnhub US equity lookup. */
 export interface FinanceUsFundamentalsRequest {
   /** Ticker symbol, such as `AAPL`. */
   readonly symbol: string
@@ -289,9 +289,10 @@ export interface FinanceUsFundamentalsRequest {
 export interface FinanceUsFundamentals {
   readonly symbol: string
   readonly name?: string
-  readonly sector?: string
   readonly industry?: string
   readonly exchange?: string
+  /** Symbols Finnhub reports as the company's peers. */
+  readonly peers?: readonly string[]
   /** Reported figures keyed by normalized metric name. */
   readonly indicators: Readonly<Record<string, number>>
 }
@@ -365,8 +366,6 @@ export interface FinanceMarketDataProvider {
     request: FinanceCoinGeckoCommunityRequest,
     signal?: AbortSignal,
   ): Promise<FinanceCoinGeckoCommunity | undefined>
-  /** Load daily bars from the backup equity source when the provider supports it. */
-  loadAlphaVantageBars?(symbol: string, signal?: AbortSignal): Promise<readonly MarketBar[]>
   /** Load crypto market rows from the fallback source when the provider supports it. */
   loadCoinGeckoMarkets?(symbols: readonly string[], signal?: AbortSignal): Promise<readonly FinanceCoinMarketCapQuote[]>
   /** Load one US equity fundamentals snapshot when the provider supports it. */

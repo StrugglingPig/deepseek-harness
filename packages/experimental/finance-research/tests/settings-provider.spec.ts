@@ -20,9 +20,9 @@ const SETTINGS: FinanceRuntimeSettings = {
   enableSignedRequests: true,
   enableCoinMarketCapRequests: true,
   enableCoinGeckoRequests: true,
-  enableAlphaVantageRequests: true,
+  enableFinnhubRequests: true,
   githubBaseUrl: 'https://api.github.test',
-  alphaVantageBaseUrl: 'https://www.alphavantage.test',
+  finnhubBaseUrl: 'https://finnhub.test/api/v1',
   enableAkshare: true,
   enableIfind: false,
   ifindTransport: 'http',
@@ -76,7 +76,6 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadUsFundamentals({ symbol: 'AAPL' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
     })
-    await expect(provider.loadAlphaVantageBars('AAPL')).resolves.toEqual([])
     await expect(provider.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' })).rejects.toMatchObject({
       code: 'PROVIDER_UNAVAILABLE',
@@ -96,8 +95,10 @@ describe('settings-backed finance providers', () => {
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
       }
-      if (url.includes('function=OVERVIEW')) {
-        return new Response(JSON.stringify({ Symbol: 'AAPL', Name: 'Apple Inc', PERatio: '32.5' }), { status: 200 })
+      if (url.includes('/stock/profile2') || url.includes('/stock/metric') || url.includes('/stock/peers')) {
+        if (url.includes('/stock/peers')) return new Response(JSON.stringify(['AAPL', 'MSFT']), { status: 200 })
+        if (url.includes('/stock/metric')) return new Response(JSON.stringify({ metric: { peTTM: 32.5 } }), { status: 200 })
+        return new Response(JSON.stringify({ name: 'Apple Inc', ticker: 'AAPL', finnhubIndustry: 'Technology' }), { status: 200 })
       }
       if (url.includes('/repos/bitcoin/bitcoin')) {
         return new Response(JSON.stringify({ name: 'bitcoin', stargazers_count: 85_000 }), { status: 200 })
@@ -122,8 +123,7 @@ describe('settings-backed finance providers', () => {
     await expect(provider.loadGithubRepo({ repository: 'bitcoin/bitcoin' }))
       .resolves.toMatchObject({ repository: 'bitcoin/bitcoin', stars: 85_000 })
     await expect(provider.loadUsFundamentals({ symbol: 'AAPL' }))
-      .resolves.toMatchObject({ symbol: 'AAPL', name: 'Apple Inc', indicators: { peRatio: 32.5 } })
-    await expect(provider.loadAlphaVantageBars('AAPL')).resolves.toEqual([])
+      .resolves.toMatchObject({ symbol: 'AAPL', name: 'Apple Inc', peers: ['AAPL', 'MSFT'], indicators: { peRatio: 32.5 } })
     await expect(provider.loadCoinGeckoMarkets(['BTC'])).resolves.toEqual([])
   })
 

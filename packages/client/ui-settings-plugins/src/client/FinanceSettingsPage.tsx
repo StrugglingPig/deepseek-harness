@@ -269,33 +269,33 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         stateLabel={state.coinGeckoApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
         onEdit={(text) => { props.edit('coinGeckoApiKey', text) }}
       />
-      <h3 className={css.label}>{t('financeAlphaVantageTitle')}</h3>
+      <h3 className={css.label}>{t('financeFinnhubTitle')}</h3>
       <div className={css.field}>
         <div className={css.head}>
-          <label className={css.label} htmlFor="finance-enable-alphavantage">{t('financeEnableAlphaVantageRequests')}</label>
+          <label className={css.label} htmlFor="finance-enable-finnhub">{t('financeEnableFinnhubRequests')}</label>
         </div>
         <input
-          id="finance-enable-alphavantage"
+          id="finance-enable-finnhub"
           type="checkbox"
-          checked={state.enableAlphaVantageRequests.text === 'true'}
+          checked={state.enableFinnhubRequests.text === 'true'}
           disabled={disabled}
-          onChange={(event) => { props.edit('enableAlphaVantageRequests', event.target.checked ? 'true' : 'false') }}
+          onChange={(event) => { props.edit('enableFinnhubRequests', event.target.checked ? 'true' : 'false') }}
         />
-        <p className={css.hint}>{t('financeEnableAlphaVantageRequestsHint')}</p>
+        <p className={css.hint}>{t('financeEnableFinnhubRequestsHint')}</p>
       </div>
-      <ValueField id="finance-alphavantage-base" label={t('financeAlphaVantageBaseUrl')} hint={t('financeEndpointHint')}
+      <ValueField id="finance-finnhub-base" label={t('financeFinnhubBaseUrl')} hint={t('financeEndpointHint')}
         overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
-        disabled={disabled} {...state.alphaVantageBaseUrl}
-        onEdit={(text) => { props.edit('alphaVantageBaseUrl', text) }} onReset={() => { props.resetField('alphaVantageBaseUrl') }} />
+        disabled={disabled} {...state.finnhubBaseUrl}
+        onEdit={(text) => { props.edit('finnhubBaseUrl', text) }} onReset={() => { props.resetField('finnhubBaseUrl') }} />
       <SecretField
-        id="finance-alphavantage-api-key"
-        label={t('financeAlphaVantageApiKey')}
-        hint={t('financeAlphaVantageApiKeyHint')}
-        disabled={!state.alphaVantageApiKeyWritable}
-        text={state.alphaVantageApiKey.text}
-        configured={state.alphaVantageApiKeyConfigured}
-        stateLabel={state.alphaVantageApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
-        onEdit={(text) => { props.edit('alphaVantageApiKey', text) }}
+        id="finance-finnhub-api-key"
+        label={t('financeFinnhubApiKey')}
+        hint={t('financeFinnhubApiKeyHint')}
+        disabled={!state.finnhubApiKeyWritable}
+        text={state.finnhubApiKey.text}
+        configured={state.finnhubApiKeyConfigured}
+        stateLabel={state.finnhubApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('finnhubApiKey', text) }}
       />
       <SecretField
         id="finance-github-token"

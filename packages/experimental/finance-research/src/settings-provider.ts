@@ -25,7 +25,6 @@ import type {
   FinanceProviderDescriptor,
   FinanceProviderRequest,
   FinanceProviderResponse,
-  MarketBar,
   MarketSnapshot,
 } from './types.ts'
 
@@ -44,7 +43,7 @@ export interface FinanceRuntimeSettings {
   readonly coinMarketCapBaseUrl: string
   readonly coinGeckoBaseUrl: string
   readonly githubBaseUrl: string
-  readonly alphaVantageBaseUrl: string
+  readonly finnhubBaseUrl: string
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
@@ -54,7 +53,7 @@ export interface FinanceRuntimeSettings {
   readonly enableSignedRequests: boolean
   readonly enableCoinMarketCapRequests: boolean
   readonly enableCoinGeckoRequests: boolean
-  readonly enableAlphaVantageRequests: boolean
+  readonly enableFinnhubRequests: boolean
   readonly enableAkshare: boolean
   readonly enableIfind: boolean
   readonly ifindTransport: 'http' | 'local'
@@ -101,7 +100,7 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       coinMarketCapBaseUrl: settings.coinMarketCapBaseUrl,
       coinGeckoBaseUrl: settings.coinGeckoBaseUrl,
       githubBaseUrl: settings.githubBaseUrl,
-      alphaVantageBaseUrl: settings.alphaVantageBaseUrl,
+      finnhubBaseUrl: settings.finnhubBaseUrl,
       fredBaseUrl: settings.fredBaseUrl,
       worldBankBaseUrl: settings.worldBankBaseUrl,
       imfBaseUrl: settings.imfBaseUrl,
@@ -166,20 +165,6 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       ))
     }
     return provider.loadCoinGeckoCommunity(request, signal)
-  }
-
-  /**
-   * Load daily bars from the backup equity source.
-   * @param symbol - Ticker symbol.
-   * @param signal - Optional caller cancellation.
-   * @returns Ascending bars, empty when the provider has no backup source.
-   */
-  loadAlphaVantageBars(symbol: string, signal?: AbortSignal): Promise<readonly MarketBar[]> {
-    const provider = this.current()
-    if (this.readSettings().provider !== 'http' || provider.loadAlphaVantageBars === undefined) {
-      return Promise.resolve([])
-    }
-    return provider.loadAlphaVantageBars(symbol, signal)
   }
 
   /**

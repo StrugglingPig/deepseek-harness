@@ -39,8 +39,8 @@ export type PluginsSettingsLocaleKey =
   | 'financeCoinGeckoTitle' | 'financeEnableCoinGeckoRequests' | 'financeEnableCoinGeckoRequestsHint'
   | 'financeCoinGeckoBaseUrl' | 'financeCoinGeckoApiKey' | 'financeCoinGeckoApiKeyHint'
   | 'financeGithubToken' | 'financeGithubTokenHint'
-  | 'financeAlphaVantageTitle' | 'financeEnableAlphaVantageRequests' | 'financeEnableAlphaVantageRequestsHint'
-  | 'financeAlphaVantageBaseUrl' | 'financeAlphaVantageApiKey' | 'financeAlphaVantageApiKeyHint'
+  | 'financeFinnhubTitle' | 'financeEnableFinnhubRequests' | 'financeEnableFinnhubRequestsHint'
+  | 'financeFinnhubBaseUrl' | 'financeFinnhubApiKey' | 'financeFinnhubApiKeyHint'
   | 'financeFredTitle' | 'financeEnableFredRequests' | 'financeEnableFredRequestsHint'
   | 'financeFredBaseUrl' | 'financeFredApiKey' | 'financeFredApiKeyHint' | 'financeFredApiKeyLink'
   | 'financeStockTitle' | 'financeEnableAkshare' | 'financeEnableAkshareHint'
@@ -166,12 +166,12 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinGeckoApiKeyHint: 'Free key from coingecko.com/en/developers/dashboard. Stored like every other finance credential.',
   financeGithubToken: 'GitHub token (optional)',
   financeGithubTokenHint: 'Optional. Public repositories are read without a token; a token only raises the 60-per-hour shared limit.',
-  financeAlphaVantageTitle: 'Alpha Vantage US fundamentals',
-  financeEnableAlphaVantageRequests: 'Read Alpha Vantage US equity fundamentals',
-  financeEnableAlphaVantageRequestsHint: 'Adds P/E, P/B, margins, growth, sector, and industry to US equity reports. Needs a free Alpha Vantage key.',
-  financeAlphaVantageBaseUrl: 'Alpha Vantage API origin',
-  financeAlphaVantageApiKey: 'Alpha Vantage API key',
-  financeAlphaVantageApiKeyHint: 'Free key from alphavantage.co/support/#api-key. The free tier allows 25 requests per day.',
+  financeFinnhubTitle: 'Finnhub US fundamentals',
+  financeEnableFinnhubRequests: 'Read Finnhub US equity fundamentals',
+  financeEnableFinnhubRequestsHint: 'Adds P/E, P/B, margins, growth, industry, and peer companies to US equity reports. A free Finnhub key allows 60 requests per minute.',
+  financeFinnhubBaseUrl: 'Finnhub API origin',
+  financeFinnhubApiKey: 'Finnhub API key',
+  financeFinnhubApiKeyHint: 'Free key from finnhub.io/register. The free tier allows 60 requests per minute.',
 
   financeFredTitle: 'Macro data (FRED)',
   financeEnableFredRequests: 'Allow FRED macro requests',
@@ -331,12 +331,12 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeCoinGeckoApiKeyHint: '在 coingecko.com/zh/developers/dashboard 免费申请。与其他金融凭据一样加密存储。',
   financeGithubToken: 'GitHub Token（可选）',
   financeGithubTokenHint: '可选。公开仓库无需 token 即可读取；配置 token 只是把共享的每小时 60 次限额提高。',
-  financeAlphaVantageTitle: 'Alpha Vantage 美股基本面',
-  financeEnableAlphaVantageRequests: '读取 Alpha Vantage 美股基本面',
-  financeEnableAlphaVantageRequestsHint: '为美股报告补上市盈率、市净率、利润率、增长、板块与行业。需要 Alpha Vantage 免费 Key。',
-  financeAlphaVantageBaseUrl: 'Alpha Vantage API 地址',
-  financeAlphaVantageApiKey: 'Alpha Vantage API Key',
-  financeAlphaVantageApiKeyHint: '在 alphavantage.co/support/#api-key 免费申请。免费档每天 25 次请求。',
+  financeFinnhubTitle: 'Finnhub 美股基本面',
+  financeEnableFinnhubRequests: '读取 Finnhub 美股基本面',
+  financeEnableFinnhubRequestsHint: '为美股报告补上市盈率、市净率、利润率、增长、行业与同业公司。Finnhub 免费 Key 每分钟 60 次请求。',
+  financeFinnhubBaseUrl: 'Finnhub API 地址',
+  financeFinnhubApiKey: 'Finnhub API Key',
+  financeFinnhubApiKeyHint: '在 finnhub.io/register 免费申请。免费档每分钟 60 次请求。',
 
   financeFredTitle: '宏观数据（FRED）',
   financeEnableFredRequests: '允许 FRED 宏观请求',

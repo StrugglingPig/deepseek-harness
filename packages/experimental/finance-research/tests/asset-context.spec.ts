@@ -214,20 +214,22 @@ describe('US equity context', () => {
     const metrics = usMetricsFromFundamentals({
       symbol: 'AAPL',
       name: 'Apple Inc',
-      sector: 'TECHNOLOGY',
-      industry: 'Electronic Computers',
+      industry: 'Technology',
+      peers: ['AAPL', 'MSFT'],
       indicators: { marketCap: 3e12, peRatio: 32.5, roe: 1.5, revenueGrowth: 0.08, unknown: 1 },
     })
     const byKey = new Map(metrics.map(metric => [metric.key, metric]))
-    expect(byKey.get('peRatio')).toMatchObject({ group: 'valuation', value: 32.5, source: 'alphavantage' })
+    expect(byKey.get('peRatio')).toMatchObject({ group: 'valuation', value: 32.5, source: 'finnhub' })
     expect(byKey.get('marketCap')).toMatchObject({ unit: 'USD' })
     expect(byKey.get('roe')).toMatchObject({ group: 'profitability' })
     expect(byKey.get('revenueGrowth')).toMatchObject({ group: 'growth' })
-    expect(byKey.get('sector')).toMatchObject({ group: 'industry', text: 'TECHNOLOGY' })
-    expect(byKey.get('industry')).toMatchObject({ group: 'industry', text: 'Electronic Computers' })
+    expect(byKey.get('industry')).toMatchObject({ group: 'industry', text: 'Technology' })
+    expect(byKey.get('peers')).toMatchObject({ group: 'competition', text: 'AAPL, MSFT' })
     expect(byKey.has('unknown')).toBe(false)
-    const classification = usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, sector: 'TECHNOLOGY' })
-    expect(classification.map(metric => [metric.key, metric.text])).toEqual([['sector', 'TECHNOLOGY']])
+    const classification = usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, industry: 'Technology' })
+    expect(classification.map(metric => [metric.key, metric.text])).toEqual([['industry', 'Technology']])
+    // An empty peer list contributes nothing rather than an empty line.
+    expect(usMetricsFromFundamentals({ symbol: 'AAPL', indicators: {}, peers: [] })).toEqual([])
     expect(usMetricsFromFundamentals(undefined)).toEqual([])
   })
 })

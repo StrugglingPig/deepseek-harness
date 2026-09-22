@@ -81,7 +81,7 @@ English | [中文](README.md)
 
 数据源按字段组合，而不是按失败切换。不同上游各自负责的字段——价格与 K 线、已披露财务、行情与供给、社区与开发活跃度——会向所有发布该字段的上游请求并合并，因此某个上游故障只会丢掉它自己那部分字段，且每条指标仍然标注来源。当多个上游覆盖同一字段时，按新鲜度与完整度整体选取一条序列，而不是拼接，因为复权口径与交易日历等约定不同。A 股工具支持 `provider: auto`，按顺序尝试所有已启用的上游并保留第一个应答者。
 
-Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API、凭据、限流、账户权限、网络策略和适用条款。Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma、Polymarket CLOB、CoinMarketCap Pro、CoinGecko、GitHub 与 Alpha Vantage 被配置为不同 base。CoinMarketCap 的 REST 与 WebSocket 请求使用存储的 `FINANCE_COINMARKETCAP_API_KEY`，CoinGecko 社区数据使用 `FINANCE_COINGECKO_API_KEY`，GitHub 读取使用可选的 `FINANCE_GITHUB_TOKEN`；所有密钥都只由 Host 发送，CoinGecko 开关默认关闭，GitHub 无 token 也能读取公开仓库。
+Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API、凭据、限流、账户权限、网络策略和适用条款。Binance Spot、USD-M Futures、COIN-M Futures、Options、Yahoo Finance、Polymarket Gamma、Polymarket CLOB、CoinMarketCap Pro、CoinGecko、GitHub 与 Finnhub 被配置为不同 base。CoinMarketCap 的 REST 与 WebSocket 请求使用存储的 `FINANCE_COINMARKETCAP_API_KEY`，CoinGecko 社区数据使用 `FINANCE_COINGECKO_API_KEY`，GitHub 读取使用可选的 `FINANCE_GITHUB_TOKEN`，美股基本面使用 `FINANCE_FINNHUB_API_KEY`；所有密钥都只由 Host 发送，CoinGecko 开关默认关闭，GitHub 无 token 也能读取公开仓库。
 
 示例：
 
@@ -160,8 +160,8 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **CoinGecko 社区数据需要免费 demo Key** — 在金融设置中打开开关并保存密钥；未配置时币圈报告保留市场章节，并列出仍缺少的社区输入。
 - **仓库活跃度受 GitHub 限流影响** — 社区区块会读取 CoinGecko 关联的仓库，未认证的 GitHub 请求按来源地址共享每小时 60 次限额。
 - **A 股估值取自百度股市通、行业基准取自巨潮** — 估值区块读取市盈率、市净率与市值，行业区块读取公开的行业市盈率，因为东财的公司概况接口并非所有网络都能访问。
-- **单源字段各有备用源** — 美股 K 线在 Yahoo 失败时回退到 Alpha Vantage，币圈行情在 CoinMarketCap 失败时回退到 CoinGecko；A 股财务在指标表不可用时回退到同花顺表。
-- **美股基本面需要 Alpha Vantage Key** — 在金融设置中打开开关并保存密钥；免费档每天 25 次请求，未配置时美股报告保留价格、宏观与技术面章节。
+- **单源字段各有备用源** — 币圈行情在 CoinMarketCap 失败时回退到 CoinGecko；A 股财务在指标表不可用时回退到同花顺表。
+- **美股基本面需要 Finnhub Key** — 在金融设置中打开开关并保存密钥；免费档每分钟 60 次请求，并附带同业公司列表，用于填充竞争格局章节。未配置时美股报告保留价格、宏观与技术面章节。
 - **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
 - **报告语言目前只有 `en` 和 `zh`** — `auto` 会把其他语言标签解析为英文；新增语言需要先提供对应报告词典。
 - **Web 仪表盘是独立插件** — 仪表盘从 Connection 的认证精确路由注册表读取 `/api/finance-dashboard/market`，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表；只有组合提供 Connection 时该路由才注册，私有账户数据仍只保留在 Host。
