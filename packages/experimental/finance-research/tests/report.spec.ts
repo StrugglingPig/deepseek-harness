@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureProvider } from '../src/data.ts'
 import { buildResearchReport } from '../src/report.ts'
+import type { AssetMetric } from '../src/asset-context.ts'
 import type { FinanceMarketDataProvider } from '../src/types.ts'
 
 /** Provider over a fixed close series, so trend bands can be exercised directly. */
@@ -130,14 +131,14 @@ describe('finance research report', () => {
   })
 
   it('fills the fundamental blocks from the supplied metrics', async () => {
-    const metrics = [
-      { group: 'valuation' as const, key: 'eps', value: 36.8243, unit: 'CNY', asOf: '2026-06-30', source: 'akshare' },
-      { group: 'profitability' as const, key: 'roe', value: 17.72, unit: '%', asOf: '2026-06-30', source: 'akshare' },
-      { group: 'balance' as const, key: 'currentRatio', value: 5.5895, unit: '', asOf: '2026-06-30', source: 'akshare' },
-      { group: 'growth' as const, key: 'profitGrowth', value: -2.029, unit: '%', asOf: '2026-06-30', source: 'akshare' },
-      { group: 'market' as const, key: 'marketCap', value: 1.7e12, unit: 'USD', asOf: '2026-09-21', source: 'coinmarketcap' },
-      { group: 'valuation' as const, key: 'marketCap', value: 1_565_815_000_000, unit: 'CNY', asOf: '2026-09-21', source: 'akshare' },
-      { group: 'market' as const, key: 'turnoverRatio', value: 0.42, unit: 'x', asOf: '2026-09-21', source: 'coinmarketcap' },
+    const metrics: AssetMetric[] = [
+      { group: 'valuation', key: 'eps', value: 36.8243, unit: 'CNY', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'profitability', key: 'roe', value: 17.72, unit: '%', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'balance', key: 'currentRatio', value: 5.5895, unit: '', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'growth', key: 'profitGrowth', value: -2.029, unit: '%', asOf: '2026-06-30', source: 'akshare' },
+      { group: 'market', key: 'marketCap', value: 1.7e12, unit: 'USD', asOf: '2026-09-21', source: 'coinmarketcap' },
+      { group: 'valuation', key: 'marketCap', value: 1_565_815_000_000, unit: 'CNY', asOf: '2026-09-21', source: 'akshare' },
+      { group: 'market', key: 'beta', value: 0.42, unit: 'x', asOf: '2026-09-21', source: 'coinmarketcap' },
     ]
     const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'en', [], metrics)
     expect(sectionOf(report, 'Valuation Framework')).toContain('Diluted EPS: 36.82 CNY (2026-06-30, source akshare)')
@@ -145,14 +146,14 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Financial Quality')).toContain('Return on equity: 17.72%')
     expect(sectionOf(report, 'Financial Quality')).toContain('Current ratio: 5.59')
     const withIndustry = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'en', [], [
-      { group: 'industry' as const, key: 'industryName', value: 0, text: '酒、饮料和精制茶制造业', unit: '', asOf: '2026-09-21', source: 'akshare' },
+      { group: 'industry', key: 'industryName', value: 0, text: '酒、饮料和精制茶制造业', unit: '', asOf: '2026-09-21', source: 'akshare' },
     ])
     expect(sectionOf(withIndustry, 'Industry Landscape')).toContain('Industry: 酒、饮料和精制茶制造业')
     expect(sectionOf(report, 'Earnings Review')).toContain('Net profit growth (YoY): -2.03%')
     // A category block with no matching metric still reports what it needs.
     const crypto = await buildResearchReport(fixtureProvider, { symbol: 'BTC' }, undefined, 'en', [], metrics)
     const community = await buildResearchReport(fixtureProvider, { symbol: 'BTC', reportType: 'crypto-deep-dive' }, undefined, 'en', [],
-      [{ group: 'community' as const, key: 'watchlistUsers', value: 2_452_829, unit: '', asOf: '', source: 'coingecko' }])
+      [{ group: 'community', key: 'watchlistUsers', value: 2_452_829, unit: '', asOf: '', source: 'coingecko' }])
     expect(sectionOf(community, 'Project And Community')).toContain('(source coingecko)')
     expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('1.7T USD')
     expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('0.42 x')

@@ -48,7 +48,7 @@ describe('crypto market context', () => {
 
   it('turns a quote into market and supply metrics', () => {
     const metrics = cryptoMetricsFromQuote(quote)
-    const byKey = new Map(metrics.map(metric => [metric.key, metric]))
+    const byKey = new Map<string, (typeof metrics)[number]>(metrics.map(metric => [metric.key, metric]))
     expect(byKey.get('rank')).toMatchObject({ group: 'market', value: 1, unit: '' })
     expect(byKey.get('marketCap')).toMatchObject({ unit: 'USD', source: 'coinmarketcap' })
     expect(byKey.get('change24h')).toMatchObject({ group: 'market', value: 5.7, unit: '%' })
@@ -180,7 +180,7 @@ describe('equity valuation context', () => {
       marketCapYuan: 1_565_815_000_000,
       industryPe: { date: '2026-09-21', weighted: 18.94, median: 24.09, arithmetic: 107.56, companies: 39 },
     })
-    const byKey = new Map(metrics.map(metric => [metric.key, metric]))
+    const byKey = new Map<string, (typeof metrics)[number]>(metrics.map(metric => [metric.key, metric]))
     expect(byKey.get('peTtm')).toMatchObject({ group: 'valuation', value: 19.23, unit: '' })
     expect(byKey.get('marketCap')).toMatchObject({ unit: 'CNY', value: 1_565_815_000_000 })
     expect(byKey.get('industryName')).toMatchObject({ group: 'industry', text: '酒、饮料和精制茶制造业' })
@@ -218,7 +218,7 @@ describe('US equity context', () => {
       peers: ['AAPL', 'MSFT'],
       indicators: { marketCap: 3e12, peRatio: 32.5, roe: 1.5, revenueGrowth: 0.08, unknown: 1 },
     })
-    const byKey = new Map(metrics.map(metric => [metric.key, metric]))
+    const byKey = new Map<string, (typeof metrics)[number]>(metrics.map(metric => [metric.key, metric]))
     expect(byKey.get('peRatio')).toMatchObject({ group: 'valuation', value: 32.5, source: 'finnhub' })
     expect(byKey.get('marketCap')).toMatchObject({ unit: 'USD' })
     expect(byKey.get('roe')).toMatchObject({ group: 'profitability', unit: '%' })

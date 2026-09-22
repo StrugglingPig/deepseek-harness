@@ -12,6 +12,8 @@ export type ReportSectionKey =
   | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
   | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
 
+import type { ReportMetricKey } from './asset-context.ts'
+
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
   | 'asOf' | 'price' | 'change' | 'bars' | 'source' | 'syntheticSuffix' | 'horizon' | 'compositeScore'
@@ -85,7 +87,7 @@ export interface ReportCopy {
   /** Localized data requirements keyed by the canonical requirement; absent entries keep the canonical text. */
   readonly requirements: Readonly<Record<string, string>>
   /** Locale labels for the instrument metrics a report quotes. */
-  readonly metrics: Readonly<Record<string, string>>
+  readonly metrics: Readonly<Record<ReportMetricKey, string>>
   /** Report category copy keyed by category id. */
   readonly reportCategories: Readonly<Record<string, ReportCategoryCopy>>
   /** Report form display names keyed by form id. */
@@ -273,20 +275,14 @@ const EN: ReportCopy = {
     peTtm: 'P/E (TTM)',
     peStatic: 'P/E (last full year)',
     peRatio: 'P/E',
-    pegRatio: 'PEG',
     pbRatio: 'P/B',
     psRatio: 'P/S',
-    evToEbitda: 'EV/EBITDA',
     dividendYield: 'Dividend yield',
-    analystTargetPrice: 'Analyst target price',
     epsTtm: 'EPS (TTM)',
     peers: 'Peers',
     epsGrowth: 'EPS growth (TTM YoY)',
     roa: 'Return on assets',
-    revenueGrowthQoq: 'Revenue growth (QoQ)',
-    earningsGrowthQoq: 'Earnings growth (QoQ)',
     beta: 'Beta',
-    sector: 'Sector',
     industry: 'Industry',
     pb: 'P/B',
     peVsIndustry: 'Static P/E vs industry weighted average',
@@ -660,20 +656,14 @@ const ZH: ReportCopy = {
     peTtm: '市盈率(TTM)',
     peStatic: '市盈率(静态)',
     peRatio: '市盈率',
-    pegRatio: 'PEG',
     pbRatio: '市净率',
     psRatio: '市销率',
-    evToEbitda: 'EV/EBITDA',
     dividendYield: '股息率',
-    analystTargetPrice: '分析师目标价',
     epsTtm: '每股收益(TTM)',
     peers: '同业可比公司',
     epsGrowth: '每股收益同比',
     roa: '总资产收益率',
-    revenueGrowthQoq: '营收环比',
-    earningsGrowthQoq: '盈利环比',
     beta: 'Beta',
-    sector: '板块',
     industry: '所属行业',
     pb: '市净率',
     peVsIndustry: '静态市盈率相对行业加权平均',

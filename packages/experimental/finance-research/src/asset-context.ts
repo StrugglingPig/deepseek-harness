@@ -6,6 +6,25 @@ import type {
   FinanceStockValuation, FinanceUsFundamentals,
 } from './types.ts'
 
+/**
+ * Every metric key a builder can produce. The report copy dictionaries are typed
+ * against this union, so adding a builder key without its label fails the build.
+ */
+export const REPORT_METRIC_KEYS = [
+  'bookValuePerShare', 'cashConversion', 'change24h', 'change30d', 'change7d', 'change90d',
+  'circulatingSupply', 'currentRatio', 'debtRatio', 'dividendYield', 'eps', 'epsGrowth', 'epsTtm',
+  'fullyDilutedMarketCap', 'githubClosedIssues', 'githubCommits4w', 'githubForks', 'githubOpenIssues',
+  'githubStars', 'githubSubscribers', 'githubWatchers', 'industry', 'industryName', 'industryPe',
+  'industryPeArithmetic', 'industryPeCompanies', 'industryPeMedian', 'marketCap', 'marketCapDominance',
+  'maxSupply', 'netMargin', 'operatingMargin', 'pb', 'pbRatio', 'peRatio', 'peStatic', 'peTtm',
+  'peVsIndustry', 'peVsIndustryMedian', 'peers', 'profitGrowth', 'psRatio', 'rank', 'redditSubscribers',
+  'revenueGrowth', 'roa', 'roe', 'sentimentDown', 'sentimentUp', 'telegramUsers', 'totalSupply',
+  'twitterFollowers', 'volume24h', 'volumeChange24h', 'watchlistUsers', 'beta',
+] as const
+
+/** One metric key a report knows how to label. */
+export type ReportMetricKey = typeof REPORT_METRIC_KEYS[number]
+
 /** Dimensions an asset metric belongs to; report blocks claim one or more. */
 export const ASSET_METRIC_GROUPS = [
   'valuation', 'profitability', 'growth', 'balance', 'cash',
@@ -19,7 +38,7 @@ export type AssetMetricGroup = typeof ASSET_METRIC_GROUPS[number]
 export interface AssetMetric {
   readonly group: AssetMetricGroup
   /** Locale dictionary key for the metric label. */
-  readonly key: string
+  readonly key: ReportMetricKey
   readonly value: number
   /** Set instead of a number when the metric is textual, such as an industry name. */
   readonly text?: string
@@ -31,18 +50,18 @@ export interface AssetMetric {
 }
 
 /** Ratios the A-share fundamentals bridge reports, with their dimension and unit. */
-const EQUITY_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; readonly unit: string }>> = {
-  eps: { group: 'valuation', unit: 'CNY' },
-  bookValuePerShare: { group: 'valuation', unit: 'CNY' },
-  roe: { group: 'profitability', unit: '%' },
-  netMargin: { group: 'profitability', unit: '%' },
-  operatingMargin: { group: 'profitability', unit: '%' },
-  revenueGrowth: { group: 'growth', unit: '%' },
-  profitGrowth: { group: 'growth', unit: '%' },
-  debtRatio: { group: 'balance', unit: '%' },
-  currentRatio: { group: 'balance', unit: '' },
-  cashConversion: { group: 'cash', unit: '' },
-}
+const EQUITY_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string])[] = [
+  ['eps', 'valuation', 'CNY'],
+  ['bookValuePerShare', 'valuation', 'CNY'],
+  ['roe', 'profitability', '%'],
+  ['netMargin', 'profitability', '%'],
+  ['operatingMargin', 'profitability', '%'],
+  ['revenueGrowth', 'growth', '%'],
+  ['profitGrowth', 'growth', '%'],
+  ['debtRatio', 'balance', '%'],
+  ['currentRatio', 'balance', ''],
+  ['cashConversion', 'cash', ''],
+]
 
 /**
  * Turn the newest reported A-share period into report metrics.
@@ -54,22 +73,14 @@ export function equityMetricsFromFundamentals(
 ): AssetMetric[] {
   const latest = fundamentals?.periods.at(-1)
   if (latest === undefined) return []
-  return Object.entries(latest.metrics).flatMap(([key, value]) => {
-    const entry = EQUITY_METRICS[key]
-    if (entry === undefined) return []
-    return [{
-      group: entry.group,
-      key,
-      value,
-      unit: entry.unit,
-      asOf: latest.period,
-      source: 'akshare',
-    }]
+  return EQUITY_METRICS.flatMap(([key, group, unit]) => {
+    const value = latest.metrics[key]
+    return value === undefined ? [] : [{ group, key, value, unit, asOf: latest.period, source: 'akshare' }]
   })
 }
 
 /** Market fields a CoinMarketCap quote contributes, with their dimension and unit. */
-const CRYPTO_QUOTE_METRICS: readonly (readonly [AssetMetricGroup, string, string])[] = [
+const CRYPTO_QUOTE_METRICS: readonly (readonly [AssetMetricGroup, ReportMetricKey, string])[] = [
   ['market', 'rank', ''],
   ['market', 'marketCap', 'USD'],
   ['market', 'fullyDilutedMarketCap', 'USD'],
@@ -167,7 +178,7 @@ export async function cryptoMetricsForSymbol(
 }
 
 /** Community and developer counts a CoinGecko snapshot contributes. */
-const COMMUNITY_METRICS: readonly (readonly [AssetMetricGroup, string, string])[] = [
+const COMMUNITY_METRICS: readonly (readonly [AssetMetricGroup, ReportMetricKey, string])[] = [
   ['community', 'twitterFollowers', ''],
   ['community', 'redditSubscribers', ''],
   ['community', 'telegramUsers', ''],
@@ -195,7 +206,7 @@ export function cryptoMetricsFromCommunity(community: FinanceCoinGeckoCommunity 
 }
 
 /** Repository fields a GitHub snapshot contributes, all in the development dimension. */
-const GITHUB_METRICS: readonly (readonly [string, keyof FinanceGithubRepo])[] = [
+const GITHUB_METRICS: readonly (readonly [ReportMetricKey, keyof FinanceGithubRepo])[] = [
   ['githubStars', 'stars'],
   ['githubForks', 'forks'],
   ['githubWatchers', 'watchers'],
@@ -217,11 +228,11 @@ export function cryptoMetricsFromGithub(repo: FinanceGithubRepo | undefined): As
 }
 
 /** Multiples the valuation bridge reports, with their dimension and unit. */
-const VALUATION_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; readonly unit: string }>> = {
-  peTtm: { group: 'valuation', unit: '' },
-  peStatic: { group: 'valuation', unit: '' },
-  pb: { group: 'valuation', unit: '' },
-}
+const VALUATION_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string])[] = [
+  ['peTtm', 'valuation', ''],
+  ['peStatic', 'valuation', ''],
+  ['pb', 'valuation', ''],
+]
 
 /**
  * Turn one valuation snapshot into report metrics, including the industry premium.
@@ -231,10 +242,9 @@ const VALUATION_METRICS: Readonly<Record<string, { readonly group: AssetMetricGr
 export function equityMetricsFromValuation(valuation: FinanceStockValuation | undefined): AssetMetric[] {
   if (valuation === undefined) return []
   const asOf = valuation.industryPe?.date ?? ''
-  const metrics: AssetMetric[] = Object.entries(valuation.indicators).flatMap(([key, value]) => {
-    const entry = VALUATION_METRICS[key]
-    if (entry === undefined) return []
-    return [{ group: entry.group, key, value, unit: entry.unit, asOf, source: 'akshare' }]
+  const metrics: AssetMetric[] = VALUATION_METRICS.flatMap(([key, group, unit]) => {
+    const value = valuation.indicators[key]
+    return value === undefined ? [] : [{ group, key, value, unit, asOf, source: 'akshare' }]
   })
   if (valuation.marketCapYuan !== undefined) {
     metrics.push({ group: 'valuation', key: 'marketCap', value: valuation.marketCapYuan, unit: 'CNY', asOf, source: 'akshare' })
@@ -285,24 +295,21 @@ export function equityMetricsFromValuation(valuation: FinanceStockValuation | un
 }
 
 /** Overview figures Alpha Vantage reports, with their dimension and unit. */
-const US_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; readonly unit: string }>> = {
-  marketCap: { group: 'valuation', unit: 'USD' },
-  peRatio: { group: 'valuation', unit: '' },
-  pegRatio: { group: 'valuation', unit: '' },
-  pbRatio: { group: 'valuation', unit: '' },
-  psRatio: { group: 'valuation', unit: '' },
-  evToEbitda: { group: 'valuation', unit: '' },
-  dividendYield: { group: 'valuation', unit: '%' },
-  epsGrowth: { group: 'growth', unit: '%' },
-  eps: { group: 'profitability', unit: 'USD' },
-  epsTtm: { group: 'profitability', unit: 'USD' },
-  netMargin: { group: 'profitability', unit: '%' },
-  operatingMargin: { group: 'profitability', unit: '%' },
-  roa: { group: 'profitability', unit: '%' },
-  roe: { group: 'profitability', unit: '%' },
-  revenueGrowth: { group: 'growth', unit: '%' },
-  beta: { group: 'market', unit: '' },
-}
+const US_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string])[] = [
+  ['marketCap', 'valuation', 'USD'],
+  ['peRatio', 'valuation', ''],
+  ['pbRatio', 'valuation', ''],
+  ['psRatio', 'valuation', ''],
+  ['dividendYield', 'valuation', '%'],
+  ['epsTtm', 'profitability', 'USD'],
+  ['netMargin', 'profitability', '%'],
+  ['operatingMargin', 'profitability', '%'],
+  ['roa', 'profitability', '%'],
+  ['roe', 'profitability', '%'],
+  ['revenueGrowth', 'growth', '%'],
+  ['epsGrowth', 'growth', '%'],
+  ['beta', 'market', ''],
+]
 
 /**
  * Turn one US fundamentals overview into report metrics.
@@ -311,10 +318,9 @@ const US_METRICS: Readonly<Record<string, { readonly group: AssetMetricGroup; re
  */
 export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | undefined): AssetMetric[] {
   if (fundamentals === undefined) return []
-  const metrics: AssetMetric[] = Object.entries(fundamentals.indicators).flatMap(([key, value]) => {
-    const entry = US_METRICS[key]
-    if (entry === undefined) return []
-    return [{ group: entry.group, key, value, unit: entry.unit, asOf: '', source: 'finnhub' }]
+  const metrics: AssetMetric[] = US_METRICS.flatMap(([key, group, unit]) => {
+    const value = fundamentals.indicators[key]
+    return value === undefined ? [] : [{ group, key, value, unit, asOf: '', source: 'finnhub' }]
   })
   if (fundamentals.industry !== undefined) {
     metrics.push({

@@ -95,7 +95,7 @@ function metricBlock(
   return {
     title: copy.sections[sectionKey(id)],
     content: matched.map((metric) => {
-      const label = copy.metrics[metric.key] ?? metric.key
+      const label = copy.metrics[metric.key]
       const period = metric.asOf === '' ? '' : `${metric.asOf}, `
       return `- ${label}: ${metricValue(metric)} (${period}source ${metric.source})`
     }).join('\n'),
