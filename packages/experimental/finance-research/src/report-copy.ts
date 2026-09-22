@@ -25,7 +25,7 @@ export type ReportLabelKey =
   | 'stanceAccumulate' | 'stanceWatch' | 'stanceReduce' | 'viewStance' | 'viewConfidence'
   | 'viewReasons' | 'viewInvalidation' | 'viewGaps' | 'maStack' | 'rsiOverbought' | 'rsiOversold'
   | 'rsiNeutral' | 'macdBullish' | 'macdBearish'
-  | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor' | 'partialMissing'
+  | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor' | 'partialMissing' | 'metricSource' | 'projection'
   | 'missingInventories' | 'missingCostCurve' | 'missingPositioning' | 'missingEventRecord'
   | 'missingIndexValuation' | 'missingFundFlows' | 'missingMacroRegime'
 
@@ -66,6 +66,8 @@ export interface LensCopy {
 
 /** Localized copy consumed by the report writer. */
 export interface ReportCopy {
+  /** Language this dictionary renders. */
+  readonly locale: ReportLanguage
   readonly htmlLang: string
   readonly titleSuffix: string
   readonly sections: Readonly<Record<ReportSectionKey, string>>
@@ -88,6 +90,10 @@ export interface ReportCopy {
   readonly catalogNames: Readonly<Record<string, string>>
   /** Localized data requirements keyed by the canonical requirement; absent entries keep the canonical text. */
   readonly requirements: Readonly<Record<string, string>>
+  /** Localized cycle-timing words keyed by the catalog token; absent entries keep the canonical token. */
+  readonly timings: Readonly<Record<string, string>>
+  /** Localized measurement units keyed by the catalog unit; absent entries keep the canonical unit. */
+  readonly units: Readonly<Record<string, string>>
   /** Locale labels for the instrument metrics a report quotes. */
   readonly metrics: Readonly<Record<ReportMetricKey, string>>
   /** Report category copy keyed by category id. */
@@ -99,6 +105,7 @@ export interface ReportCopy {
 }
 
 const EN: ReportCopy = {
+  locale: 'en',
   htmlLang: 'en',
   titleSuffix: 'research report',
   sections: {
@@ -153,6 +160,8 @@ const EN: ReportCopy = {
     gapCount: 'Missing inputs: ',
     obvAverage: '20-bar average ',
     watchFor: 'What to watch',
+    metricSource: 'source ',
+    projection: '(projection)',
     partialMissing: 'Still missing: ',
     missingInventories: 'energy inventories and the supply-demand balance',
     missingCostCurve: 'the cost curve and futures term structure',
@@ -271,6 +280,8 @@ const EN: ReportCopy = {
   statuses: {},
   categories: {},
   catalogNames: {},
+  timings: {},
+  units: {},
   metrics: {
     eps: 'Diluted EPS',
     bookValuePerShare: 'Book value per share',
@@ -393,6 +404,7 @@ const EN: ReportCopy = {
 }
 
 const ZH: ReportCopy = {
+  locale: 'zh',
   htmlLang: 'zh',
   titleSuffix: '研究报告',
   sections: {
@@ -447,6 +459,8 @@ const ZH: ReportCopy = {
     gapCount: '缺少输入：',
     obvAverage: '20 根均值 ',
     watchFor: '关注方向',
+    metricSource: '来源 ',
+    projection: '预测',
     partialMissing: '本节仍缺以下输入：',
     missingInventories: '能源库存与供需平衡表',
     missingCostCurve: '成本曲线与期限结构',
@@ -559,6 +573,34 @@ const ZH: ReportCopy = {
     livermore: { school: '趋势跟随', questions: ['趋势是否得到确认？', '止损位在哪里？'], risk: '缺少仓位管理与执行假设。' },
     marks: { school: '周期与风险', questions: ['我们处在周期的什么位置？', '价格已经反映了什么？'], risk: '仅凭单一资产无法判断周期位置。' },
     taleb: { school: '尾部风险与凸性', questions: ['最坏的可信路径是什么？', '收益结构是否凸性？'], risk: '缺少尾部分布与期权数据。' },
+  },
+  timings: {
+    leading: '领先',
+    coincident: '同步',
+    lagging: '滞后',
+  },
+  units: {
+    '%': '%',
+    'B USD': '十亿美元',
+    'CNY per USD': '元/美元',
+    'JPY per USD': '日元/美元',
+    'M USD': '百万美元',
+    'USD': '美元',
+    'USD per EUR': '美元/欧元',
+    'USD/MMBtu': '美元/百万英热单位',
+    'USD/barrel': '美元/桶',
+    'USD/metric ton': '美元/吨',
+    '100M CNY': '亿元',
+    'billion cubic feet': '十亿立方英尺',
+    'contracts': '张',
+    'index': '点',
+    'thousand barrels': '千桶',
+    'thousand persons': '千人',
+    'thousand units': '千套',
+    'USD billion': '十亿美元',
+    'thousand persons (change)': '千人（变化）',
+    '% (MoM)': '%（环比）',
+    '% (YoY)': '%（同比）',
   },
   signals: {
     trend: '趋势',

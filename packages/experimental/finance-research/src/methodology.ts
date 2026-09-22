@@ -342,7 +342,8 @@ export function buildMethodologyAnalysis(snapshot: MarketSnapshot, language: Rep
       name: definition.name,
       school: lens.school,
       stance,
-      evidence: relevant.map(item => `${item.name}: ${item.direction} (${String(Math.round(item.confidence))}%)`),
+      evidence: relevant.map(item =>
+        `${item.name}: ${copy.directions[item.direction] ?? item.direction} (${String(Math.round(item.confidence))}%)`),
       questions: [...lens.questions],
       risk: lens.risk,
     }

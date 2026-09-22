@@ -303,6 +303,36 @@ describe('macro blocks inside an asset report', () => {
     expect(sectionOf(report, 'Ownership And Insiders')).toContain('insider transactions')
   })
 
+  it('renders macro series in Chinese with localized names, units, and cycle timing', async () => {
+    const series = {
+      ...macroSeries('brent-crude', 130.8, 'commodity', 'global', 'USD/barrel', '2026-09-15'),
+      name: 'Brent crude oil price',
+      nameZh: '布伦特原油价格',
+    }
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'GLD', reportType: 'commodity-fx-deep-dive' },
+      undefined,
+      'zh',
+      [series] as never,
+    )
+    const balance = sectionOf(report, '供需平衡')
+    expect(balance).toContain('布伦特原油价格')
+    expect(balance).toContain('美元/桶')
+    // The helper builds a coincident series, so its cycle token localizes too.
+    expect(balance).toContain('同步')
+    expect(balance).toContain('来源 fred')
+    // An English report keeps the upstream name, unit, and cycle token.
+    const english = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'GLD', reportType: 'commodity-fx-deep-dive' },
+      undefined,
+      'en',
+      [series] as never,
+    )
+    expect(sectionOf(english, 'Supply And Demand Balance')).toContain('Brent crude oil price: 130.80 USD/barrel')
+  })
+
   it('renders commodity and currency series and keeps the inputs they still lack', async () => {
     const macro = [
       macroSeries('brent-crude', 130.8, 'commodity', 'global', 'USD/barrel', '2026-09-15'),

@@ -97,7 +97,7 @@ function metricBlock(
     content: matched.map((metric) => {
       const label = copy.metrics[metric.key]
       const period = metric.asOf === '' ? '' : `${metric.asOf}, `
-      return `- ${label}: ${metricValue(metric)} (${period}source ${metric.source})`
+      return `- ${label}: ${metricValue(metric)} (${period}${copy.labels.metricSource}${metric.source})`
     }).join('\n'),
   }
 }
@@ -115,7 +115,8 @@ function macroBlock(
 ): ResearchReportSection {
   const matched = macroMatches(context, categories)
   if (matched.length === 0) return inputBlock(context, id)
-  return { title: context.copy.sections[sectionKey(id)], content: matched.map(macroLine).join('\n') }
+  const copy = context.copy
+  return { title: copy.sections[sectionKey(id)], content: matched.map(series => macroLine(series, copy)).join('\n') }
 }
 
 /**
@@ -129,13 +130,17 @@ function macroMatches(context: SectionContext, categories: readonly MacroCategor
 }
 
 /**
- * Render one macro series as a report line.
+ * Render one macro series as a report line in the report's language.
  * @param series - Loaded series with its latest observation.
+ * @param copy - Report copy carrying the localized name, unit, and cycle-timing words.
  * @returns The rendered line.
  */
-function macroLine(series: MacroSeries): string {
-  const projection = series.latest.projection === true ? ' (projection)' : ''
-  return `- ${series.country.toUpperCase()} ${series.name}: ${number(series.latest.value)} ${series.unit} (${series.latest.date}${projection}, ${series.timing}, source ${series.source})`
+function macroLine(series: MacroSeries, copy: ReportCopy): string {
+  const name = copy.locale === 'zh' ? series.nameZh : series.name
+  const unit = copy.units[series.unit] ?? series.unit
+  const timing = copy.timings[series.timing] ?? series.timing
+  const projection = series.latest.projection === true ? ` ${copy.labels.projection}` : ''
+  return `- ${series.country.toUpperCase()} ${name}: ${number(series.latest.value)} ${unit} (${series.latest.date}${projection}, ${timing}, ${copy.labels.metricSource}${series.source})`
 }
 
 /**
@@ -470,7 +475,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       if (benchmarks.length === 0 && inventories.length === 0 && balances.length === 0) return inputBlock(context, id)
       return partialBlock(context, id, {
         title: copy.sections.commodityBalance,
-        content: [...benchmarks, ...inventories, ...balances].map(macroLine).join('\n'),
+        content: [...benchmarks, ...inventories, ...balances].map(series => macroLine(series, copy)).join('\n'),
       }, [
         ...inventories.length === 0 ? [copy.labels.missingInventories] : [],
         copy.labels.missingCostCurve,
@@ -484,7 +489,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       if (legs.length === 0) return inputBlock(context, id)
       return partialBlock(context, id, {
         title: copy.sections.fxDrivers,
-        content: legs.map(macroLine).join('\n'),
+        content: legs.map(series => macroLine(series, copy)).join('\n'),
       }, positioning.length === 0 ? [copy.labels.missingPositioning] : [])
     }
     case 'monitoring-plan':
