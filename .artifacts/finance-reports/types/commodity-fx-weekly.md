@@ -38,7 +38,7 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 - US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
 - GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
 - US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,342.00 100M CNY (2026-08-01, coincident, source akshare)
+- CN China total social financing: 3,343.00 100M CNY (2026-08-01, coincident, source akshare)
 - CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
 - US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
 - US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
@@ -67,8 +67,11 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 - GLOBAL Brent crude oil price: 130.80 USD/barrel (2026-09-15, leading, source fred)
 - US US natural gas price (Henry Hub): 2.97 USD/MMBtu (2026-09-15, leading, source fred)
 - GLOBAL Copper price (global, USD per metric ton): 13,542.82 USD/metric ton (2026-07-01, coincident, source fred)
+- US WTI crude managed-money net position: 135,905.00 contracts (2026-09-15, coincident, source cftc)
+- GLOBAL Gold non-commercial net position: 230,338.00 contracts (2026-09-15, coincident, source cftc)
+- GLOBAL Copper non-commercial net position: 75,134.00 contracts (2026-09-15, coincident, source cftc)
 
-- 本节仍缺以下输入：库存, 供需平衡表, 成本曲线
+- 本节仍缺以下输入：能源库存与供需平衡表, 成本曲线与期限结构
 - 市场处于过剩还是缺口？
 - 边际供给成本在哪里？
 - 期限结构如何反映库存与稀缺？
@@ -80,11 +83,9 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 - GLOBAL EUR/USD exchange rate: 1.15 USD per EUR (2026-09-18, coincident, source fred)
 - CN China 3-month interbank rate: 1.54 % (2026-07-01, coincident, source fred)
 - GLOBAL Japan 10-year government bond yield: 2.94 % (2026-08-01, coincident, source fred)
-
-- 本节仍缺以下输入：利差, 国际收支, 仓位
-- 哪一条腿主导该货币对？
-- 驱动来自 carry、贸易条件还是风险偏好？
-- 什么政策变化会打破趋势？
+- US US dollar index non-commercial net position: 10,593.00 contracts (2026-09-15, coincident, source cftc)
+- GLOBAL Euro FX non-commercial net position: -26,993.00 contracts (2026-09-15, coincident, source cftc)
+- GLOBAL Japanese yen non-commercial net position: 120,359.00 contracts (2026-09-15, coincident, source cftc)
 
 ## 技术指标
 

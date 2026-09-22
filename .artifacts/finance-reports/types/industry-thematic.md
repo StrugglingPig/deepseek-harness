@@ -38,7 +38,7 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 - US US core PCE price index: 130.66 index (2026-07-01, lagging, source fred)
 - GLOBAL World inflation (annual %): 4.40 % (2026, lagging, source imf)
 - US US unemployment rate: 4.10 % (2026-08-01, lagging, source fred)
-- CN China total social financing: 3,342.00 100M CNY (2026-08-01, coincident, source akshare)
+- CN China total social financing: 3,343.00 100M CNY (2026-08-01, coincident, source akshare)
 - CN China policy interest rate: 3.00 % (2026-09-20, coincident, source akshare)
 - US US effective federal funds rate: 3.88 % (2026-09-18, coincident, source fred)
 - US US 10-year Treasury yield: 5.01 % (2026-09-18, coincident, source fred)
@@ -116,7 +116,7 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 ## 催化剂
 
 - 下次财报日: 2026-10-28 (source finnhub)
-- 近期新闻标题: Apple (AAPL) Eyes India Payments With Apple Pay Debut Next Month / Should Investors Chase the AI-Fueled Rally in AMD or META Stock? / Here Are Morgan Stanley's New Top Stock Picks For The Next 12-Months (source finnhub)
+- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (source finnhub)
 - 最近一次重大公告类型: 10-Q (source finnhub)
 - 最近一次重大公告日期: 2026-07-31 (source finnhub)
 
