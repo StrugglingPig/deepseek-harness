@@ -1,6 +1,6 @@
 # 报告类型 E2E 结果(真实数据)
 
-共 33 类报告;宏观上下文 28 条,美股指标 27 条,币圈指标 28 条,A股指标 21 条。
+共 33 类报告;宏观上下文 22 条,美股指标 67 条,币圈指标 28 条,A股指标 21 条。
 
 “完整数据”表示该章节全部内容来自上游数据；“部分数据”表示章节已渲染可用数据，并在正文标注仍缺哪些输入；“缺输入”表示该章节只能列出所需输入。
 
@@ -26,8 +26,8 @@
 | fixed-income-weekly | fixed-income | weekly | 12 | 12 | 0 | 0 | — | — |
 | fixed-income-deep-dive | fixed-income | deep-dive | 14 | 14 | 0 | 0 | — | — |
 | commodity-fx-daily | commodity-fx | daily | 8 | 8 | 0 | 0 | — | — |
-| commodity-fx-weekly | commodity-fx | weekly | 13 | 12 | 1 | 0 | — | 供需平衡 |
-| commodity-fx-deep-dive | commodity-fx | deep-dive | 15 | 14 | 1 | 0 | — | 供需平衡 |
+| commodity-fx-weekly | commodity-fx | weekly | 13 | 11 | 2 | 0 | — | 供需平衡、汇率驱动 |
+| commodity-fx-deep-dive | commodity-fx | deep-dive | 15 | 13 | 2 | 0 | — | 供需平衡、汇率驱动 |
 | commodity-fx-data | commodity-fx | data | 8 | 8 | 0 | 0 | — | — |
 | crypto-flash | crypto | flash | 6 | 6 | 0 | 0 | — | — |
 | crypto-daily | crypto | daily | 8 | 8 | 0 | 0 | — | — |
@@ -46,7 +46,9 @@
 |---|---|---|---|---|
 | equity-event | AAPL | 事件背景 | 部分数据 | 本节仍缺以下输入：事件时间线与公告原文 |
 | commodity-fx-weekly | GLD | 供需平衡 | 部分数据 | 本节仍缺以下输入：成本曲线与期限结构 |
+| commodity-fx-weekly | GLD | 汇率驱动 | 部分数据 | 本节仍缺以下输入：CFTC 持仓 |
 | commodity-fx-deep-dive | GLD | 供需平衡 | 部分数据 | 本节仍缺以下输入：成本曲线与期限结构 |
+| commodity-fx-deep-dive | GLD | 汇率驱动 | 部分数据 | 本节仍缺以下输入：CFTC 持仓 |
 | strategy-weekly | SPY | 配置与风险预算 | 部分数据 | 本节仍缺以下输入：指数估值与盈利, 资金流与仓位, 宏观状态序列 |
 | strategy-monthly | SPY | 配置与风险预算 | 部分数据 | 本节仍缺以下输入：指数估值与盈利, 资金流与仓位, 宏观状态序列 |
 | strategy-deep-dive | SPY | 配置与风险预算 | 部分数据 | 本节仍缺以下输入：指数估值与盈利, 资金流与仓位, 宏观状态序列 |
