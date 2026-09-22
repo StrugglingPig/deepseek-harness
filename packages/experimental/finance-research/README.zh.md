@@ -157,7 +157,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **私有账户只读** — 签名 Binance 请求限制为 GET/query 端点；不提供下单、撤单或提现操作。
 - **监控采用规划器模式** — `finance_monitor_plan` 返回可持久化的 `schedule_create` 参数；盘前和盘后是一次性检查，报告后请求下一时段。
 - **CoinMarketCap 受套餐和 Credits 限制** — API Key 必须在金融设置中启用，WebSocket 能力取决于账户套餐和 Credits。
-- **CoinGecko 社区数据需要免费 demo Key** — 在金融设置中打开开关并保存密钥；未配置时币圈报告保留市场章节，并列出仍缺少的社区输入。
+- **CoinGecko 社区数据需要免费 API Key** — 在金融设置中打开开关并保存密钥；未配置时币圈报告保留市场章节，并列出仍缺少的社区输入。
 - **仓库活跃度受 GitHub 限流影响** — 社区区块会读取 CoinGecko 关联的仓库，未认证的 GitHub 请求按来源地址共享每小时 60 次限额。
 - **A 股估值取自百度股市通、行业基准取自巨潮** — 估值区块读取市盈率、市净率与市值，行业区块读取公开的行业市盈率，因为东财的公司概况接口并非所有网络都能访问。
 - **单源字段各有备用源** — 币圈行情在 CoinMarketCap 失败时回退到 CoinGecko；A 股财务在指标表不可用时回退到同花顺表。

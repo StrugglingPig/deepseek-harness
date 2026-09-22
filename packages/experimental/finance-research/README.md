@@ -157,7 +157,7 @@ Prefix-stable while the tool definitions and their visibility are unchanged. Too
 - **Private account data is read-only** — signed Binance requests are limited to GET/query endpoints; order placement, cancellation, and withdrawal operations are not provided.
 - **Monitoring is planner-based** — `finance_monitor_plan` returns durable `schedule_create` arguments; pre-market and after-hours checks are one-shot and request the next session after reporting.
 - **CoinMarketCap access is plan- and credit-bound** — the upstream API key must be enabled in Finance settings, and WebSocket access follows the account plan and credit limits.
-- **CoinGecko community data needs a free demo key** — enable it and store the key in Finance settings; without it the crypto report keeps its market section and reports the community inputs it still needs.
+- **CoinGecko community data needs a free API key** — enable it and store the key in Finance settings; without it the crypto report keeps its market section and reports the community inputs it still needs.
 - **Repository activity needs GitHub headroom** — the community block reads the repository CoinGecko links, and unauthenticated GitHub requests share a 60-per-hour limit per address.
 - **A-share multiples come from Baidu and the industry baseline from CNINFO** — the valuation block reads P/E, P/B, and market cap, and the industry block reads the published industry P/E, because the Eastmoney profile endpoint is not reachable from every network.
 - **Fallback sources cover the single-source fields** — crypto market rows fall back to CoinGecko when CoinMarketCap fails, and A-share fundamentals fall back to the Tonghuashun table when the indicator table is unavailable.

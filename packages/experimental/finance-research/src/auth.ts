@@ -34,7 +34,7 @@ export const COINMARKETCAP_API_KEY_REF = 'FINANCE_COINMARKETCAP_API_KEY'
 export const FINNHUB_API_KEY_REF = 'FINANCE_FINNHUB_API_KEY'
 /** Credential reference for the optional GitHub token. */
 export const GITHUB_TOKEN_REF = 'FINANCE_GITHUB_TOKEN'
-/** Credential reference for the CoinGecko demo API key. */
+/** Credential reference for the CoinGecko API key. */
 export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
@@ -92,7 +92,7 @@ export interface CoinGeckoRequestAuthorizerOptions {
 /**
  * Create the CoinGecko request authorizer.
  * @param options - credential resolver and feature switch.
- * @returns an authorizer that adds the demo API key header for CoinGecko requests.
+ * @returns an authorizer that adds the CoinGecko API key header to CoinGecko requests.
  */
 export function createCoinGeckoRequestAuthorizer(
   options: CoinGeckoRequestAuthorizerOptions,
