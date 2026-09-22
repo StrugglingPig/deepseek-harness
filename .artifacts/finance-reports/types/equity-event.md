@@ -25,82 +25,102 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 宏观驱动
 
-- GLOBAL 全球 GDP 增速: 3.10 % (2026, 滞后, 来源 imf)
-- CN 中国 CPI 同比: 0.80 % (2026-08, 滞后, 来源 akshare)
-- CN 中国 PPI 同比: 3.80 % (2026-08, 领先, 来源 akshare)
-- US 美国核心 PCE 物价指数: 130.66 点 (2026-07-01, 滞后, 来源 fred)
-- GLOBAL 全球通胀率: 4.40 % (2026, 滞后, 来源 imf)
-- US 美国失业率: 4.10 % (2026-08-01, 滞后, 来源 fred)
-- CN 中国社会融资规模: 3,363.00 亿元 (2026-08-01, 同步, 来源 akshare)
-- CN 中国政策利率（LPR/MLF）: 3.00 % (2026-09-20, 同步, 来源 akshare)
-- US 美国联邦基金有效利率: 3.88 % (2026-09-18, 同步, 来源 fred)
-- US 美国 10 年期国债收益率: 5.01 % (2026-09-18, 同步, 来源 fred)
-- US 美国 10Y-2Y 期限利差: 0.20 % (2026-09-21, 领先, 来源 fred)
-- US 美国高收益债信用利差: 2.68 % (2026-09-18, 领先, 来源 fred)
+| 地区 | 指标 | 数值 | 日期 | 周期 | 来源 |
+| --- | --- | --- | --- | --- | --- |
+| GLOBAL | 全球 GDP 增速 | 3.10 % | 2026 | 滞后 | imf |
+| CN | 中国 CPI 同比 | 0.80 % | 2026-08 | 滞后 | akshare |
+| CN | 中国 PPI 同比 | 3.80 % | 2026-08 | 领先 | akshare |
+| US | 美国核心 PCE 物价指数 | 130.66 点 | 2026-07-01 | 滞后 | fred |
+| GLOBAL | 全球通胀率 | 4.40 % | 2026 | 滞后 | imf |
+| US | 美国失业率 | 4.10 % | 2026-08-01 | 滞后 | fred |
+| CN | 中国社会融资规模 | 3,363.00 亿元 | 2026-08-01 | 同步 | akshare |
+| CN | 中国政策利率（LPR/MLF） | 3.00 % | 2026-09-20 | 同步 | akshare |
+| US | 美国联邦基金有效利率 | 3.88 % | 2026-09-18 | 同步 | fred |
+| US | 美国 10 年期国债收益率 | 5.01 % | 2026-09-18 | 同步 | fred |
+| US | 美国 10Y-2Y 期限利差 | 0.20 % | 2026-09-21 | 领先 | fred |
+| US | 美国高收益债信用利差 | 2.68 % | 2026-09-18 | 领先 | fred |
 
 ## 行情快照
 
-- 截至：2026-09-21T13:30:00.000Z
-- 价格：338.98 USD
-- 涨跌幅：0.85%
-- K 线数：126
-- 数据来源：yahoo-finance
+| 项目 | 数值 |
+| --- | --- |
+| 截至 | 2026-09-21T13:30:00.000Z |
+| 价格 | 338.98 USD |
+| 涨跌幅 | 0.85% |
+| K 线数 | 126 |
+| 数据来源 | yahoo-finance |
 
 ## 价格行为
 
-- 区间收益：9.23%
-- 区间位置：92.06% (274.21 - 344.57)
-- 距区间高点回撤：-1.62%
-- 成交量对 20 根均值：0.86x
-- ATR 占价格比例：2.23%
-- K 线数：60
+| 项目 | 数值 |
+| --- | --- |
+| 区间收益 | 9.23% |
+| 区间位置 | 92.06% (274.21 - 344.57) |
+| 距区间高点回撤 | -1.62% |
+| 成交量对 20 根均值 | 0.86x |
+| ATR 占价格比例 | 2.23% |
+| K 线数 | 60 |
 
 ## 行业格局
 
-- 所属行业: Technology (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 所属行业 | Technology | finnhub |
 
 ## 估值框架
 
-- 市值: 4.95T USD (来源 finnhub)
-- 市盈率: 38.31 (来源 finnhub)
-- 市净率: 50.98 (来源 finnhub)
-- 市销率: 10.58 (来源 finnhub)
-- 股息率: 0.51% (来源 finnhub)
-- 分析师买入评级数: 34 (2026-09-01, 来源 finnhub)
-- 分析师持有评级数: 15 (2026-09-01, 来源 finnhub)
-- 分析师卖出评级数: 4 (2026-09-01, 来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 市值 | 4.95T USD | finnhub |
+| 市盈率 | 38.31 | finnhub |
+| 市净率 | 50.98 | finnhub |
+| 市销率 | 10.58 | finnhub |
+| 股息率 | 0.51% | finnhub |
+| 分析师买入评级数 | 34（2026-09-01） | finnhub |
+| 分析师持有评级数 | 15（2026-09-01） | finnhub |
+| 分析师卖出评级数 | 4（2026-09-01） | finnhub |
 
 ## 业绩点评
 
-- 营业收入同比: 14.24% (来源 finnhub)
-- 每股收益同比: 32.61% (来源 finnhub)
-- 最近一次 EPS 超预期幅度: -0.89% (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 营业收入同比 | 14.24% | finnhub |
+| 每股收益同比 | 32.61% | finnhub |
+| 最近一次 EPS 超预期幅度 | -0.89% | finnhub |
 
 ## 财务质量
 
-- 每股收益(TTM): 8.72 USD (来源 finnhub)
-- 销售净利率: 27.62% (来源 finnhub)
-- 营业利润率: 33.17% (来源 finnhub)
-- 总资产收益率: 34.55% (来源 finnhub)
-- 净资产收益率: 137.18% (来源 finnhub)
-- 最近披露的财报期间: FY2025 10-K (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 每股收益(TTM) | 8.72 USD | finnhub |
+| 销售净利率 | 27.62% | finnhub |
+| 营业利润率 | 33.17% | finnhub |
+| 总资产收益率 | 34.55% | finnhub |
+| 净资产收益率 | 137.18% | finnhub |
+| 最近披露的财报期间 | FY2025 10-K | finnhub |
 
 ## 竞争格局
 
-- 同业可比公司: AAPL, DELL, SNDK, WDC, HPE, NTAP, P, HPQ, SMCI, IONQ, GPGI, INFQ (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 同业可比公司 | AAPL, DELL, SNDK, WDC, HPE, NTAP, P, HPQ, SMCI, IONQ, GPGI, INFQ | finnhub |
 
 ## 股权与内部人
 
-- 内部人月度净买卖股数: -2.88K (来源 finnhub)
-- 内部人情绪（MSPR）: -100 (来源 finnhub)
-- 内部人 90 日卖出股数: 2.88K (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 内部人月度净买卖股数 | -2.88K | finnhub |
+| 内部人情绪（MSPR） | -100 | finnhub |
+| 内部人 90 日卖出股数 | 2.88K | finnhub |
 
 ## 事件背景
 
-- 下次财报日: 2026-10-28 (来源 finnhub)
-- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (来源 finnhub)
-- 最近一次重大公告类型: 10-Q (来源 finnhub)
-- 最近一次重大公告日期: 2026-07-31 (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 下次财报日 | 2026-10-28 | finnhub |
+| 近期新闻标题 | Warren Buffett Just Stepped Down. These 2 AI Stocks Still Define Berkshire’s Portfolio / TSLA, SPCX, AAPL Could Be Next To ‘Rip’ After Meta’s Muse Rally, Analyst Says — Here Are The Catalysts / Meta Stock Is Still Too Cheap | finnhub |
+| 最近一次重大公告类型 | 10-Q | finnhub |
+| 最近一次重大公告日期 | 2026-07-31 | finnhub |
 
 涨跌幅：0.85%
 成交量：34955500
@@ -112,11 +132,13 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 多指标综合
 
-- 趋势：看涨（权重 0.3，数值 3.506100463867199）
-- 动量：看跌（权重 0.2，数值 70.70934673068334）
-- MACD：看涨（权重 0.25，数值 1.6119120710917532）
-- 均值回归：中性（权重 0.1，数值 324.1214996337891）
-- 参与度：看涨（权重 0.15，数值 45654850）
+| 信号 | 方向 | 权重 | 数值 |
+| --- | --- | --- | --- |
+| 趋势 | 看涨 | 0.3 | 3.506100463867199 |
+| 动量 | 看跌 | 0.2 | 70.70934673068334 |
+| MACD | 看涨 | 0.25 | 1.6119120710917532 |
+| 均值回归 | 中性 | 0.1 | 324.1214996337891 |
+| 参与度 | 看涨 | 0.15 | 45654850 |
 
 综合评分：0.5
 置信度：50%
@@ -124,10 +146,12 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 催化剂
 
-- 下次财报日: 2026-10-28 (来源 finnhub)
-- 近期新闻标题: Meta Stock Is Still Too Cheap / Meta Jumps 11% As Muse Shines and Investors Show an Appetite for Advancing AI / META Stock Rallies As Muse AI Tops App Charts — Exec Admits It’s ‘Heavily Inspired’ By OpenClaw (来源 finnhub)
-- 最近一次重大公告类型: 10-Q (来源 finnhub)
-- 最近一次重大公告日期: 2026-07-31 (来源 finnhub)
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 下次财报日 | 2026-10-28 | finnhub |
+| 近期新闻标题 | Warren Buffett Just Stepped Down. These 2 AI Stocks Still Define Berkshire’s Portfolio / TSLA, SPCX, AAPL Could Be Next To ‘Rip’ After Meta’s Muse Rally, Analyst Says — Here Are The Catalysts / Meta Stock Is Still Too Cheap | finnhub |
+| 最近一次重大公告类型 | 10-Q | finnhub |
+| 最近一次重大公告日期 | 2026-07-31 | finnhub |
 
 **关注方向**
 - 业绩与指引
