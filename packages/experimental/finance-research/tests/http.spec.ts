@@ -256,7 +256,7 @@ describe('HTTP finance market data provider', () => {
       fetch: async () => new Response(JSON.stringify({
         id: 'bitcoin',
         name: 'Bitcoin',
-        market_data: { ath_change_percentage: -21.4, atl_change_percentage: 132_000_000 },
+        market_data: { ath_change_percentage: { usd: -21.4 }, atl_change_percentage: { usd: 132_000_000 } },
       }), { status: 200 }),
     })
     await expect(provider.loadCoinGeckoCommunity({ id: 'bitcoin' })).resolves.toMatchObject({

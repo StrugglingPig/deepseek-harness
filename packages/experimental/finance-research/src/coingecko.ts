@@ -47,8 +47,9 @@ export function normalizeCoinGeckoCommunity(payload: unknown): FinanceCoinGeckoC
   const watchlistUsers = finite(coin.watchlist_portfolio_users)
   const genesisDate = text(coin.genesis_date)
   const market = record(coin.market_data)
-  const athChangePercentage = finite(market?.ath_change_percentage)
-  const atlChangePercentage = finite(market?.atl_change_percentage)
+  // CoinGecko keys these percentages by quote currency; the report quotes USD.
+  const athChangePercentage = finite(record(market?.ath_change_percentage)?.usd)
+  const atlChangePercentage = finite(record(market?.atl_change_percentage)?.usd)
   const links = record(coin.links)
   const reposUrl = links === undefined ? undefined : record(links.repos_url)
   const repoLinks = reposUrl === undefined ? undefined : reposUrl.github

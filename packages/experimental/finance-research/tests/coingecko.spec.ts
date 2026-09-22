@@ -51,11 +51,15 @@ describe('CoinGecko normalization', () => {
     const community = normalizeCoinGeckoCommunity({
       id: 'bitcoin',
       name: 'Bitcoin',
-      market_data: { ath_change_percentage: -21.4, atl_change_percentage: 132_000_000 },
+      market_data: { ath_change_percentage: { usd: -21.4, btc: -7.7 }, atl_change_percentage: { usd: 132_000_000 } },
     })
     expect(community).toMatchObject({ id: 'bitcoin', name: 'Bitcoin', athChangePercentage: -21.4, atlChangePercentage: 132_000_000 })
     expect(normalizeCoinGeckoCommunity({ id: 'bitcoin', name: 'Bitcoin' }))
       .toEqual({ id: 'bitcoin', name: 'Bitcoin' })
+    // A payload without USD figures leaves both changes out.
+    expect(normalizeCoinGeckoCommunity({
+      id: 'bitcoin', name: 'Bitcoin', market_data: { ath_change_percentage: { btc: -7.7 } },
+    })).toEqual({ id: 'bitcoin', name: 'Bitcoin' })
   })
 
   it('reads the global crypto market snapshot', () => {
