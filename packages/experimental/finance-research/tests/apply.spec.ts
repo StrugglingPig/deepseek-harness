@@ -334,8 +334,8 @@ describe('finance apply', () => {
     })
     expect(stockReport.isError).toBe(false)
     expect(textOfReport(stockReport)).toContain('Macro Drivers')
-    expect(textOfReport(stockReport)).toContain('Return on equity: 17.72%')
-    expect(textOfReport(stockReport)).toContain('P/E (TTM): 19.23')
+    expect(textOfReport(stockReport)).toContain('| Return on equity | 17.72%（2026-06-30） | akshare |')
+    expect(textOfReport(stockReport)).toContain('| P/E (TTM) | 19.23（2026-09-21） | akshare |')
 
     // A failing fundamentals read leaves the report intact.
     const withoutFundamentals = await ctx.tools.execute({

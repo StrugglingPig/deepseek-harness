@@ -14,6 +14,12 @@ export type ReportSectionKey =
 
 import type { ReportMetricKey } from './asset-context.ts'
 
+/** Table column labels owned by the report writer. */
+export type ReportColumnKey =
+  | 'name' | 'value' | 'source' | 'region' | 'date' | 'timing' | 'direction'
+  | 'confidence' | 'status' | 'scenario' | 'price' | 'relative' | 'item' | 'method'
+  | 'signal' | 'weight' | 'note'
+
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
   | 'asOf' | 'price' | 'change' | 'bars' | 'source' | 'syntheticSuffix' | 'horizon' | 'compositeScore'
@@ -31,7 +37,7 @@ export type ReportLabelKey =
 
 /** Interpolated line templates owned by the report writer. */
 export type ReportTemplateKey =
-  | 'summary' | 'signal' | 'reading' | 'investor' | 'investorRisk' | 'gap' | 'reportTitle'
+  | 'summary' | 'investor' | 'investorRisk' | 'gap' | 'reportTitle'
   | 'htmlMeta' | 'htmlPill' | 'htmlRange' | 'htmlTooltip'
   | 'invalidation' | 'invalidationInverse' | 'viewBreadth' | 'viewStrongest' | 'viewRisk'
 
@@ -96,6 +102,8 @@ export interface ReportCopy {
   readonly units: Readonly<Record<string, string>>
   /** Locale labels for the instrument metrics a report quotes. */
   readonly metrics: Readonly<Record<ReportMetricKey, string>>
+  /** Locale column labels for the tables a report renders. */
+  readonly columns: Readonly<Record<ReportColumnKey, string>>
   /** Report category copy keyed by category id. */
   readonly reportCategories: Readonly<Record<string, ReportCategoryCopy>>
   /** Report form display names keyed by form id. */
@@ -211,8 +219,7 @@ const EN: ReportCopy = {
   },
   templates: {
     summary: '{direction} bias for {label}. {direction} composite with {aligned} aligned signals.',
-    signal: '- {name}: {direction} (weight {weight}, value {value})',
-    reading: '- {name}: {direction}, {confidence}% confidence, status {status}. {note}',
+
     investor: '- {name} ({school}): {stance}.',
     investorRisk: '  - Risk: {risk}',
     gap: '- {name} ({category}): {status}; requires {requirements}',
@@ -282,6 +289,25 @@ const EN: ReportCopy = {
   catalogNames: {},
   timings: {},
   units: {},
+  columns: {
+    name: 'Metric',
+    value: 'Value',
+    source: 'Source',
+    region: 'Region',
+    date: 'Date',
+    timing: 'Cycle',
+    direction: 'Direction',
+    confidence: 'Confidence',
+    status: 'Status',
+    scenario: 'Scenario',
+    price: 'Price',
+    relative: 'Vs current',
+    item: 'Item',
+    method: 'Method',
+    signal: 'Signal',
+    weight: 'Weight',
+    note: 'Note',
+  },
   metrics: {
     eps: 'Diluted EPS',
     bookValuePerShare: 'Book value per share',
@@ -460,7 +486,7 @@ const ZH: ReportCopy = {
     obvAverage: '20 根均值 ',
     watchFor: '关注方向',
     metricSource: '来源 ',
-    projection: '预测',
+    projection: '（预测）',
     partialMissing: '本节仍缺以下输入：',
     missingInventories: '能源库存与供需平衡表',
     missingCostCurve: '成本曲线与期限结构',
@@ -515,8 +541,7 @@ const ZH: ReportCopy = {
     viewBreadth: '{aligned}/{total} 个加权信号指向{direction}',
     viewStrongest: '最强信号 {name}：{direction}，权重 {weight}',
     viewRisk: '风险预算：ATR 占价格 {atr}；{risk}',
-    signal: '- {name}：{direction}（权重 {weight}，数值 {value}）',
-    reading: '- {name}：{direction}，置信度 {confidence}%，状态 {status}。{note}',
+
     investor: '- {name}（{school}）：{stance}。',
     investorRisk: '  - 风险：{risk}',
     gap: '- {name}（{category}）：{status}；需要 {requirements}',
@@ -729,6 +754,25 @@ const ZH: ReportCopy = {
     'ownership-and-insiders': { requires: ['内部人交易', '股权结构', '机构持仓'], checks: ['内部人在增持还是减持？', '股权集中度如何？', '谁在影响公司议程？'] },
     catalysts: { requires: ['日程事件', '新闻流', '公告日程'], checks: ['下一个可能推动价格的事件是什么？', '新闻流在确认还是否定趋势？', '什么会推翻这份催化剂清单？'] },
     allocation: { requires: ['指数估值与盈利', '资金流与仓位', '宏观状态序列'], checks: ['当前状态对各资产类别意味着什么？', '风险预算允许多大仓位？', '什么会触发再平衡？'] },
+  },
+  columns: {
+    name: '指标',
+    value: '数值',
+    source: '来源',
+    region: '地区',
+    date: '日期',
+    timing: '周期',
+    direction: '方向',
+    confidence: '置信度',
+    status: '状态',
+    scenario: '情景',
+    price: '价格',
+    relative: '相对现价',
+    item: '项目',
+    method: '方法',
+    signal: '信号',
+    weight: '权重',
+    note: '说明',
   },
   metrics: {
     eps: '摊薄每股收益',

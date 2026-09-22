@@ -94,11 +94,14 @@ function metricBlock(
   const copy = context.copy
   return {
     title: copy.sections[sectionKey(id)],
-    content: matched.map((metric) => {
-      const label = copy.metrics[metric.key]
-      const period = metric.asOf === '' ? '' : `${metric.asOf}, `
-      return `- ${label}: ${metricValue(metric)} (${period}${copy.labels.metricSource}${metric.source})`
-    }).join('\n'),
+    content: table(
+      [copy.columns.name, copy.columns.value, copy.columns.source],
+      matched.map(metric => [
+        copy.metrics[metric.key],
+        `${metricValue(metric)}${metric.asOf === '' ? '' : `（${metric.asOf}）`}`,
+        metric.source,
+      ]),
+    ),
   }
 }
 
@@ -115,8 +118,26 @@ function macroBlock(
 ): ResearchReportSection {
   const matched = macroMatches(context, categories)
   if (matched.length === 0) return inputBlock(context, id)
-  const copy = context.copy
-  return { title: copy.sections[sectionKey(id)], content: matched.map(series => macroLine(series, copy)).join('\n') }
+  return {
+    title: context.copy.sections[sectionKey(id)],
+    content: macroTable(context.copy, matched),
+  }
+}
+
+/**
+ * Render macro series as one table.
+ * @param copy - Report copy carrying the localized column labels and words.
+ * @param series - Loaded series to render, in catalog order.
+ * @returns The table as Markdown source.
+ */
+function macroTable(copy: ReportCopy, series: readonly MacroSeries[]): string {
+  return table(
+    [
+      copy.columns.region, copy.columns.name, copy.columns.value,
+      copy.columns.date, copy.columns.timing, copy.columns.source,
+    ],
+    series.map(entry => macroRow(entry, copy)),
+  )
 }
 
 /**
@@ -130,17 +151,24 @@ function macroMatches(context: SectionContext, categories: readonly MacroCategor
 }
 
 /**
- * Render one macro series as a report line in the report's language.
+ * Render one macro series as a table row in the report's language.
  * @param series - Loaded series with its latest observation.
  * @param copy - Report copy carrying the localized name, unit, and cycle-timing words.
- * @returns The rendered line.
+ * @returns The row cells.
  */
-function macroLine(series: MacroSeries, copy: ReportCopy): string {
+function macroRow(series: MacroSeries, copy: ReportCopy): readonly string[] {
   const name = copy.locale === 'zh' ? series.nameZh : series.name
   const unit = copy.units[series.unit] ?? series.unit
   const timing = copy.timings[series.timing] ?? series.timing
   const projection = series.latest.projection === true ? ` ${copy.labels.projection}` : ''
-  return `- ${series.country.toUpperCase()} ${name}: ${number(series.latest.value)} ${unit} (${series.latest.date}${projection}, ${timing}, ${copy.labels.metricSource}${series.source})`
+  return [
+    series.country.toUpperCase(),
+    name,
+    `${number(series.latest.value)} ${unit}`,
+    `${series.latest.date}${projection}`,
+    timing,
+    series.source,
+  ]
 }
 
 /**
@@ -318,13 +346,19 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
     case 'market-snapshot':
       return {
         title: copy.sections.marketSnapshot,
-        content: [
-          `- ${copy.labels.asOf}${snapshot.asOf}`,
-          `- ${copy.labels.price}${number(snapshot.quote.price)} ${snapshot.instrument.currency}`,
-          `- ${copy.labels.change}${percent(snapshot.quote.changePercent)}`,
-          `- ${copy.labels.bars}${snapshot.bars.length}`,
-          `- ${copy.labels.source}${snapshot.source.provider}${snapshot.source.synthetic ? copy.labels.syntheticSuffix : ''}`,
-        ].join('\n'),
+        content: table(
+          [copy.columns.item, copy.columns.value],
+          [
+            [trimLabel(copy.labels.asOf), snapshot.asOf],
+            [trimLabel(copy.labels.price), `${number(snapshot.quote.price)} ${snapshot.instrument.currency}`],
+            [trimLabel(copy.labels.change), percent(snapshot.quote.changePercent)],
+            [trimLabel(copy.labels.bars), String(snapshot.bars.length)],
+            [
+              trimLabel(copy.labels.source),
+              `${snapshot.source.provider}${snapshot.source.synthetic ? copy.labels.syntheticSuffix : ''}`,
+            ],
+          ],
+        ),
       }
     case 'price-action': {
       const window = snapshot.bars.slice(-60)
@@ -342,14 +376,17 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       const twenty = (close - reference) / Math.max(Math.abs(reference), Number.EPSILON) * 100
       return {
         title: copy.sections.priceAction,
-        content: [
-          `- ${copy.labels.returnWindow}${percent(twenty)}`,
-          `- ${copy.labels.rangePosition}${percent(position)} (${number(low)} - ${number(high)})`,
-          `- ${copy.labels.drawdown}${percent(drawdown)}`,
-          `- ${copy.labels.volumeTrend}${(recentVolume / Math.max(meanVolume, Number.EPSILON)).toFixed(2)}x`,
-          `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
-          `- ${copy.labels.bars}${closes.length}`,
-        ].join('\n'),
+        content: table(
+          [copy.columns.item, copy.columns.value],
+          [
+            [trimLabel(copy.labels.returnWindow), percent(twenty)],
+            [trimLabel(copy.labels.rangePosition), `${percent(position)} (${number(low)} - ${number(high)})`],
+            [trimLabel(copy.labels.drawdown), percent(drawdown)],
+            [trimLabel(copy.labels.volumeTrend), `${(recentVolume / Math.max(meanVolume, Number.EPSILON)).toFixed(2)}x`],
+            [trimLabel(copy.labels.atrPercent), percent(analysis.risk.atrPercent)],
+            [trimLabel(copy.labels.bars), String(closes.length)],
+          ],
+        ),
       }
     }
     case 'technical-indicators': {
@@ -360,33 +397,37 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
         : values.rsi14 <= 30 ? copy.labels.rsiOversold : copy.labels.rsiNeutral
       return {
         title: copy.sections.technicalIndicators,
-        content: [
-          `- ${formatCopy(copy.labels.maStack, { direction: direction(stack) })} (SMA 20 ${number(values.sma20)} / SMA 50 ${number(values.sma50)})`,
-          `- RSI 14: ${number(values.rsi14, 1)} — ${rsiNote}`,
-          `- ${values.macdHistogram >= 0 ? copy.labels.macdBullish : copy.labels.macdBearish}: ${number(values.macd, 3)} / ${number(values.macdSignal, 3)} (${number(values.macdHistogram, 3)})`,
-          `- ATR 14: ${number(values.atr14)} (${percent(analysis.risk.atrPercent)})`,
-          `- Bollinger: ${number(values.bollingerLower)} / ${number(values.bollingerMiddle)} / ${number(values.bollingerUpper)}`,
-          `- EMA 12 / 26: ${number(values.ema12)} / ${number(values.ema26)}`,
-          `- OBV: ${compact(values.obv)} (${copy.labels.obvAverage}${compact(values.obvSma20)})`,
-        ].join('\n'),
+        content: table(
+          [copy.columns.name, copy.columns.value, copy.columns.direction],
+          [
+            ['SMA 20 / 50', `${number(values.sma20)} / ${number(values.sma50)}`, direction(stack)],
+            ['RSI 14', number(values.rsi14, 1), rsiNote],
+            ['MACD', `${number(values.macd, 3)} / ${number(values.macdSignal, 3)} (${number(values.macdHistogram, 3)})`,
+              values.macdHistogram >= 0 ? copy.labels.macdBullish : copy.labels.macdBearish],
+            ['ATR 14', `${number(values.atr14)} (${percent(analysis.risk.atrPercent)})`, ''],
+            ['Bollinger', `${number(values.bollingerLower)} / ${number(values.bollingerMiddle)} / ${number(values.bollingerUpper)}`, ''],
+            ['EMA 12 / 26', `${number(values.ema12)} / ${number(values.ema26)}`, ''],
+            ['OBV', `${compact(values.obv)} (${copy.labels.obvAverage}${compact(values.obvSma20)})`, ''],
+          ],
+        ),
       }
     }
     case 'synthesis': {
-      const signals = analysis.signals
-        .map(signal => formatCopy(copy.templates.signal, {
-          name: word(copy.signals, signal.name),
-          direction: direction(signal.direction),
-          weight: signal.weight,
-          value: signal.value,
-        }))
-        .join('\n')
       const conflicts = analysis.conflicts.length === 0
         ? copy.labels.noConflicts
         : `${copy.labels.conflicts}${analysis.conflicts.map(item => word(copy.signals, item)).join(', ')}.`
       return {
         title: copy.sections.synthesis,
         content: [
-          signals,
+          table(
+            [copy.columns.signal, copy.columns.direction, copy.columns.weight, copy.columns.value],
+            analysis.signals.map(signal => [
+              word(copy.signals, signal.name),
+              direction(signal.direction),
+              String(signal.weight),
+              String(signal.value),
+            ]),
+          ),
           '',
           `${copy.labels.compositeScore}${analysis.composite.score}`,
           `${copy.labels.confidence}${analysis.composite.confidence}%`,
@@ -397,16 +438,18 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
     case 'methodology-coverage':
       return {
         title: copy.sections.methodologyCoverage,
-        content: methodology.readings
-          .filter(reading => reading.status !== 'requires-input')
-          .map(reading => formatCopy(copy.templates.reading, {
-            name: reading.name,
-            direction: direction(reading.direction),
-            confidence: reading.confidence,
-            status: status(reading.status),
-            note: reading.note,
-          }))
-          .join('\n'),
+        content: table(
+          [copy.columns.method, copy.columns.direction, copy.columns.confidence, copy.columns.status, copy.columns.note],
+          methodology.readings
+            .filter(reading => reading.status !== 'requires-input')
+            .map(reading => [
+              reading.name,
+              direction(reading.direction),
+              `${String(reading.confidence)}%`,
+              status(reading.status),
+              reading.note,
+            ]),
+        ),
       }
     case 'investor-lenses':
       return {
@@ -428,12 +471,15 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       const bear = close - atr * 2
       return {
         title: copy.sections.scenarioAnalysis,
-        content: [
-          `- ${copy.labels.scenarioBull}${number(bull)} (${percent((bull - close) / Math.max(close, Number.EPSILON) * 100)})`,
-          `- ${copy.labels.scenarioBase}${number(close)}`,
-          `- ${copy.labels.scenarioBear}${number(bear)} (${percent((bear - close) / Math.max(close, Number.EPSILON) * 100)})`,
-          `- ${copy.labels.atrPercent}${percent(analysis.risk.atrPercent)}`,
-        ].join('\n'),
+        content: table(
+          [copy.columns.scenario, copy.columns.price, copy.columns.relative],
+          [
+            [trimLabel(copy.labels.scenarioBull), number(bull), percent((bull - close) / Math.max(close, Number.EPSILON) * 100)],
+            [trimLabel(copy.labels.scenarioBase), number(close), ''],
+            [trimLabel(copy.labels.scenarioBear), number(bear), percent((bear - close) / Math.max(close, Number.EPSILON) * 100)],
+            [trimLabel(copy.labels.atrPercent), percent(analysis.risk.atrPercent), ''],
+          ],
+        ),
       }
     }
     case 'allocation': {
@@ -443,11 +489,14 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       const size = Math.min(100, 1 / Math.max(atrPercent, 0.0001) * 100)
       return partialBlock(context, id, {
         title: copy.sections.allocation,
-        content: [
-          `- ${copy.labels.riskBudget}1%`,
-          `- ${copy.labels.atrStop}${percent(atrPercent)}`,
-          `- ${copy.labels.positionSize}${percent(size)}`,
-        ].join('\n'),
+        content: table(
+          [copy.columns.item, copy.columns.value],
+          [
+            [trimLabel(copy.labels.riskBudget), '1%'],
+            [trimLabel(copy.labels.atrStop), percent(atrPercent)],
+            [trimLabel(copy.labels.positionSize), percent(size)],
+          ],
+        ),
       }, [copy.labels.missingIndexValuation, copy.labels.missingFundFlows, copy.labels.missingMacroRegime])
     }
     case 'catalysts': {
@@ -475,7 +524,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       if (benchmarks.length === 0 && inventories.length === 0 && balances.length === 0) return inputBlock(context, id)
       return partialBlock(context, id, {
         title: copy.sections.commodityBalance,
-        content: [...benchmarks, ...inventories, ...balances].map(series => macroLine(series, copy)).join('\n'),
+        content: macroTable(copy, [...benchmarks, ...inventories, ...balances]),
       }, [
         ...inventories.length === 0 ? [copy.labels.missingInventories] : [],
         copy.labels.missingCostCurve,
@@ -489,7 +538,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       if (legs.length === 0) return inputBlock(context, id)
       return partialBlock(context, id, {
         title: copy.sections.fxDrivers,
-        content: legs.map(series => macroLine(series, copy)).join('\n'),
+        content: macroTable(copy, legs),
       }, positioning.length === 0 ? [copy.labels.missingPositioning] : [])
     }
     case 'monitoring-plan':
@@ -625,10 +674,96 @@ function sectionsFor(
   ]
 }
 
+/**
+ * Trim the trailing separator a label carries when it prefixes a line.
+ * @param label - Locale label such as `Price: ` or `价格：`.
+ * @returns The label without its trailing colon and spaces.
+ */
+function trimLabel(label: string): string {
+  return label.replace(/[:：]\s*$/u, '').trim()
+}
+
+/**
+ * Render one Markdown table.
+ * @param headers - Column labels.
+ * @param rows - Row cells; a cell's own pipe is escaped so the table keeps its columns.
+ * @returns The table as Markdown source lines.
+ */
+function table(headers: readonly string[], rows: readonly (readonly string[])[]): string {
+  const line = (cells: readonly string[]): string =>
+    `| ${cells.map(cell => cell.replaceAll('|', '\\|')).join(' | ')} |`
+  return [line(headers), line(headers.map(() => '---')), ...rows.map(line)].join('\n')
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/gu, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[character] as string)
+}
+
+/**
+ * Render one line of inline emphasis.
+ * @param value - Source text that may carry `**emphasis**`.
+ * @returns Escaped HTML with emphasis tags.
+ */
+function renderInline(value: string): string {
+  return escapeHtml(value).replace(/\*\*(.+?)\*\*/gu, '<strong>$1</strong>')
+}
+
+/** One Markdown table row split into cells. */
+function tableCells(line: string): readonly string[] {
+  return line.slice(2, -2).split(' | ').map(cell => cell.replaceAll('\\|', '|').trim())
+}
+
+/**
+ * Render the Markdown subset the report writer emits into HTML blocks.
+ * @param content - Section content: pipe tables, bullet lists, and paragraphs.
+ * @returns The rendered HTML.
+ */
+function renderContent(content: string): string {
+  const lines = content.split('\n')
+  const html: string[] = []
+  let index = 0
+  while (index < lines.length) {
+    const line = lines[index] as string
+    if (line.startsWith('| ')) {
+      const rows: (readonly string[])[] = []
+      while (index < lines.length && (lines[index] as string).startsWith('| ')) {
+        const cells = tableCells(lines[index] as string)
+        // The separator row carries no data.
+        if (!cells.every(cell => /^-{3,}$/u.test(cell))) rows.push(cells)
+        index += 1
+      }
+      // The writer always emits a header row before its separator.
+      const [header, ...body] = rows as [readonly string[], ...readonly (readonly string[])[]]
+      const head = header.map(cell => `<th>${renderInline(cell)}</th>`).join('')
+      const rest = body
+        .map(row => `<tr>${row.map(cell => `<td>${renderInline(cell)}</td>`).join('')}</tr>`)
+        .join('')
+      html.push(`<table><thead><tr>${head}</tr></thead><tbody>${rest}</tbody></table>`)
+      continue
+    }
+    if (line.startsWith('- ') || line.startsWith('  - ')) {
+      const items: string[] = []
+      while (index < lines.length
+        && ((lines[index] as string).startsWith('- ') || (lines[index] as string).startsWith('  - '))) {
+        const raw = lines[index] as string
+        items.push(raw.startsWith('  - ')
+          ? `<li class="nested">${renderInline(raw.slice(4))}</li>`
+          : `<li>${renderInline(raw.slice(2))}</li>`)
+        index += 1
+      }
+      html.push(`<ul>${items.join('')}</ul>`)
+      continue
+    }
+    if (line.trim() === '') {
+      index += 1
+      continue
+    }
+    html.push(`<p>${renderInline(line)}</p>`)
+    index += 1
+  }
+  return html.join('')
 }
 
 function safeJson(value: unknown): string {
@@ -662,7 +797,7 @@ function reportHtml(
   const sectionHtml = sections.map((section, index) => `
     <article class="section" data-section="${String(index)}">
       <h2>${escapeHtml(section.title)}</h2>
-      <pre>${escapeHtml(section.content)}</pre>
+      <div class="body">${renderContent(section.content)}</div>
     </article>`).join('')
   const navigation = sections.map((section, index) =>
     `<button type="button" data-target="${String(index)}">${escapeHtml(section.title)}</button>`).join('')
@@ -697,7 +832,15 @@ h1{margin:6px 0;font-size:34px;line-height:1.15}.meta{color:var(--muted)}.pill{b
 button{border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:transparent;color:inherit;cursor:pointer}button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
 canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-events:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
 .layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;margin-top:20px}.nav{display:flex;flex-direction:column;gap:7px;position:sticky;top:18px;align-self:start}.nav button{text-align:left}
-.section{border:1px solid var(--border);border-radius:14px;padding:18px;background:var(--card);margin-bottom:14px}.section h2{margin:0 0 10px;font-size:18px}.section pre{margin:0;white-space:pre-wrap;font-family:inherit;color:inherit}
+.section{border:1px solid var(--border);border-radius:14px;padding:18px;background:var(--card);margin-bottom:14px}.section h2{margin:0 0 12px;font-size:18px}
+.section:first-of-type{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 7%,var(--card))}
+.section .body{font-size:14.5px}.section p{margin:8px 0}.section p:first-child{margin-top:0}
+.section ul{margin:8px 0;padding-left:20px}.section li{margin:4px 0}.section li.nested{list-style:circle;color:var(--muted);margin-left:12px}
+.section table{width:100%;border-collapse:collapse;margin:4px 0;font-size:14px}
+.section th{text-align:left;font-weight:600;font-size:12px;color:var(--muted);padding:7px 10px;border-bottom:1px solid var(--border);text-transform:none;letter-spacing:.02em}
+.section td{padding:8px 10px;border-bottom:1px solid color-mix(in srgb,var(--border) 60%,transparent);vertical-align:top}
+.section tbody tr:last-child td{border-bottom:0}.section tbody tr:hover td{background:color-mix(in srgb,currentColor 4%,transparent)}
+.section td:nth-child(2),.section td:nth-child(3){font-variant-numeric:tabular-nums}
 .positive{color:var(--up)}.negative{color:var(--down)}.hidden{display:none}.source{color:var(--muted);font-size:12px}
 @media(max-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.nav{position:static;flex-direction:row;flex-wrap:wrap}.hero{display:block}}
 </style>

@@ -68,11 +68,11 @@ describe('finance report types', () => {
       },
     }
     const flash = await buildResearchReport(flat, { symbol: 'FLAT', reportType: 'equity-flash' })
-    expect(flash.markdown).toContain('Range position: 50.00%')
-    expect(flash.markdown).toContain('Volume vs 20-bar mean: 0.00x')
+    expect(flash.markdown).toContain('| Range position | 50.00% (100.00 - 100.00) |')
+    expect(flash.markdown).toContain('| Volume vs 20-bar mean | 0.00x |')
     const allocation = await buildResearchReport(flat, { symbol: 'FLAT', reportType: 'strategy-allocation' })
-    expect(allocation.markdown).toContain('Indicative position size: 100.00%')
-    expect(allocation.markdown).toContain('Bull case (+2 ATR): 100.00 (0.00%)')
+    expect(allocation.markdown).toContain('| Indicative position size | 100.00% |')
+    expect(allocation.markdown).toContain('| Bull case (+2 ATR) | 100.00 | 0.00% |')
   })
 
   it('defaults to the family deep dive and honors explicit types', async () => {

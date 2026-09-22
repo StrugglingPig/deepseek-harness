@@ -68,8 +68,8 @@ describe('finance research report', () => {
     expect(report.reportType).toBe('crypto-deep-dive')
     expect(report.sections.map(section => section.title)).toContain('Macro Drivers')
     const block = report.sections.find(section => section.title === 'Macro Drivers')
-    expect(block?.content).toContain('US effective federal funds rate: 3.88 %')
-    expect(block?.content).toContain('source fred')
+    expect(block?.content).toContain('| US | US effective federal funds rate | 3.88 % | 2026-09-17 |')
+    expect(block?.content).toContain('| fred |')
   })
 
   it('builds a crypto report with a question and horizon', async () => {
@@ -101,7 +101,7 @@ describe('finance research report', () => {
         }
       },
     }, { symbol: 'EXT' })
-    expect(report.markdown).toContain('Source: external')
+    expect(report.markdown).toContain('| Source | external |')
     expect(report.html).toContain('Snapshot source: external')
     expect(report.markdown).toContain('Snapshot source: external')
     expect(report.markdown).not.toContain('synthetic fixture')
@@ -121,7 +121,7 @@ describe('finance research report', () => {
   it('reads a flat series as a watch stance with a neutral stack', async () => {
     const report = await buildResearchReport(closeProvider(Array.from({ length: 60 }, () => 100)), { symbol: 'X' })
     expect(sectionOf(report, 'Investment View')).toContain('Watch')
-    expect(sectionOf(report, 'Technical Indicators')).toContain('Moving-average stack: neutral')
+    expect(sectionOf(report, 'Technical Indicators')).toContain('| SMA 20 / 50 | 100.00 / 100.00 | neutral |')
   })
 
   it('flags an overbought reading on a steep advance', async () => {
@@ -141,20 +141,20 @@ describe('finance research report', () => {
       { group: 'market', key: 'beta', value: 0.42, unit: 'x', asOf: '2026-09-21', source: 'coinmarketcap' },
     ]
     const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'en', [], metrics)
-    expect(sectionOf(report, 'Valuation Framework')).toContain('Diluted EPS: 36.82 CNY (2026-06-30, source akshare)')
+    expect(sectionOf(report, 'Valuation Framework')).toContain('| Diluted EPS | 36.82 CNY（2026-06-30） | akshare |')
     expect(sectionOf(report, 'Valuation Framework')).toContain('1.57T CNY')
-    expect(sectionOf(report, 'Financial Quality')).toContain('Return on equity: 17.72%')
-    expect(sectionOf(report, 'Financial Quality')).toContain('Current ratio: 5.59')
+    expect(sectionOf(report, 'Financial Quality')).toContain('| Return on equity | 17.72%（2026-06-30） | akshare |')
+    expect(sectionOf(report, 'Financial Quality')).toContain('| Current ratio | 5.59（2026-06-30） | akshare |')
     const withIndustry = await buildResearchReport(fixtureProvider, { symbol: 'AAPL' }, undefined, 'en', [], [
       { group: 'industry', key: 'industryName', value: 0, text: '酒、饮料和精制茶制造业', unit: '', asOf: '2026-09-21', source: 'akshare' },
     ])
-    expect(sectionOf(withIndustry, 'Industry Landscape')).toContain('Industry: 酒、饮料和精制茶制造业')
-    expect(sectionOf(report, 'Earnings Review')).toContain('Net profit growth (YoY): -2.03%')
+    expect(sectionOf(withIndustry, 'Industry Landscape')).toContain('| Industry | 酒、饮料和精制茶制造业（2026-09-21） | akshare |')
+    expect(sectionOf(report, 'Earnings Review')).toContain('| Net profit growth (YoY) | -2.03%（2026-06-30） | akshare |')
     // A category block with no matching metric still reports what it needs.
     const crypto = await buildResearchReport(fixtureProvider, { symbol: 'BTC' }, undefined, 'en', [], metrics)
     const community = await buildResearchReport(fixtureProvider, { symbol: 'BTC', reportType: 'crypto-deep-dive' }, undefined, 'en', [],
       [{ group: 'community', key: 'watchlistUsers', value: 2_452_829, unit: '', asOf: '', source: 'coingecko' }])
-    expect(sectionOf(community, 'Project And Community')).toContain('(source coingecko)')
+    expect(sectionOf(community, 'Project And Community')).toContain('coingecko')
     expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('1.7T USD')
     expect(sectionOf(crypto, 'Fund Flows And Positioning')).toContain('0.42 x')
   })
@@ -264,9 +264,9 @@ describe('macro blocks inside an asset report', () => {
       macro as never,
     )
     const blocks = report.sections.map(section => `${section.title}\n${section.content}`).join('\n')
-    expect(blocks).toContain('US us-10y-yield: 4.94 %')
-    expect(blocks).toContain('source fred')
-    expect(blocks).toContain('(projection)')
+    expect(blocks).toContain('| US | us-10y-yield | 4.94 % | 2026-09-17 | coincident | fred |')
+    expect(blocks).toContain('| US | us-10y-yield | 4.94 % | 2026-09-17 | coincident | fred |')
+    expect(blocks).toContain('| CN | cn-government-debt | 106.90 % | 2026 (projection) | coincident | fred |')
     expect(blocks).toContain('Macro Drivers')
   })
 
@@ -286,15 +286,15 @@ describe('macro blocks inside an asset report', () => {
       metrics,
     )
     const catalysts = sectionOf(report, 'Catalysts')
-    expect(catalysts).toContain('Next scheduled earnings: 2026-10-22')
-    expect(catalysts).toContain('Recent headlines: Apple unveils the next iPhone')
+    expect(catalysts).toContain('| Next scheduled earnings | 2026-10-22 | finnhub |')
+    expect(catalysts).toContain('| Recent headlines | Apple unveils the next iPhone | finnhub |')
     expect(catalysts).toContain('**What to watch**')
     // The standing list stays under the dated events.
     expect(catalysts).toContain('- earnings and guidance')
     expect(catalysts).not.toContain('Missing inputs')
     const insiders = sectionOf(report, 'Ownership And Insiders')
-    expect(insiders).toContain('Insider net share change (month): -1.2K')
-    expect(insiders).toContain('Insider sentiment (MSPR): 22.1')
+    expect(insiders).toContain('| Insider net share change (month) | -1.2K | finnhub |')
+    expect(insiders).toContain('| Insider sentiment (MSPR) | 22.1 | finnhub |')
   })
 
   it('asks for the missing catalysts and ownership inputs when nothing was loaded', async () => {
@@ -317,11 +317,9 @@ describe('macro blocks inside an asset report', () => {
       [series] as never,
     )
     const balance = sectionOf(report, '供需平衡')
-    expect(balance).toContain('布伦特原油价格')
-    expect(balance).toContain('美元/桶')
-    // The helper builds a coincident series, so its cycle token localizes too.
-    expect(balance).toContain('同步')
-    expect(balance).toContain('来源 fred')
+    // Name, unit, cycle token, and column labels all follow the report language.
+    expect(balance).toContain('| 地区 | 指标 | 数值 | 日期 | 周期 | 来源 |')
+    expect(balance).toContain('| GLOBAL | 布伦特原油价格 | 130.80 美元/桶 | 2026-09-15 | 同步 | fred |')
     // An English report keeps the upstream name, unit, and cycle token.
     const english = await buildResearchReport(
       fixtureProvider,
@@ -330,7 +328,7 @@ describe('macro blocks inside an asset report', () => {
       'en',
       [series] as never,
     )
-    expect(sectionOf(english, 'Supply And Demand Balance')).toContain('Brent crude oil price: 130.80 USD/barrel')
+    expect(sectionOf(english, 'Supply And Demand Balance')).toContain('| GLOBAL | Brent crude oil price | 130.80 USD/barrel |')
   })
 
   it('renders commodity and currency series and keeps the inputs they still lack', async () => {
@@ -346,11 +344,11 @@ describe('macro blocks inside an asset report', () => {
       macro as never,
     )
     const balance = sectionOf(report, 'Supply And Demand Balance')
-    expect(balance).toContain('brent-crude')
+    expect(balance).toContain('| GLOBAL | brent-crude |')
     expect(balance).toContain('Still missing: ')
     expect(balance).toContain('inventories')
     const fx = sectionOf(report, 'FX Drivers')
-    expect(fx).toContain('usd-cny')
+    expect(fx).toContain('| CN | usd-cny |')
     expect(fx).toContain('Still missing: ')
   })
 
@@ -368,11 +366,11 @@ describe('macro blocks inside an asset report', () => {
       macro as never,
     )
     const balance = sectionOf(report, 'Supply And Demand Balance')
-    expect(balance).toContain('eia-crude-stocks')
+    expect(balance).toContain('| US | eia-crude-stocks |')
     // The cost curve has no upstream yet, so it stays named.
     expect(balance).toContain('Still missing: the cost curve and futures term structure')
     const fx = sectionOf(report, 'FX Drivers')
-    expect(fx).toContain('cftc-usd-index-net')
+    expect(fx).toContain('| US | cftc-usd-index-net |')
     expect(fx).not.toContain('Still missing')
   })
 
@@ -403,7 +401,7 @@ describe('macro blocks inside an asset report', () => {
       metrics,
     )
     const context = sectionOf(report, 'Event Context')
-    expect(context).toContain('Recent headlines: Apple unveils the next iPhone')
+    expect(context).toContain('| Recent headlines | Apple unveils the next iPhone | finnhub |')
     expect(context).toContain('Still missing: ')
     expect(context).toContain('event timeline')
   })
