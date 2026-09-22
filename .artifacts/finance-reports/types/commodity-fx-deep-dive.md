@@ -64,16 +64,24 @@ SPDR Gold Shares (GLD) 呈中性。2 个信号与综合方向一致。
 
 ## 供需平衡
 
-- 当前快照尚无法提供本节内容。
-- 所需输入：库存, 供需平衡表, 成本曲线
+- GLOBAL Brent crude oil price: 130.80 USD/barrel (2026-09-15, leading, source fred)
+- US US natural gas price (Henry Hub): 2.97 USD/MMBtu (2026-09-15, leading, source fred)
+- GLOBAL Copper price (global, USD per metric ton): 13,542.82 USD/metric ton (2026-07-01, coincident, source fred)
+
+- 本节仍缺以下输入：库存, 供需平衡表, 成本曲线
 - 市场处于过剩还是缺口？
 - 边际供给成本在哪里？
 - 期限结构如何反映库存与稀缺？
 
 ## 汇率驱动
 
-- 当前快照尚无法提供本节内容。
-- 所需输入：利差, 国际收支, 仓位
+- CN USD/CNY exchange rate: 6.70 CNY per USD (2026-09-18, coincident, source fred)
+- GLOBAL USD/JPY exchange rate: 156.87 JPY per USD (2026-09-18, coincident, source fred)
+- GLOBAL EUR/USD exchange rate: 1.15 USD per EUR (2026-09-18, coincident, source fred)
+- CN China 3-month interbank rate: 1.54 % (2026-07-01, coincident, source fred)
+- GLOBAL Japan 10-year government bond yield: 2.94 % (2026-08-01, coincident, source fred)
+
+- 本节仍缺以下输入：利差, 国际收支, 仓位
 - 哪一条腿主导该货币对？
 - 驱动来自 carry、贸易条件还是风险偏好？
 - 什么政策变化会打破趋势？

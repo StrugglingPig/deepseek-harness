@@ -97,10 +97,15 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 
 ## 事件背景
 
-- 当前快照尚无法提供本节内容。
-- 涨跌幅：0.85%
-- 成交量：34955500
-- 所需输入：事件时间线, 公告原文, 事件前预期
+- 下次财报日: 2026-10-28 (source finnhub)
+- 近期新闻标题: Apple (AAPL) Eyes India Payments With Apple Pay Debut Next Month / Should Investors Chase the AI-Fueled Rally in AMD or META Stock? / Here Are Morgan Stanley's New Top Stock Picks For The Next 12-Months (source finnhub)
+- 最近一次重大公告类型: 10-Q (source finnhub)
+- 最近一次重大公告日期: 2026-07-31 (source finnhub)
+
+涨跌幅：0.85%
+成交量：34955500
+
+- 本节仍缺以下输入：事件时间线, 公告原文, 事件前预期
 - 相对事件前状态发生了什么变化？
 - 事件当根 K 线的价格与成交量如何反应？
 - 影响通过哪些资产传导？
