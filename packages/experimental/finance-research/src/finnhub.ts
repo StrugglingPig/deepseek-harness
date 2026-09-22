@@ -224,12 +224,49 @@ export function latestMaterialFiling(payload: unknown): { readonly form?: string
   return newest === undefined ? {} : { form: newest.form, date: newest.date }
 }
 
+/** Revenue concepts a reported income statement may file, most specific first. */
+const REVENUE_CONCEPTS: readonly string[] = [
+  'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax',
+  'us-gaap_RevenueFromContractWithCustomerIncludingAssessedTax',
+  'us-gaap_Revenues',
+]
+/** Net-income concepts a reported income statement may file, most specific first. */
+const NET_INCOME_CONCEPTS: readonly string[] = ['us-gaap_NetIncomeLoss', 'us-gaap_ProfitLoss']
+
 /**
- * Name the fiscal period and SEC form the newest reported statements came from.
- * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
- * @returns A label such as `FY2025 10-K`, or undefined when no period was published.
+ * Read one reported figure out of a statement bucket by concept.
+ * @param statement - Reported statement record.
+ * @param bucket - Statement section, such as `ic`.
+ * @param concepts - Concepts to try, most specific first.
+ * @returns The reported value, or undefined when the statement omits every concept.
  */
-export function latestReportedFinancials(payload: unknown): string | undefined {
+function reportedFigure(statement: unknown, bucket: string, concepts: readonly string[]): number | undefined {
+  const rows = record(statement)?.[bucket]
+  if (!Array.isArray(rows)) return undefined
+  for (const concept of concepts) {
+    for (const row of rows as readonly unknown[]) {
+      if (record(row)?.concept !== concept) continue
+      const value = finite(record(row)?.value)
+      if (value !== undefined) return value
+    }
+  }
+  return undefined
+}
+
+/** Period label and reported totals of the newest statements. */
+export interface FinnhubReportedFinancials {
+  /** Label such as `FY2025 10-K`. */
+  readonly label: string
+  readonly revenue?: number
+  readonly netIncome?: number
+}
+
+/**
+ * Read the period label and the income-statement totals of the newest reported statements.
+ * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
+ * @returns The label with whatever totals the statement published, or undefined when no period was published.
+ */
+export function latestReportedFinancials(payload: unknown): FinnhubReportedFinancials | undefined {
   const rows = record(payload)?.data
   if (!Array.isArray(rows)) return undefined
   for (const row of rows) {
@@ -239,7 +276,14 @@ export function latestReportedFinancials(payload: unknown): string | undefined {
     if (year === undefined || form === undefined) continue
     const quarter = finite(entry?.quarter)
     const period = quarter === undefined || quarter === 0 ? `FY${year}` : `Q${quarter} ${year}`
-    return `${period} ${form}`
+    const statement = record(entry)?.report
+    const revenue = reportedFigure(statement, 'ic', REVENUE_CONCEPTS)
+    const netIncome = reportedFigure(statement, 'ic', NET_INCOME_CONCEPTS)
+    return {
+      label: `${period} ${form}`,
+      ...revenue === undefined ? {} : { revenue },
+      ...netIncome === undefined ? {} : { netIncome },
+    }
   }
   return undefined
 }
@@ -260,6 +304,8 @@ export interface FinnhubExtras {
   readonly latestFilingForm?: string
   readonly latestFilingDate?: string
   readonly reportedFinancials?: string
+  readonly revenue?: number
+  readonly netIncome?: number
 }
 
 /**
@@ -288,7 +334,7 @@ export function normalizeFinnhubExtras(
   const analyst = latestAnalystConsensus(payloads.recommendation)
   const trades = insiderTradeTotals(payloads.transactions, today, 90)
   const filing = latestMaterialFiling(payloads.filings)
-  const reportedFinancials = latestReportedFinancials(payloads.reported)
+  const reported = latestReportedFinancials(payloads.reported)
   return {
     ...headlines.length === 0 ? {} : { headlines },
     ...nextEarnings === undefined ? {} : { nextEarnings },
@@ -303,6 +349,8 @@ export function normalizeFinnhubExtras(
     ...trades.sold === undefined ? {} : { insiderSoldShares: trades.sold },
     ...filing.form === undefined ? {} : { latestFilingForm: filing.form },
     ...filing.date === undefined ? {} : { latestFilingDate: filing.date },
-    ...reportedFinancials === undefined ? {} : { reportedFinancials },
+    ...reported === undefined ? {} : { reportedFinancials: reported.label },
+    ...reported?.revenue === undefined ? {} : { revenue: reported.revenue },
+    ...reported?.netIncome === undefined ? {} : { netIncome: reported.netIncome },
   }
 }

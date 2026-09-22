@@ -5,9 +5,10 @@ import { buildMethodologyAnalysis, type MethodologyAnalysis } from './methodolog
 import { REPORT_COPY, formatCopy, type ReportBlockCopy, type ReportCategoryCopy, type ReportCopy } from './report-copy.ts'
 import type { ReportLanguage } from './report-language.ts'
 import { REPORT_TYPES, defaultReportType, reportTypeById, type ReportSectionId, type ReportTypeDefinition } from './report-types.ts'
-import type { AssetMetric, AssetMetricGroup } from './asset-context.ts'
+import type { AssetMetric, AssetMetricGroup, ReportMetricKey } from './asset-context.ts'
 import type { MacroCategory } from './macro-catalog.ts'
 import type { MacroSeries } from './macro.ts'
+import { buildEarningsForecast, type EarningsForecast, type EarningsForecastInput } from './forecast.ts'
 import type {
   FinanceMarketDataProvider,
   IndicatorAnalysis,
@@ -56,6 +57,10 @@ interface SectionContext {
   readonly type: ReportTypeDefinition
   /** Macro series available to this report; absent when the caller loaded none. */
   readonly macro: readonly MacroSeries[]
+  /** Latest quoted price, the anchor for the target-price model. */
+  readonly price: number
+  /** Earnings model output, when its inputs were available. */
+  readonly forecast?: EarningsForecast
   /** Instrument metrics available to this report; absent when the caller loaded none. */
   readonly metrics: readonly AssetMetric[]
 }
@@ -172,6 +177,111 @@ function macroRow(series: MacroSeries, copy: ReportCopy): readonly string[] {
 }
 
 /**
+ * Read one metric value by key out of the section context.
+ * @param context - Section context carrying the loaded metrics.
+ * @param key - Metric key to read.
+ * @returns The value, or undefined when the snapshot did not publish it.
+ */
+function metricValueOf(metrics: readonly AssetMetric[], key: ReportMetricKey): number | undefined {
+  return metrics.find(metric => metric.key === key && metric.subject === undefined)?.value
+}
+
+/**
+ * Read the trailing price-to-earnings multiple the snapshot published.
+ * @param metrics - Loaded metrics.
+ * @returns The multiple, or undefined when the snapshot published none.
+ */
+function trailingMultipleOf(metrics: readonly AssetMetric[]): number | undefined {
+  return metricValueOf(metrics, 'peRatio') ?? metricValueOf(metrics, 'peTtm')
+}
+
+/**
+ * Derive the earnings model's inputs from the loaded metrics.
+ * @param metrics - Loaded instrument metrics.
+ * @param price - Latest quoted price, the target's reference point.
+ * @param fromYear - Calendar year the first projection covers.
+ * @returns The model inputs, or undefined when a required input is missing.
+ */
+function forecastInputs(
+  metrics: readonly AssetMetric[],
+  price: number,
+  fromYear: number,
+): EarningsForecastInput | undefined {
+  const eps = metricValueOf(metrics, 'epsTtm') ?? metricValueOf(metrics, 'eps')
+  const revenueGrowth = metricValueOf(metrics, 'revenueGrowth')
+  if (eps === undefined || revenueGrowth === undefined) return undefined
+  // A peer median only counts once enough peers published a multiple.
+  const peerPrices = metrics
+    .filter(metric => metric.subject !== undefined && metric.key === 'peRatio')
+    .map(metric => metric.value)
+    .sort((left, right) => left - right)
+  const peerMedianPe = peerPrices.length < 3 ? undefined : peerPrices[Math.floor(peerPrices.length / 2)]
+  const trailingMultiple = trailingMultipleOf(metrics)
+  return {
+    price,
+    eps,
+    revenueGrowth,
+    ...metricValueOf(metrics, 'revenue') === undefined ? {} : { revenue: metricValueOf(metrics, 'revenue') as number },
+    ...metricValueOf(metrics, 'netIncome') === undefined ? {} : { netIncome: metricValueOf(metrics, 'netIncome') as number },
+    ...metricValueOf(metrics, 'netMargin') === undefined ? {} : { netMargin: metricValueOf(metrics, 'netMargin') as number },
+    ...trailingMultiple === undefined ? {} : { peRatio: trailingMultiple },
+    ...metricValueOf(metrics, 'industryPe') === undefined ? {} : { industryPe: metricValueOf(metrics, 'industryPe') as number },
+    ...peerMedianPe === undefined ? {} : { peerMedianPe },
+    fromYear,
+  }
+}
+
+/**
+ * Render the earnings forecast, its target price, and the assumptions behind them.
+ * @param context - Section context carrying the loaded metrics.
+ * @returns The rendered section, or the input-demanding block when the model cannot run.
+ */
+function forecastSection(context: SectionContext): ResearchReportSection {
+  const copy = context.copy
+  const id: ReportSectionId = 'forecast'
+  const forecast = context.forecast
+  if (forecast === undefined) return inputBlock(context, id)
+  const { years } = forecast
+  const method = forecast.multipleSource === 'peers'
+    ? copy.labels.fairMultiplePeers
+    : forecast.multipleSource === 'industry' ? copy.labels.fairMultipleIndustry : copy.labels.fairMultipleOwn
+  return {
+    title: copy.sections.forecast,
+    content: [
+      table(
+        [copy.columns.year, copy.columns.revenue, copy.columns.revenueGrowth, copy.columns.netIncome, 'EPS'],
+        years.map(year => [
+          String(year.year),
+          year.revenue === undefined ? '—' : number(year.revenue),
+          percent(year.revenueGrowth),
+          year.netIncome === undefined ? '—' : number(year.netIncome),
+          number(year.eps, 2),
+        ]),
+      ),
+      '',
+      table(
+        [copy.columns.item, copy.columns.value],
+        [
+          [copy.labels.targetPrice, number(forecast.targetPrice, 2)],
+          [copy.labels.upside, percent(forecast.upsidePercent)],
+          [copy.labels.fairMultiple, `${number(forecast.fairMultiple, 1)}x`],
+          [copy.labels.trailingMultiple, trailingMultipleOf(context.metrics) === undefined
+            ? '—'
+            : `${number(trailingMultipleOf(context.metrics) as number, 1)}x`],
+        ],
+      ),
+      '',
+      `**${copy.labels.modelAssumptions}**`,
+      `- ${copy.labels.modelOwn}${method}`,
+      `- ${formatCopy(copy.templates.forecastBase, { growth: percent(forecast.startingGrowth) })}`,
+      `- ${formatCopy(copy.templates.forecastFade, { years: String(years.length) })}`,
+      `- ${copy.labels.forecastMargin}`,
+      `- ${copy.labels.forecastLimits}`,
+    ].join('\n'),
+  }
+}
+
+/**
  * Render the comparable-company table a competitive-position block carries.
  * @param context - Section context carrying the metrics and copy.
  * @returns The table, or undefined when no peer figures loaded.
@@ -257,6 +367,7 @@ const sectionIdKeys: Record<ReportSectionId, keyof ReportCopy['sections']> = {
   'valuation-framework': 'valuationFramework',
   'financial-quality': 'financialQuality',
   'earnings-review': 'earningsReview',
+  forecast: 'forecast',
   'event-context': 'eventContext',
   'industry-landscape': 'industryLandscape',
   'competitive-position': 'competitivePosition',
@@ -319,6 +430,9 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
           `**${stance}**`,
           '',
           `- ${copy.labels.compositeScore}${number(composite.score)} · ${copy.labels.viewConfidence}${String(composite.confidence)}%`,
+          ...context.forecast === undefined ? [] : [
+            `- ${copy.labels.targetPrice}${number(context.forecast.targetPrice, 2)} · ${copy.labels.upside}${percent(context.forecast.upsidePercent)}`,
+          ],
           '',
           `**${copy.labels.viewReasons}**`,
           `- ${formatCopy(copy.templates.viewBreadth, {
@@ -633,6 +747,8 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return metricBlock(context, id, ['profitability', 'balance', 'cash'])
     case 'earnings-review':
       return metricBlock(context, id, ['growth'])
+    case 'forecast':
+      return forecastSection(context)
     case 'industry-landscape':
       return metricBlock(context, id, ['industry'])
     case 'competitive-position': {
@@ -679,6 +795,7 @@ function sectionsFor(
   type: ReportTypeDefinition,
   macro: readonly MacroSeries[],
   metrics: readonly AssetMetric[],
+  forecast: EarningsForecast | undefined,
 ): ResearchReportSection[] {
   const copy = REPORT_COPY[language]
   const context: SectionContext = {
@@ -691,6 +808,8 @@ function sectionsFor(
     type,
     macro,
     metrics,
+    price: snapshot.quote.price,
+    ...forecast === undefined ? {} : { forecast },
   }
   const sections = type.sections.map(id => renderSection(id, context))
   const prediction = predictionSection(snapshot, copy)
@@ -811,6 +930,7 @@ function reportHtml(
   sections: readonly ResearchReportSection[],
   copy: ReportCopy,
   type: ReportTypeDefinition,
+  forecast?: EarningsForecast,
 ): string {
   const data = safeJson({
     symbol: snapshot.instrument.symbol,
@@ -855,7 +975,7 @@ function reportHtml(
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 main{max-width:1180px;margin:0 auto;padding:28px 18px 60px}.hero{display:flex;justify-content:space-between;gap:20px;align-items:start}.eyebrow{color:var(--accent);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
 h1{margin:6px 0;font-size:34px;line-height:1.15}.meta{color:var(--muted)}.pill{border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--card)}
-.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0}.card{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card)}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0}.card{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card)}.card.accent{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 6%,var(--card))}
 .card span{display:block;color:var(--muted);font-size:12px}.card strong{display:block;margin-top:5px;font-size:20px}
 .chart-card{border:1px solid var(--border);border-radius:16px;padding:12px;background:var(--card);margin:18px 0}.chart-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 button{border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:transparent;color:inherit;cursor:pointer}button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
@@ -880,6 +1000,8 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
   <div class="cards">
     <div class="card"><span>${escapeHtml(copy.html.cardPrice)}</span><strong>${String(snapshot.quote.price)}</strong></div>
     <div class="card"><span>${escapeHtml(copy.html.cardChange)}</span><strong class="${snapshot.quote.changePercent >= 0 ? 'positive' : 'negative'}">${snapshot.quote.changePercent.toFixed(2)}%</strong></div>
+    ${forecast === undefined ? '' : `<div class="card accent"><span>${escapeHtml(copy.labels.targetPrice)}</span><strong>${number(forecast.targetPrice, 2)}</strong></div>
+    <div class="card accent"><span>${escapeHtml(copy.labels.upside)}</span><strong class="${forecast.upsidePercent >= 0 ? 'positive' : 'negative'}">${percent(forecast.upsidePercent)}</strong></div>`}
     <div class="card"><span>${escapeHtml(copy.html.cardComposite)}</span><strong>${String(analysis.composite.score)}</strong></div>
     <div class="card"><span>${escapeHtml(copy.html.cardAtr)}</span><strong>${analysis.risk.atrPercent.toFixed(2)}%</strong></div>
   </div>
@@ -966,7 +1088,9 @@ export async function buildResearchReport(
   const snapshot = await provider.load(request.symbol, signal)
   const analysis = buildIndicatorAnalysis(snapshot)
   const type = resolveReportType(request, snapshot)
-  const sections = sectionsFor(snapshot, analysis, request, language, type, macro, metrics)
+  const inputs = forecastInputs(metrics, snapshot.quote.price, new Date(snapshot.asOf).getUTCFullYear())
+  const forecast = inputs === undefined ? undefined : buildEarningsForecast(inputs)
+  const sections = sectionsFor(snapshot, analysis, request, language, type, macro, metrics, forecast)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
@@ -984,7 +1108,7 @@ export async function buildResearchReport(
     title,
     reportType: type.id,
     markdown,
-    html: reportHtml(title, snapshot, analysis, sections, copy, type),
+    html: reportHtml(title, snapshot, analysis, sections, copy, type, forecast),
     sections,
     evidence: [{
       source: snapshot.source.provider,

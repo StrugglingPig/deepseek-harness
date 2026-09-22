@@ -23,7 +23,8 @@ export const REPORT_METRIC_KEYS = [
   'activeCryptocurrencies', 'analystBuy', 'analystHold', 'analystSell', 'athChangePercentage',
   'atlChangePercentage', 'btcDominance', 'epsSurprise', 'ethDominance', 'githubLatestRelease',
   'githubReleases1y', 'insiderBoughtShares', 'insiderNetShares', 'insiderSentiment', 'insiderSoldShares',
-  'latestFilingDate', 'latestFilingForm', 'newsHeadlines', 'nextEarnings', 'reportedFinancials',
+  'latestFilingDate', 'latestFilingForm', 'netIncome', 'newsHeadlines', 'nextEarnings',
+  'reportedFinancials', 'revenue',
 ] as const
 
 /** One metric key a report knows how to label. */
@@ -337,10 +338,12 @@ const US_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string]
   ['psRatio', 'valuation', ''],
   ['dividendYield', 'valuation', '%'],
   ['epsTtm', 'profitability', 'USD'],
+  ['netIncome', 'profitability', 'USD'],
   ['netMargin', 'profitability', '%'],
   ['operatingMargin', 'profitability', '%'],
   ['roa', 'profitability', '%'],
   ['roe', 'profitability', '%'],
+  ['revenue', 'growth', 'USD'],
   ['revenueGrowth', 'growth', '%'],
   ['epsGrowth', 'growth', '%'],
   ['beta', 'market', ''],

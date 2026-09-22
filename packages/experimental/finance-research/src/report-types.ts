@@ -19,7 +19,7 @@ export type ReportForm = typeof REPORT_FORMS[number]
 /** Section blocks a report type can compose. */
 export const REPORT_SECTION_IDS = [
   'investment-view', 'summary', 'research-question', 'market-snapshot', 'price-action', 'technical-indicators', 'synthesis',
-  'methodology-coverage', 'investor-lenses', 'valuation-framework', 'financial-quality', 'earnings-review',
+  'methodology-coverage', 'investor-lenses', 'valuation-framework', 'financial-quality', 'earnings-review', 'forecast',
   'event-context', 'industry-landscape', 'competitive-position', 'macro-drivers', 'rates-credit',
   'project-and-community', 'ownership-and-insiders',
   'commodity-balance', 'fx-drivers', 'fund-flows', 'onchain-tokenomics', 'allocation', 'scenario-analysis',
@@ -55,7 +55,7 @@ const CATEGORY_FORMS: Readonly<Record<ReportCategory, readonly ReportForm[]>> = 
 const CATEGORY_BLOCKS: Readonly<Record<ReportCategory, readonly ReportSectionId[]>> = {
   macro: ['macro-drivers', 'rates-credit'],
   industry: ['industry-landscape', 'competitive-position'],
-  equity: ['industry-landscape', 'valuation-framework', 'earnings-review', 'financial-quality', 'competitive-position', 'ownership-and-insiders'],
+  equity: ['industry-landscape', 'valuation-framework', 'forecast', 'earnings-review', 'financial-quality', 'competitive-position', 'ownership-and-insiders'],
   fund: ['fund-flows', 'valuation-framework'],
   'fixed-income': ['rates-credit', 'macro-drivers'],
   'commodity-fx': ['commodity-balance', 'fx-drivers'],

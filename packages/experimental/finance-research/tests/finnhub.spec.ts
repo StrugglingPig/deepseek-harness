@@ -90,7 +90,15 @@ describe('Finnhub free-tier extras', () => {
         { form: '10-Q', filedDate: '2026-08-01 00:00:00' },
         { form: '10-K', filedDate: '2025-10-31 00:00:00' },
       ],
-      reported: { cik: '320193', data: [{ year: 2025, quarter: 0, form: '10-K' }, { year: 2025, quarter: 3, form: '10-Q' }] },
+      reported: { cik: '320193', data: [{
+        year: 2025,
+        quarter: 0,
+        form: '10-K',
+        report: { ic: [
+          { concept: 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', value: 416_161_000_000 },
+          { concept: 'us-gaap_NetIncomeLoss', value: 112_010_000_000 },
+        ] },
+      }] },
     }, today)
     expect(extras).toEqual({
       analystPeriod: '2026-09-01',
@@ -102,6 +110,8 @@ describe('Finnhub free-tier extras', () => {
       latestFilingForm: '10-Q',
       latestFilingDate: '2026-08-01',
       reportedFinancials: 'FY2025 10-K',
+      revenue: 416_161_000_000,
+      netIncome: 112_010_000_000,
     })
   })
 
@@ -132,8 +142,20 @@ describe('Finnhub free-tier extras', () => {
     expect(latestMaterialFiling([{ form: '10-K' }, 7])).toEqual({})
     expect(latestMaterialFiling({})).toEqual({})
 
-    expect(latestReportedFinancials({ data: [{ year: 2026, quarter: 3, form: '10-Q' }] })).toBe('Q3 2026 10-Q')
-    expect(latestReportedFinancials({ data: [{ quarter: 3, form: '10-Q' }, { year: 2025, form: '10-K' }] })).toBe('FY2025 10-K')
+    expect(latestReportedFinancials({ data: [{ year: 2026, quarter: 3, form: '10-Q' }] })).toEqual({ label: 'Q3 2026 10-Q' })
+    // The newest period wins even when an older filing is the one with statements.
+    expect(latestReportedFinancials({ data: [{ quarter: 3, form: '10-Q' }, { year: 2025, form: '10-K' }] }))
+      .toEqual({ label: 'FY2025 10-K' })
+    // Reported totals come out of the income statement by concept.
+    expect(latestReportedFinancials({ data: [{ year: 2025, quarter: 0, form: '10-K', report: { ic: [
+      { concept: 'us-gaap_Revenues', value: 416_161_000_000 },
+      { concept: 'us-gaap_NetIncomeLoss', value: 112_010_000_000 },
+    ] } }] })).toEqual({ label: 'FY2025 10-K', revenue: 416_161_000_000, netIncome: 112_010_000_000 })
+    // A statement that omits the concepts contributes the label alone.
+    expect(latestReportedFinancials({ data: [{ year: 2025, quarter: 0, form: '10-K', report: { ic: [{}] } }] }))
+      .toEqual({ label: 'FY2025 10-K' })
+    expect(latestReportedFinancials({ data: [{ year: 2025, quarter: 0, form: '10-K', report: 'nope' }] }))
+      .toEqual({ label: 'FY2025 10-K' })
     expect(latestReportedFinancials({ data: [] })).toBeUndefined()
     expect(latestReportedFinancials({})).toBeUndefined()
   })

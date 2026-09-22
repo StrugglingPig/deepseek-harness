@@ -8,7 +8,7 @@ export type ReportSectionKey =
   | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'priceAction' | 'technicalIndicators' | 'synthesis'
   | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'valuationFramework' | 'financialQuality'
   | 'investmentView' | 'projectAndCommunity' | 'ownershipAndInsiders'
-  | 'earningsReview' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
+  | 'earningsReview' | 'forecast' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
   | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
   | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
 
@@ -18,7 +18,7 @@ import type { ReportMetricKey } from './asset-context.ts'
 export type ReportColumnKey =
   | 'name' | 'value' | 'source' | 'region' | 'date' | 'timing' | 'direction'
   | 'confidence' | 'status' | 'scenario' | 'price' | 'relative' | 'item' | 'method'
-  | 'signal' | 'weight' | 'note' | 'company'
+  | 'signal' | 'weight' | 'note' | 'company' | 'year' | 'revenue' | 'revenueGrowth' | 'netIncome'
 
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
@@ -32,12 +32,15 @@ export type ReportLabelKey =
   | 'viewReasons' | 'viewInvalidation' | 'viewGaps' | 'maStack' | 'rsiOverbought' | 'rsiOversold'
   | 'rsiNeutral' | 'macdBullish' | 'macdBearish'
   | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor' | 'partialMissing' | 'metricSource' | 'projection'
+  | 'targetPrice' | 'upside' | 'fairMultiple' | 'trailingMultiple' | 'modelOwn' | 'modelAssumptions'
+  | 'fairMultiplePeers' | 'fairMultipleIndustry' | 'fairMultipleOwn' | 'forecastMargin' | 'forecastLimits'
   | 'missingInventories' | 'missingCostCurve' | 'missingPositioning' | 'missingEventRecord'
   | 'missingIndexValuation' | 'missingFundFlows' | 'missingMacroRegime'
 
 /** Interpolated line templates owned by the report writer. */
 export type ReportTemplateKey =
   | 'summary' | 'investor' | 'investorRisk' | 'gap' | 'reportTitle'
+  | 'forecastBase' | 'forecastFade'
   | 'htmlMeta' | 'htmlPill' | 'htmlRange' | 'htmlTooltip'
   | 'invalidation' | 'invalidationInverse' | 'viewBreadth' | 'viewStrongest' | 'viewRisk'
 
@@ -130,6 +133,7 @@ const EN: ReportCopy = {
     valuationFramework: 'Valuation Framework',
     financialQuality: 'Financial Quality',
     earningsReview: 'Earnings Review',
+    forecast: 'Earnings Forecast And Target Price',
     eventContext: 'Event Context',
     industryLandscape: 'Industry Landscape',
     competitivePosition: 'Competitive Position',
@@ -170,6 +174,17 @@ const EN: ReportCopy = {
     watchFor: 'What to watch',
     metricSource: 'source ',
     projection: '(projection)',
+    targetPrice: 'Model target price',
+    upside: 'Upside to target',
+    fairMultiple: 'Fair multiple applied',
+    trailingMultiple: 'Current multiple',
+    modelOwn: 'In-house model, not a consensus estimate: ',
+    modelAssumptions: 'Assumptions: ',
+    fairMultiplePeers: 'the peer-set median P/E',
+    fairMultipleIndustry: 'the published industry P/E',
+    fairMultipleOwn: 'the instrument own P/E',
+    forecastMargin: 'Net margin is held at the latest reported level.',
+    forecastLimits: 'The model excludes dilution, one-off items, and balance-sheet risk, and it is not a consensus estimate.',
     partialMissing: 'Still missing: ',
     missingInventories: 'energy inventories and the supply-demand balance',
     missingCostCurve: 'the cost curve and futures term structure',
@@ -223,6 +238,8 @@ const EN: ReportCopy = {
     investor: '- {name} ({school}): {stance}.',
     investorRisk: '  - Risk: {risk}',
     gap: '- {name} ({category}): {status}; requires {requirements}',
+    forecastBase: 'Trailing revenue growth of {growth} starts the path.',
+    forecastFade: 'Growth fades toward 3% across {years} projected years.',
     reportTitle: '{label} · {category} {form}',
     htmlMeta: '{symbol} · {currency} · As of {asOf} · Source {provider}',
     htmlPill: '{direction} · {confidence}% confidence',
@@ -308,6 +325,10 @@ const EN: ReportCopy = {
     weight: 'Weight',
     note: 'Note',
     company: 'Company',
+    year: 'Year',
+    revenue: 'Revenue',
+    revenueGrowth: 'Revenue growth',
+    netIncome: 'Net income',
   },
   metrics: {
     eps: 'Diluted EPS',
@@ -344,6 +365,8 @@ const EN: ReportCopy = {
     latestFilingForm: 'Newest material SEC filing',
     latestFilingDate: 'Newest material filing date',
     reportedFinancials: 'Newest reported statements',
+    revenue: 'Revenue (latest annual report)',
+    netIncome: 'Net income (latest annual report)',
     athChangePercentage: 'Drawdown from all-time high',
     atlChangePercentage: 'Gain from all-time low',
     btcDominance: 'Bitcoin market cap dominance',
@@ -425,6 +448,7 @@ const EN: ReportCopy = {
     'onchain-tokenomics': { requires: ['on-chain activity metrics', 'token unlock schedule', 'exchange and ETF flows'], checks: ['Is network usage growing with price?', 'What supply pressure comes from unlocks?', 'Which venue or issuer concentrates flow?'] },
     'project-and-community': { requires: ['developer activity', 'community size', 'sentiment'], checks: ['Is development still active?', 'Is the community growing or fading?', 'Does sentiment diverge from price?'] },
     'ownership-and-insiders': { requires: ['insider transactions', 'ownership breakdown', 'institutional holders'], checks: ['Are insiders accumulating or selling?', 'How concentrated is ownership?', 'Which holders set the agenda?'] },
+    forecast: { requires: ['reported revenue and EPS', 'trailing growth rate', 'comparable or industry multiple'], checks: ['Is the growth path credible against history?', 'Does the multiple match the peer set?', 'What would break the target?'] },
     catalysts: { requires: ['scheduled events', 'news flow', 'filing calendar'], checks: ['Which dated event can move the price next?', 'Is the news flow confirming or contradicting the trend?', 'What would invalidate the standing catalyst list?'] },
     allocation: { requires: ['index valuation and earnings', 'fund flows and positioning', 'macro regime series'], checks: ['What does the current regime imply for each asset class?', 'How much risk does the budget allow?', 'What would force a rebalance?'] },
   },
@@ -448,6 +472,7 @@ const ZH: ReportCopy = {
     valuationFramework: '估值框架',
     financialQuality: '财务质量',
     earningsReview: '业绩点评',
+    forecast: '盈利预测与目标价',
     eventContext: '事件背景',
     industryLandscape: '行业格局',
     competitivePosition: '竞争格局',
@@ -488,6 +513,17 @@ const ZH: ReportCopy = {
     watchFor: '关注方向',
     metricSource: '来源 ',
     projection: '（预测）',
+    targetPrice: '模型目标价',
+    upside: '相对目标价空间',
+    fairMultiple: '采用的公允倍数',
+    trailingMultiple: '当前倍数',
+    modelOwn: '本行为自研模型输出，不是分析师一致预期：',
+    modelAssumptions: '模型假设：',
+    fairMultiplePeers: '同业中位市盈率',
+    fairMultipleIndustry: '公开的行业市盈率',
+    fairMultipleOwn: '本股票自身市盈率',
+    forecastMargin: '净利率保持最新年报水平不变。',
+    forecastLimits: '模型不含摊薄、一次性损益与资产负债风险，也不是分析师一致预期。',
     partialMissing: '本节仍缺以下输入：',
     missingInventories: '能源库存与供需平衡表',
     missingCostCurve: '成本曲线与期限结构',
@@ -546,6 +582,8 @@ const ZH: ReportCopy = {
     investor: '- {name}（{school}）：{stance}。',
     investorRisk: '  - 风险：{risk}',
     gap: '- {name}（{category}）：{status}；需要 {requirements}',
+    forecastBase: '以最近 12 个月营收增速 {growth} 作为起点。',
+    forecastFade: '增速在 {years} 个预测年度内向 3% 收敛。',
     reportTitle: '{label} · {category}{form}',
     htmlMeta: '{symbol} · {currency} · 截至 {asOf} · 来源 {provider}',
     htmlPill: '{direction} · 置信度 {confidence}%',
@@ -753,6 +791,7 @@ const ZH: ReportCopy = {
     'onchain-tokenomics': { requires: ['链上活跃度指标', '代币解锁计划', '交易所与 ETF 资金流'], checks: ['网络使用量是否与价格同步增长？', '解锁带来多大的供应压力？', '资金流集中在哪些交易所或发行方？'] },
     'project-and-community': { requires: ['开发活跃度', '社区规模', '情绪'], checks: ['开发是否仍然活跃？', '社区在增长还是流失？', '情绪与价格是否背离？'] },
     'ownership-and-insiders': { requires: ['内部人交易', '股权结构', '机构持仓'], checks: ['内部人在增持还是减持？', '股权集中度如何？', '谁在影响公司议程？'] },
+    forecast: { requires: ['已披露的营收与 EPS', '最近增速', '同业或行业倍数'], checks: ['增速路径是否可信？', '采用的倍数与同业是否匹配？', '什么会推翻目标价？'] },
     catalysts: { requires: ['日程事件', '新闻流', '公告日程'], checks: ['下一个可能推动价格的事件是什么？', '新闻流在确认还是否定趋势？', '什么会推翻这份催化剂清单？'] },
     allocation: { requires: ['指数估值与盈利', '资金流与仓位', '宏观状态序列'], checks: ['当前状态对各资产类别意味着什么？', '风险预算允许多大仓位？', '什么会触发再平衡？'] },
   },
@@ -775,6 +814,10 @@ const ZH: ReportCopy = {
     weight: '权重',
     note: '说明',
     company: '公司',
+    year: '年度',
+    revenue: '营业收入',
+    revenueGrowth: '营收同比',
+    netIncome: '净利润',
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -811,6 +854,8 @@ const ZH: ReportCopy = {
     latestFilingForm: '最近一次重大公告类型',
     latestFilingDate: '最近一次重大公告日期',
     reportedFinancials: '最近披露的财报期间',
+    revenue: '营业收入（最新年报）',
+    netIncome: '净利润（最新年报）',
     athChangePercentage: '距历史最高点回撤',
     atlChangePercentage: '距历史最低点涨幅',
     btcDominance: '比特币市值占比',

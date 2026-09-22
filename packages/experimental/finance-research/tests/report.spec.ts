@@ -34,8 +34,9 @@ describe('finance research report', () => {
     expect(report.reportType).toBe('equity-deep-dive')
     expect(report.sections.map(section => section.title)).toEqual([
       'Investment View', 'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action',
-      'Industry Landscape', 'Valuation Framework', 'Earnings Review', 'Financial Quality',
-      'Competitive Position', 'Ownership And Insiders', 'Technical Indicators', 'Multi-Indicator Synthesis', 'Methodology Coverage',
+      'Industry Landscape', 'Valuation Framework', 'Earnings Forecast And Target Price', 'Earnings Review',
+      'Financial Quality', 'Competitive Position', 'Ownership And Insiders', 'Technical Indicators',
+      'Multi-Indicator Synthesis', 'Methodology Coverage',
       'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
     ])
     expect(report.markdown).toContain('# Apple Inc. (AAPL) · Equity Deep dive')
@@ -130,6 +131,73 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Technical Indicators')).toContain('overbought')
   })
 
+  it('projects three years and prices a target from the peer multiple', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'valuation', key: 'epsTtm', value: 8.72, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 14.24, unit: '%', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenue', value: 416_161_000_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 112_010_000_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'profitability', key: 'netMargin', value: 26.91, unit: '%', asOf: '', source: 'finnhub' },
+      { group: 'valuation', key: 'peRatio', value: 38.3, unit: '', asOf: '', source: 'finnhub' },
+      ...[20, 25, 30].map((value, index) => ({
+        group: 'competition' as const, key: 'peRatio' as const, value, unit: '', asOf: '', source: 'finnhub',
+        subject: `P${String(index)}`,
+      })),
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      metrics,
+    )
+    const forecast = sectionOf(report, 'Earnings Forecast And Target Price')
+    expect(forecast).toContain('| Year | Revenue | Revenue growth | Net income | EPS |')
+    expect(forecast).toContain('| 2027 |')
+    expect(forecast).toContain('| Model target price |')
+    expect(forecast).toContain('| Fair multiple applied | 25.0x |')
+    expect(forecast).toContain('In-house model, not a consensus estimate: the peer-set median P/E')
+    // The investment view quotes the same target.
+    expect(sectionOf(report, 'Investment View')).toContain('Model target price')
+  })
+
+  it('names the industry or own multiple when no peer set answered', async () => {
+    const aShare: readonly AssetMetric[] = [
+      { group: 'valuation', key: 'eps', value: 36.82, unit: 'CNY', asOf: '', source: 'akshare' },
+      { group: 'growth', key: 'revenueGrowth', value: 1.47, unit: '%', asOf: '', source: 'akshare' },
+      { group: 'industry', key: 'industryPe', value: 18.94, unit: '', asOf: '', source: 'akshare' },
+    ]
+    const industry = await buildResearchReport(
+      fixtureProvider,
+      { symbol: '600519', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      aShare,
+    )
+    const industryForecast = sectionOf(industry, 'Earnings Forecast And Target Price')
+    expect(industryForecast).toContain('the published industry P/E')
+    // No revenue base and no own multiple reach the table as em dashes.
+    expect(industryForecast).toContain('| 2027 | — |')
+    expect(industryForecast).toContain('| Current multiple | — |')
+
+    const own = await buildResearchReport(
+      fixtureProvider,
+      { symbol: '600519', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      [...aShare.slice(0, 2), { group: 'valuation', key: 'peTtm', value: 19.2, unit: '', asOf: '', source: 'akshare' }],
+    )
+    expect(sectionOf(own, 'Earnings Forecast And Target Price')).toContain('the instrument own P/E')
+  })
+
+  it('asks for the forecast inputs when the model cannot run', async () => {
+    const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' })
+    expect(sectionOf(report, 'Earnings Forecast And Target Price')).toContain('reported revenue and EPS')
+  })
+
   it('renders the comparable-company table when peer figures loaded', async () => {
     const metrics: readonly AssetMetric[] = [
       { group: 'competition', key: 'peRatio', value: 32.5, unit: '', asOf: '', source: 'finnhub', subject: 'AAPL' },
@@ -214,7 +282,8 @@ describe('finance research report', () => {
     expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
       '投资结论', '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为',
-      '行业格局', '估值框架', '业绩点评', '财务质量', '竞争格局', '股权与内部人', '技术指标', '多指标综合',
+      '行业格局', '估值框架', '盈利预测与目标价', '业绩点评', '财务质量', '竞争格局', '股权与内部人',
+      '技术指标', '多指标综合',
       '方法论覆盖', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')
