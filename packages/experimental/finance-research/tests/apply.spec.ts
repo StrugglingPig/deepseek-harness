@@ -44,7 +44,10 @@ const CONFIG: Required<Config> = {
   fredBaseUrl: 'https://fred.test',
   worldBankBaseUrl: 'https://worldbank.test',
   imfBaseUrl: 'https://imf.test',
+  eiaBaseUrl: 'https://eia.test/v2',
+  cftcBaseUrl: 'https://cftc.test',
   enableFredRequests: true,
+  enableEiaRequests: true,
   requestCacheTtlMs: 0,
   requestCacheMaxEntries: 10,
   requestMaxRetries: 0,
@@ -121,6 +124,15 @@ describe('finance apply', () => {
         expect(url).toContain('api_key=fred-key')
         return new Response(JSON.stringify({ observations: [{ date: '2026-01-01', value: '4.5' }, { date: '2026-02-01', value: '4.7' }] }), { status: 200 })
       }
+      if (url.includes('/seriesid/')) {
+        expect(url).toContain('api_key=')
+        return new Response(JSON.stringify({ response: { data: [{ period: '2026-09-11', value: 415_000 }] } }), { status: 200 })
+      }
+      if (url.includes('cftc.test')) {
+        return new Response(JSON.stringify([
+          { report_date_as_yyyy_mm_dd: '2026-09-15T00:00:00.000', noncomm_positions_long_all: '258059', noncomm_positions_short_all: '27721' },
+        ]), { status: 200 })
+      }
       if (url.includes('/quotes/latest')) {
         return new Response(JSON.stringify({ data: [{ id: 1, name: 'Bitcoin', symbol: 'BTC', slug: 'bitcoin', quote: { USD: { price: 60_000 } } }] }), { status: 200 })
       }
@@ -166,6 +178,24 @@ describe('finance apply', () => {
     })
     expect(macro.isError).toBe(false)
     expect(textOfReport(macro)).toContain('4.7')
+
+    const energy = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'macro-eia' as never,
+      name: 'finance_macro_snapshot',
+      arguments: { indicators: ['eia-crude-stocks'], source: 'eia', limit: 1 },
+    })
+    expect(energy.isError).toBe(false)
+    expect(textOfReport(energy)).toContain('415000')
+
+    const positioning = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'macro-cftc' as never,
+      name: 'finance_macro_snapshot',
+      arguments: { indicators: ['cftc-gold-net'], source: 'cftc', limit: 1 },
+    })
+    expect(positioning.isError).toBe(false)
+    expect(textOfReport(positioning)).toContain('230338')
 
     const cmcStreamed = await ctx.tools.execute({
       signal: new AbortController().signal,

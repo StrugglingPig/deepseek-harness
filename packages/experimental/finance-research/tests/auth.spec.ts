@@ -13,7 +13,9 @@ import {
   GITHUB_TOKEN_REF,
   createCoinMarketCapRequestAuthorizer,
   COINGECKO_API_KEY_REF,
+  createEiaRequestAuthorizer,
   createFredRequestAuthorizer,
+  EIA_API_KEY_REF,
   FRED_API_KEY_REF,
 } from '../src/auth.ts'
 
@@ -168,6 +170,29 @@ describe('Binance request authorizer', () => {
     const untouched = new URL('https://api.stlouisfed.org/fred/series/observations')
     await authorize({ base: 'fred', path: '/fred/series/observations' }, untouched, {})
     expect(untouched.searchParams.has('api_key')).toBe(false)
+  })
+
+  it('adds the api_key query parameter to EIA requests only', async () => {
+    const authorize = createEiaRequestAuthorizer({
+      resolveCredential: async ref => ref === EIA_API_KEY_REF ? 'eia-key' : undefined,
+      enabled: () => true,
+    })
+    const url = new URL('https://api.eia.gov/v2/seriesid/PET.WCESTUS1.W')
+    await authorize({ base: 'eia', path: '/seriesid/PET.WCESTUS1.W', auth: 'api-key' }, url, {})
+    expect(url.searchParams.get('api_key')).toBe('eia-key')
+
+    const untouched = new URL('https://api.eia.gov/v2/seriesid/PET.WCESTUS1.W')
+    await authorize({ base: 'eia', path: '/seriesid/PET.WCESTUS1.W' }, untouched, {})
+    expect(untouched.searchParams.has('api_key')).toBe(false)
+  })
+
+  it('rejects a disabled EIA switch and a missing EIA key', async () => {
+    const disabled = createEiaRequestAuthorizer({ resolveCredential: async () => 'eia-key', enabled: () => false })
+    await expect(disabled({ base: 'eia', path: '/seriesid/x', auth: 'api-key' }, new URL('https://api.eia.gov'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_DISABLED' })
+    const missing = createEiaRequestAuthorizer({ resolveCredential: async () => undefined, enabled: () => true })
+    await expect(missing({ base: 'eia', path: '/seriesid/x', auth: 'api-key' }, new URL('https://api.eia.gov'), {}))
+      .rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
   })
 
   it('rejects a disabled FRED switch and a missing FRED key', async () => {

@@ -43,6 +43,9 @@ export type PluginsSettingsLocaleKey =
   | 'financeFinnhubBaseUrl' | 'financeFinnhubApiKey' | 'financeFinnhubApiKeyHint'
   | 'financeFredTitle' | 'financeEnableFredRequests' | 'financeEnableFredRequestsHint'
   | 'financeFredBaseUrl' | 'financeFredApiKey' | 'financeFredApiKeyHint' | 'financeFredApiKeyLink'
+  | 'financeCftcBaseUrl'
+  | 'financeEiaTitle' | 'financeEnableEiaRequests' | 'financeEnableEiaRequestsHint'
+  | 'financeEiaBaseUrl' | 'financeEiaApiKey' | 'financeEiaApiKeyHint' | 'financeEiaApiKeyLink'
   | 'financeStockTitle' | 'financeEnableAkshare' | 'financeEnableAkshareHint'
   | 'financeEnableIfind' | 'financeEnableIfindHint'
   | 'financeIfindTransport' | 'financeIfindTransportHint'
@@ -180,6 +183,14 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   financeFredApiKey: 'FRED API key',
   financeFredApiKeyHint: 'Stored on the Host and never returned to the model.',
   financeFredApiKeyLink: 'Request a free FRED API key',
+  financeCftcBaseUrl: 'CFTC Commitments of Traders endpoint',
+  financeEiaTitle: 'US Energy Information Administration (EIA)',
+  financeEnableEiaRequests: 'Enable EIA energy requests',
+  financeEnableEiaRequestsHint: 'Off by default. When on, the energy inventory series use the stored EIA API key.',
+  financeEiaBaseUrl: 'EIA API base URL',
+  financeEiaApiKey: 'EIA API key',
+  financeEiaApiKeyHint: 'Free key from the EIA open data service; used only by the Host.',
+  financeEiaApiKeyLink: 'Request a free EIA API key',
   financeCoinMarketCapApiKeyHint: 'Write-only. Stored outside settings; leave blank to keep the current key.',
   financeStockTitle: 'A-share stock bridge',
   financeEnableAkshare: 'Enable AKShare stock data',
@@ -345,6 +356,14 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   financeFredApiKey: 'FRED API Key',
   financeFredApiKeyHint: '仅保存在 Host，不会回传给模型。',
   financeFredApiKeyLink: '申请免费的 FRED API Key',
+  financeCftcBaseUrl: 'CFTC 持仓报告接口地址',
+  financeEiaTitle: '美国能源信息署（EIA）',
+  financeEnableEiaRequests: '启用 EIA 能源数据请求',
+  financeEnableEiaRequestsHint: '默认关闭。开启后，能源库存序列会使用已保存的 EIA API Key。',
+  financeEiaBaseUrl: 'EIA API 地址',
+  financeEiaApiKey: 'EIA API Key',
+  financeEiaApiKeyHint: 'EIA 开放数据服务的免费 Key，只由 Host 使用。',
+  financeEiaApiKeyLink: '申请免费的 EIA API Key',
   financeCoinMarketCapApiKeyHint: '只写。保存在设置文件之外；留空表示保持当前 Key。',
   financeStockTitle: 'A 股数据桥',
   financeEnableAkshare: '启用 AKShare 股票数据',

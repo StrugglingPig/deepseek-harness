@@ -7,13 +7,18 @@ import {
   SettingsFinanceMacroDataProvider, buildMacroSeries, normalizeObservations,
   type MacroObservation, type MacroSeriesLoader, type MacroSeriesQuery,
 } from '../src/macro.ts'
-import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader, type MacroHttpTransport } from '../src/macro-http.ts'
+import {
+  CftcMacroLoader, EiaMacroLoader, FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader,
+  type MacroHttpTransport,
+} from '../src/macro-http.ts'
 import { AkshareMacroLoader } from '../src/macro-akshare.ts'
 import type { FinanceJsonValue } from '../src/types.ts'
 
 const cpi = macroIndicatorById('us-cpi') as MacroIndicator
 const pmi = macroIndicatorById('cn-pmi') as MacroIndicator
 const worldGrowth = macroIndicatorById('global-gdp-growth') as MacroIndicator
+const crudeStocks = macroIndicatorById('eia-crude-stocks') as MacroIndicator
+const goldPositioning = macroIndicatorById('cftc-gold-net') as MacroIndicator
 
 function query(indicator: MacroIndicator, patch: Partial<MacroSeriesQuery> = {}): MacroSeriesQuery {
   return { indicator, country: indicator.country, ...patch }
@@ -300,6 +305,61 @@ describe('FRED loader', () => {
 
     const scalarBody = new FredMacroLoader(transport('nope'), () => true)
     await expect(scalarBody.load(query(cpi))).rejects.toThrow(/no observation array/)
+  })
+})
+
+describe('EIA loader', () => {
+  it('reads the seriesid route and skips blank periods', async () => {
+    const seen: unknown[] = []
+    const eia = new EiaMacroLoader(transport({
+      response: { data: [{ period: '2026-09-04', value: 415_000 }, { period: '2026-09-11', value: '' }, { period: 7, value: 1 }] },
+    }, request => seen.push(request)), () => true)
+    await expect(eia.load(query(crudeStocks))).resolves.toEqual([{ date: '2026-09-04', value: 415_000 }])
+    expect(seen[0]).toMatchObject({
+      base: 'eia',
+      path: '/seriesid/PET.WCESTUS1.W',
+      auth: 'api-key',
+    })
+  })
+
+  it('rejects an unbound indicator, a disabled switch, and a malformed body', async () => {
+    await expect(new EiaMacroLoader(transport({}), () => true).load(query(pmi))).rejects.toThrow(/has no EIA series/)
+    await expect(new EiaMacroLoader(transport({}), () => false).load(query(crudeStocks)))
+      .rejects.toMatchObject({ code: 'MACRO_SOURCE_DISABLED' })
+    await expect(new EiaMacroLoader(transport({ response: { data: 'nope' } }), () => true).load(query(crudeStocks)))
+      .rejects.toThrow(/no data rows/)
+    await expect(new EiaMacroLoader(transport({}), () => true).load(query(crudeStocks)))
+      .rejects.toThrow(/no data rows/)
+  })
+})
+
+describe('CFTC loader', () => {
+  it('reads the weekly non-commercial net position in date order', async () => {
+    const seen: unknown[] = []
+    const cftc = new CftcMacroLoader(transport([
+      { report_date_as_yyyy_mm_dd: '2026-09-15T00:00:00.000', noncomm_positions_long_all: '258059', noncomm_positions_short_all: '27721' },
+      { report_date_as_yyyy_mm_dd: '2026-09-08T00:00:00.000', noncomm_positions_long_all: 240_000, noncomm_positions_short_all: 20_000 },
+      { report_date_as_yyyy_mm_dd: '2026-09-01T00:00:00.000' },
+    ], request => seen.push(request)))
+    await expect(cftc.load(query(goldPositioning))).resolves.toEqual([
+      { date: '2026-09-08', value: 220_000 },
+      { date: '2026-09-15', value: 230_338 },
+    ])
+    expect(seen[0]).toMatchObject({
+      base: 'cftc',
+      path: '/resource/6dca-aqww.json',
+      query: {
+        $where: "market_and_exchange_names='GOLD - COMMODITY EXCHANGE INC.'",
+        $order: 'report_date_as_yyyy_mm_dd DESC',
+        $limit: '26',
+      },
+    })
+  })
+
+  it('rejects an unbound indicator and a malformed body', async () => {
+    await expect(new CftcMacroLoader(transport([])).load(query(pmi))).rejects.toThrow(/has no CFTC market/)
+    const scalar = new CftcMacroLoader(transport({ rows: [] }))
+    await expect(scalar.load(query(goldPositioning))).rejects.toThrow(/no report rows/)
   })
 })
 

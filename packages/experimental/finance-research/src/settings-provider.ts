@@ -48,7 +48,10 @@ export interface FinanceRuntimeSettings {
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
+  readonly eiaBaseUrl: string
+  readonly cftcBaseUrl: string
   readonly enableFredRequests: boolean
+  readonly enableEiaRequests: boolean
   readonly polymarketGammaBaseUrl: string
   readonly polymarketClobBaseUrl: string
   readonly enableSignedRequests: boolean
@@ -105,6 +108,8 @@ export class SettingsFinanceMarketDataProvider implements FinanceMarketDataProvi
       fredBaseUrl: settings.fredBaseUrl,
       worldBankBaseUrl: settings.worldBankBaseUrl,
       imfBaseUrl: settings.imfBaseUrl,
+      eiaBaseUrl: settings.eiaBaseUrl,
+      cftcBaseUrl: settings.cftcBaseUrl,
       polymarketGammaBaseUrl: settings.polymarketGammaBaseUrl,
       polymarketClobBaseUrl: settings.polymarketClobBaseUrl,
       authorize: this.authorize,

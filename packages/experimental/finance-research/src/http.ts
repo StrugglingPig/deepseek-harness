@@ -41,6 +41,8 @@ const DEFAULT_TIMEOUT_MS = 15_000
 const DEFAULT_BAR_LIMIT = 80
 const DEFAULT_YAHOO_BASE_URL = 'https://query1.finance.yahoo.com'
 const DEFAULT_FRED_BASE_URL = 'https://api.stlouisfed.org'
+const DEFAULT_EIA_BASE_URL = 'https://api.eia.gov/v2'
+const DEFAULT_CFTC_BASE_URL = 'https://publicreporting.cftc.gov'
 const DEFAULT_WORLDBANK_BASE_URL = 'https://api.worldbank.org'
 const DEFAULT_IMF_BASE_URL = 'https://www.imf.org/external/datamapper/api/v1'
 const DEFAULT_BINANCE_BASE_URL = 'https://api.binance.com'
@@ -143,6 +145,10 @@ export interface HttpFinanceMarketDataProviderOptions {
   readonly worldBankBaseUrl?: string
   /** IMF DataMapper origin. */
   readonly imfBaseUrl?: string
+  /** EIA API v2 origin. */
+  readonly eiaBaseUrl?: string
+  /** CFTC Commitments of Traders dataset endpoint. */
+  readonly cftcBaseUrl?: string
   /** Injectable clock for deterministic retrieved-at values. */
   readonly now?: () => Date
   /** Host-side authorization/signing applied before fetch. */
@@ -182,6 +188,8 @@ interface ResolvedOptions {
   readonly fredBaseUrl: string
   readonly worldBankBaseUrl: string
   readonly imfBaseUrl: string
+  readonly eiaBaseUrl: string
+  readonly cftcBaseUrl: string
   readonly now: () => Date
   readonly authorize?: FinanceRequestAuthorizer
 }
@@ -206,6 +214,8 @@ const PROVIDER_BASES: readonly FinanceProviderBase[] = [
   { name: 'fred', description: 'Federal Reserve Economic Data (FRED) series and observations', auth: 'api-key', docs: 'https://fred.stlouisfed.org/docs/api/fred/' },
   { name: 'worldbank', description: 'World Bank indicator API', auth: 'none', docs: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392' },
   { name: 'imf', description: 'IMF DataMapper macro indicators', auth: 'none', docs: 'https://www.imf.org/external/datamapper/api/help' },
+  { name: 'eia', description: 'EIA API v2 energy series', auth: 'api-key', docs: 'https://www.eia.gov/opendata/documentation.php' },
+  { name: 'cftc', description: 'CFTC Commitments of Traders weekly positioning', auth: 'none', docs: 'https://publicreporting.cftc.gov' },
 ]
 
 const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
@@ -223,6 +233,8 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
   fred: 'fredBaseUrl',
   worldbank: 'worldBankBaseUrl',
   imf: 'imfBaseUrl',
+  eia: 'eiaBaseUrl',
+  cftc: 'cftcBaseUrl',
 }
 
 /**
@@ -306,6 +318,8 @@ export class HttpFinanceMarketDataProvider implements FinanceMarketDataProvider 
       fredBaseUrl: options.fredBaseUrl ?? DEFAULT_FRED_BASE_URL,
       worldBankBaseUrl: options.worldBankBaseUrl ?? DEFAULT_WORLDBANK_BASE_URL,
       imfBaseUrl: options.imfBaseUrl ?? DEFAULT_IMF_BASE_URL,
+      eiaBaseUrl: options.eiaBaseUrl ?? DEFAULT_EIA_BASE_URL,
+      cftcBaseUrl: options.cftcBaseUrl ?? DEFAULT_CFTC_BASE_URL,
       now: options.now ?? (() => new Date()),
       ...options.authorize === undefined ? {} : { authorize: options.authorize },
     }

@@ -25,6 +25,8 @@ export const GITHUB_TOKEN_REF = 'FINANCE_GITHUB_TOKEN'
 export const FINNHUB_API_KEY_REF = 'FINANCE_FINNHUB_API_KEY'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
+/** Credential reference for the EIA API key. */
+export const EIA_API_KEY_REF = 'FINANCE_EIA_API_KEY'
 /** Credential reference for the iFinD account. */
 export const IFIND_USER_REF = 'FINANCE_IFIND_USER'
 /** Credential reference for the iFinD password. */
@@ -39,6 +41,7 @@ const COINGECKO_API_KEY_FIELD = 'coinGeckoApiKey'
 const GITHUB_TOKEN_FIELD = 'githubToken'
 const ALPHAVANTAGE_API_KEY_FIELD = 'finnhubApiKey'
 const FRED_API_KEY_FIELD = 'fredApiKey'
+const EIA_API_KEY_FIELD = 'eiaApiKey'
 const IFIND_USER_FIELD = 'ifindUser'
 const IFIND_PASSWORD_FIELD = 'ifindPassword'
 const IFIND_REFRESH_TOKEN_FIELD = 'ifindRefreshToken'
@@ -59,11 +62,14 @@ export interface FinanceSettings {
   coinGeckoBaseUrl?: string
   finnhubBaseUrl?: string
   fredBaseUrl?: string
+  eiaBaseUrl?: string
+  cftcBaseUrl?: string
   enableSignedRequests?: boolean
   enableCoinMarketCapRequests?: boolean
   enableCoinGeckoRequests?: boolean
   enableFinnhubRequests?: boolean
   enableFredRequests?: boolean
+  enableEiaRequests?: boolean
   enableAkshare?: boolean
   enableIfind?: boolean
   ifindTransport?: string
@@ -105,11 +111,14 @@ export interface FinanceCardState extends CardShell {
   coinGeckoBaseUrl: CardFieldState
   finnhubBaseUrl: CardFieldState
   fredBaseUrl: CardFieldState
+  eiaBaseUrl: CardFieldState
+  cftcBaseUrl: CardFieldState
   enableSignedRequests: CardFieldState
   enableCoinMarketCapRequests: CardFieldState
   enableCoinGeckoRequests: CardFieldState
   enableFinnhubRequests: CardFieldState
   enableFredRequests: CardFieldState
+  enableEiaRequests: CardFieldState
   enableAkshare: CardFieldState
   enableIfind: CardFieldState
   ifindTransport: CardFieldState
@@ -135,6 +144,7 @@ export interface FinanceCardState extends CardShell {
   githubToken: CardFieldState
   finnhubApiKey: CardFieldState
   fredApiKey: CardFieldState
+  eiaApiKey: CardFieldState
   ifindUser: CardFieldState
   ifindPassword: CardFieldState
   ifindRefreshToken: CardFieldState
@@ -145,6 +155,7 @@ export interface FinanceCardState extends CardShell {
   githubTokenConfigured: boolean
   finnhubApiKeyConfigured: boolean
   fredApiKeyConfigured: boolean
+  eiaApiKeyConfigured: boolean
   ifindUserConfigured: boolean
   ifindPasswordConfigured: boolean
   ifindRefreshTokenConfigured: boolean
@@ -155,6 +166,7 @@ export interface FinanceCardState extends CardShell {
   githubTokenWritable: boolean
   finnhubApiKeyWritable: boolean
   fredApiKeyWritable: boolean
+  eiaApiKeyWritable: boolean
   ifindUserWritable: boolean
   ifindPasswordWritable: boolean
   ifindRefreshTokenWritable: boolean
@@ -178,6 +190,7 @@ export class FinanceCardController {
   private githubToken: CredentialState = { configured: false, writable: true }
   private finnhubApiKey: CredentialState = { configured: false, writable: true }
   private fredApiKey: CredentialState = { configured: false, writable: true }
+  private eiaApiKey: CredentialState = { configured: false, writable: true }
   private ifindUser: CredentialState = { configured: false, writable: true }
   private ifindPassword: CredentialState = { configured: false, writable: true }
   private ifindRefreshToken: CredentialState = { configured: false, writable: true }
@@ -198,10 +211,10 @@ export class FinanceCardController {
         textField('binanceCoinmBaseUrl'), textField('binanceOptionsBaseUrl'),
         textField('polymarketGammaBaseUrl'), textField('polymarketClobBaseUrl'),
         textField('coinMarketCapBaseUrl'), textField('coinGeckoBaseUrl'), textField('finnhubBaseUrl'),
-        textField('fredBaseUrl'),
+        textField('fredBaseUrl'), textField('eiaBaseUrl'), textField('cftcBaseUrl'),
         booleanField('enableSignedRequests'), booleanField('enableCoinMarketCapRequests'),
         booleanField('enableCoinGeckoRequests'), booleanField('enableFinnhubRequests'),
-        booleanField('enableFredRequests'),
+        booleanField('enableFredRequests'), booleanField('enableEiaRequests'),
         booleanField('enableAkshare'), booleanField('enableIfind'),
         textField('ifindTransport'), textField('ifindBaseUrl'),
         textField('pythonExecutable'), numberField('stockBridgeTimeoutMs'),
@@ -220,6 +233,7 @@ export class FinanceCardController {
         { field: GITHUB_TOKEN_FIELD, write: text => this.writeCredential(GITHUB_TOKEN_REF, text) },
         { field: ALPHAVANTAGE_API_KEY_FIELD, write: text => this.writeCredential(FINNHUB_API_KEY_REF, text) },
         { field: FRED_API_KEY_FIELD, write: text => this.writeCredential(FRED_API_KEY_REF, text) },
+        { field: EIA_API_KEY_FIELD, write: text => this.writeCredential(EIA_API_KEY_REF, text) },
         { field: IFIND_USER_FIELD, write: text => this.writeCredential(IFIND_USER_REF, text) },
         { field: IFIND_PASSWORD_FIELD, write: text => this.writeCredential(IFIND_PASSWORD_REF, text) },
         { field: IFIND_REFRESH_TOKEN_FIELD, write: text => this.writeCredential(IFIND_REFRESH_TOKEN_REF, text) },
@@ -247,11 +261,14 @@ export class FinanceCardController {
       coinGeckoBaseUrl: this.form.field('coinGeckoBaseUrl'),
       finnhubBaseUrl: this.form.field('finnhubBaseUrl'),
       fredBaseUrl: this.form.field('fredBaseUrl'),
+      eiaBaseUrl: this.form.field('eiaBaseUrl'),
+      cftcBaseUrl: this.form.field('cftcBaseUrl'),
       enableSignedRequests: this.form.field('enableSignedRequests'),
       enableCoinMarketCapRequests: this.form.field('enableCoinMarketCapRequests'),
       enableCoinGeckoRequests: this.form.field('enableCoinGeckoRequests'),
       enableFinnhubRequests: this.form.field('enableFinnhubRequests'),
       enableFredRequests: this.form.field('enableFredRequests'),
+      enableEiaRequests: this.form.field('enableEiaRequests'),
       enableAkshare: this.form.field('enableAkshare'),
       enableIfind: this.form.field('enableIfind'),
       ifindTransport: this.form.field('ifindTransport'),
@@ -277,6 +294,7 @@ export class FinanceCardController {
       githubToken: this.form.field(GITHUB_TOKEN_FIELD),
       finnhubApiKey: this.form.field(ALPHAVANTAGE_API_KEY_FIELD),
       fredApiKey: this.form.field(FRED_API_KEY_FIELD),
+      eiaApiKey: this.form.field(EIA_API_KEY_FIELD),
       ifindUser: this.form.field(IFIND_USER_FIELD),
       ifindPassword: this.form.field(IFIND_PASSWORD_FIELD),
       ifindRefreshToken: this.form.field(IFIND_REFRESH_TOKEN_FIELD),
@@ -287,6 +305,7 @@ export class FinanceCardController {
       githubTokenConfigured: this.githubToken.configured,
       finnhubApiKeyConfigured: this.finnhubApiKey.configured,
       fredApiKeyConfigured: this.fredApiKey.configured,
+      eiaApiKeyConfigured: this.eiaApiKey.configured,
       ifindUserConfigured: this.ifindUser.configured,
       ifindPasswordConfigured: this.ifindPassword.configured,
       ifindRefreshTokenConfigured: this.ifindRefreshToken.configured,
@@ -297,6 +316,7 @@ export class FinanceCardController {
       githubTokenWritable: this.githubToken.writable,
       finnhubApiKeyWritable: this.finnhubApiKey.writable,
       fredApiKeyWritable: this.fredApiKey.writable,
+      eiaApiKeyWritable: this.eiaApiKey.writable,
       ifindUserWritable: this.ifindUser.writable,
       ifindPasswordWritable: this.ifindPassword.writable,
       ifindRefreshTokenWritable: this.ifindRefreshToken.writable,
@@ -318,6 +338,7 @@ export class FinanceCardController {
     const githubToken = response.value[GITHUB_TOKEN_REF]
     const finnhubApiKey = response.value[FINNHUB_API_KEY_REF]
     const fredApiKey = response.value[FRED_API_KEY_REF]
+    const eiaApiKey = response.value[EIA_API_KEY_REF]
     const ifindUser = response.value[IFIND_USER_REF]
     const ifindPassword = response.value[IFIND_PASSWORD_REF]
     const ifindRefreshToken = response.value[IFIND_REFRESH_TOKEN_REF]
@@ -334,6 +355,7 @@ export class FinanceCardController {
       writable: finnhubApiKey?.writable ?? true,
     }
     const nextFredKey = { configured: fredApiKey?.configured ?? false, writable: fredApiKey?.writable ?? true }
+    const nextEiaKey = { configured: eiaApiKey?.configured ?? false, writable: eiaApiKey?.writable ?? true }
     const nextIfindUser = { configured: ifindUser?.configured ?? false, writable: ifindUser?.writable ?? true }
     const nextIfindPassword = { configured: ifindPassword?.configured ?? false, writable: ifindPassword?.writable ?? true }
     const nextIfindRefreshToken = { configured: ifindRefreshToken?.configured ?? false, writable: ifindRefreshToken?.writable ?? true }
@@ -348,6 +370,7 @@ export class FinanceCardController {
       && nextFinnhubKey.configured === this.finnhubApiKey.configured
       && nextFinnhubKey.writable === this.finnhubApiKey.writable
       && nextFredKey.configured === this.fredApiKey.configured && nextFredKey.writable === this.fredApiKey.writable
+      && nextEiaKey.configured === this.eiaApiKey.configured && nextEiaKey.writable === this.eiaApiKey.writable
       && nextIfindUser.configured === this.ifindUser.configured && nextIfindUser.writable === this.ifindUser.writable
       && nextIfindPassword.configured === this.ifindPassword.configured
       && nextIfindPassword.writable === this.ifindPassword.writable
@@ -360,6 +383,7 @@ export class FinanceCardController {
     this.githubToken = nextGithubToken
     this.finnhubApiKey = nextFinnhubKey
     this.fredApiKey = nextFredKey
+    this.eiaApiKey = nextEiaKey
     this.ifindUser = nextIfindUser
     this.ifindPassword = nextIfindPassword
     this.ifindRefreshToken = nextIfindRefreshToken
@@ -387,6 +411,7 @@ export class FinanceCardController {
     if (ref === BINANCE_API_SECRET_REF) return this.apiSecret.configured
     if (ref === COINMARKETCAP_API_KEY_REF) return this.coinMarketCapApiKey.configured
     if (ref === FRED_API_KEY_REF) return this.fredApiKey.configured
+    if (ref === EIA_API_KEY_REF) return this.eiaApiKey.configured
     if (ref === IFIND_USER_REF) return this.ifindUser.configured
     if (ref === IFIND_PASSWORD_REF) return this.ifindPassword.configured
     return this.ifindRefreshToken.configured

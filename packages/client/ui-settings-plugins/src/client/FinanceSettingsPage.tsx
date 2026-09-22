@@ -19,6 +19,8 @@ export type FinanceSettingsPageProps =
  */
 /** FRED's free API-key request page. */
 const FRED_API_KEY_URL = 'https://fredaccount.stlouisfed.org/apikeys'
+/** EIA's free API-key request page. */
+const EIA_API_KEY_URL = 'https://www.eia.gov/opendata/register.php'
 
 export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
   const { t } = props
@@ -61,6 +63,7 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
         ['binanceOptionsBaseUrl', 'financeBinanceOptionsBaseUrl'],
         ['polymarketGammaBaseUrl', 'financePolymarketGammaBaseUrl'],
         ['polymarketClobBaseUrl', 'financePolymarketClobBaseUrl'],
+        ['cftcBaseUrl', 'financeCftcBaseUrl'],
       ] as const).map(([field, label]) => (
         <ValueField
           key={field}
@@ -119,6 +122,37 @@ export function FinanceSettingsPage(props: FinanceSettingsPageProps) {
       />
       <p className={css.hint}>
         <a className={css.keyLink} href={FRED_API_KEY_URL} target="_blank" rel="noreferrer">{t('financeFredApiKeyLink')}</a>
+      </p>
+      <h3 className={css.label}>{t('financeEiaTitle')}</h3>
+      <div className={css.field}>
+        <div className={css.head}>
+          <label className={css.label} htmlFor="finance-enable-eia">{t('financeEnableEiaRequests')}</label>
+        </div>
+        <input
+          id="finance-enable-eia"
+          type="checkbox"
+          checked={state.enableEiaRequests.text === 'true'}
+          disabled={disabled}
+          onChange={(event) => { props.edit('enableEiaRequests', event.target.checked ? 'true' : 'false') }}
+        />
+        <p className={css.hint}>{t('financeEnableEiaRequestsHint')}</p>
+      </div>
+      <ValueField id="finance-eia-base" label={t('financeEiaBaseUrl')} hint={t('financeEndpointHint')}
+        overriddenLabel={t('overridden')} resetLabel={t('reset')} invalidLabel={t('invalidNumber')}
+        disabled={disabled} {...state.eiaBaseUrl}
+        onEdit={(text) => { props.edit('eiaBaseUrl', text) }} onReset={() => { props.resetField('eiaBaseUrl') }} />
+      <SecretField
+        id="finance-eia-api-key"
+        label={t('financeEiaApiKey')}
+        hint={t('financeEiaApiKeyHint')}
+        disabled={!state.eiaApiKeyWritable}
+        text={state.eiaApiKey.text}
+        configured={state.eiaApiKeyConfigured}
+        stateLabel={state.eiaApiKeyConfigured ? t('financeCredentialSet') : t('financeCredentialUnset')}
+        onEdit={(text) => { props.edit('eiaApiKey', text) }}
+      />
+      <p className={css.hint}>
+        <a className={css.keyLink} href={EIA_API_KEY_URL} target="_blank" rel="noreferrer">{t('financeEiaApiKeyLink')}</a>
       </p>
       <h3 className={css.label}>{t('financeStockTitle')}</h3>
       <div className={css.field}>

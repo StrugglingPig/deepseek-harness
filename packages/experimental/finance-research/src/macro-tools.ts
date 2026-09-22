@@ -220,6 +220,8 @@ export const MACRO_REPORT_CONTEXT_IDS: readonly string[] = [
   // renders from the same context rather than from a per-commodity upstream.
   'brent-crude', 'natural-gas', 'copper-price',
   'usd-cny', 'usd-jpy', 'eur-usd', 'cn-3m-interbank-rate', 'jp-10y-yield',
+  'eia-crude-stocks', 'eia-gas-storage', 'cftc-wti-net', 'cftc-gold-net', 'cftc-copper-net',
+  'cftc-usd-index-net', 'cftc-euro-net', 'cftc-yen-net',
 ]
 
 /**

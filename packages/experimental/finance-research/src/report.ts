@@ -113,16 +113,29 @@ function macroBlock(
   id: ReportSectionId,
   categories: readonly MacroCategory[],
 ): ResearchReportSection {
-  const matched = context.macro.filter(series => categories.includes(series.category))
+  const matched = macroMatches(context, categories)
   if (matched.length === 0) return inputBlock(context, id)
-  const copy = context.copy
-  return {
-    title: copy.sections[sectionKey(id)],
-    content: matched.map((series) => {
-      const projection = series.latest.projection === true ? ' (projection)' : ''
-      return `- ${series.country.toUpperCase()} ${series.name}: ${number(series.latest.value)} ${series.unit} (${series.latest.date}${projection}, ${series.timing}, source ${series.source})`
-    }).join('\n'),
-  }
+  return { title: context.copy.sections[sectionKey(id)], content: matched.map(macroLine).join('\n') }
+}
+
+/**
+ * Select the loaded macro series a section consumes.
+ * @param context - Section context carrying the loaded series.
+ * @param categories - Macro dimensions the section reports.
+ * @returns The matching series, in catalog order.
+ */
+function macroMatches(context: SectionContext, categories: readonly MacroCategory[]): readonly MacroSeries[] {
+  return context.macro.filter(series => categories.includes(series.category))
+}
+
+/**
+ * Render one macro series as a report line.
+ * @param series - Loaded series with its latest observation.
+ * @returns The rendered line.
+ */
+function macroLine(series: MacroSeries): string {
+  const projection = series.latest.projection === true ? ' (projection)' : ''
+  return `- ${series.country.toUpperCase()} ${series.name}: ${number(series.latest.value)} ${series.unit} (${series.latest.date}${projection}, ${series.timing}, source ${series.source})`
 }
 
 /**
@@ -130,18 +143,24 @@ function macroBlock(
  * @param context - Section context carrying the report copy.
  * @param id - Section being rendered.
  * @param rendered - Block rendered from the data that did load.
+ * @param missing - Inputs no loaded source covers.
  * @returns The rendered block, or the input-demanding block when it carried no data.
  */
-function partialBlock(context: SectionContext, id: ReportSectionId, rendered: ResearchReportSection): ResearchReportSection {
+function partialBlock(
+  context: SectionContext,
+  id: ReportSectionId,
+  rendered: ResearchReportSection,
+  missing: readonly string[],
+): ResearchReportSection {
   const copy = context.copy
-  if (rendered.content.includes(copy.labels.blockMissing)) return rendered
+  if (rendered.content.includes(copy.labels.blockMissing) || missing.length === 0) return rendered
   const block = copy.blocks[id] as ReportBlockCopy
   return {
     title: rendered.title,
     content: [
       rendered.content,
       '',
-      `- ${copy.labels.partialMissing}${block.requires.join(', ')}`,
+      `- ${copy.labels.partialMissing}${missing.join(', ')}`,
       ...block.checks.map(item => `- ${item}`),
     ].join('\n'),
   }
@@ -424,7 +443,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
           `- ${copy.labels.atrStop}${percent(atrPercent)}`,
           `- ${copy.labels.positionSize}${percent(size)}`,
         ].join('\n'),
-      })
+      }, [copy.labels.missingIndexValuation, copy.labels.missingFundFlows, copy.labels.missingMacroRegime])
     }
     case 'catalysts': {
       // Scheduled dates and headlines are what a catalyst block can act on; the
@@ -443,10 +462,31 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
     }
     case 'ownership-and-insiders':
       return metricBlock(context, id, ['insider'])
-    case 'commodity-balance':
-      return partialBlock(context, id, macroBlock(context, id, ['commodity']))
-    case 'fx-drivers':
-      return partialBlock(context, id, macroBlock(context, id, ['currency']))
+    case 'commodity-balance': {
+      // Benchmarks price the market; inventories and futures positioning show the balance.
+      const benchmarks = macroMatches(context, ['commodity'])
+      const inventories = macroMatches(context, ['inventory'])
+      const balances = macroMatches(context, ['supply-demand'])
+      if (benchmarks.length === 0 && inventories.length === 0 && balances.length === 0) return inputBlock(context, id)
+      return partialBlock(context, id, {
+        title: copy.sections.commodityBalance,
+        content: [...benchmarks, ...inventories, ...balances].map(macroLine).join('\n'),
+      }, [
+        ...inventories.length === 0 ? [copy.labels.missingInventories] : [],
+        copy.labels.missingCostCurve,
+      ])
+    }
+    case 'fx-drivers': {
+      // The currency legs carry the rate differential, positioning carries the crowd,
+      // and the external series carry the balance of payments.
+      const positioning = macroMatches(context, ['positioning'])
+      const legs = [...macroMatches(context, ['currency']), ...positioning, ...macroMatches(context, ['external'])]
+      if (legs.length === 0) return inputBlock(context, id)
+      return partialBlock(context, id, {
+        title: copy.sections.fxDrivers,
+        content: legs.map(macroLine).join('\n'),
+      }, positioning.length === 0 ? [copy.labels.missingPositioning] : [])
+    }
     case 'monitoring-plan':
       return {
         title: copy.sections.monitoringPlan,
@@ -478,7 +518,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return partialBlock(context, id, {
         title: copy.sections.eventContext,
         content: [published.content, '', ...reaction].join('\n'),
-      })
+      }, [copy.labels.missingEventRecord])
     }
     case 'strategy-gaps':
       return {

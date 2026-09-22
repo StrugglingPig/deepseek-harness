@@ -39,8 +39,11 @@ export const COINGECKO_API_KEY_REF = 'FINANCE_COINGECKO_API_KEY'
 /** Credential reference for the FRED API key. */
 export const FRED_API_KEY_REF = 'FINANCE_FRED_API_KEY'
 
+/** Credential reference for the EIA API key. */
+export const EIA_API_KEY_REF = 'FINANCE_EIA_API_KEY'
+
 /** Bases whose requests carry an API key; each has exactly one owning authorizer. */
-const API_KEY_BASES: ReadonlySet<string> = new Set(['coingecko', 'coinmarketcap', 'finnhub', 'fred', 'github'])
+const API_KEY_BASES: ReadonlySet<string> = new Set(['coingecko', 'coinmarketcap', 'finnhub', 'fred', 'github', 'eia'])
 
 /** Options for CoinMarketCap API-key authorization. */
 export interface CoinMarketCapRequestAuthorizerOptions {
@@ -218,6 +221,25 @@ export function createFredRequestAuthorizer(
     const apiKey = await options.resolveCredential(FRED_API_KEY_REF)
     if (apiKey === undefined || apiKey.length === 0) {
       throw new FinanceDataError('FRED API key is not configured', 'AUTH_REQUIRED')
+    }
+    url.searchParams.set('api_key', apiKey)
+  }
+}
+
+/**
+ * Create the EIA API-key authorizer.
+ * @param options - credential resolver and feature switch.
+ * @returns an authorizer that adds the `api_key` query parameter to EIA requests.
+ */
+export function createEiaRequestAuthorizer(
+  options: CoinMarketCapRequestAuthorizerOptions,
+): FinanceRequestAuthorizer {
+  return async (request, url) => {
+    if (request.auth !== 'api-key' || request.base !== 'eia') return
+    if (!options.enabled()) throw new FinanceDataError('EIA requests are disabled in settings', 'AUTH_DISABLED')
+    const apiKey = await options.resolveCredential(EIA_API_KEY_REF)
+    if (apiKey === undefined || apiKey.length === 0) {
+      throw new FinanceDataError('EIA API key is not configured', 'AUTH_REQUIRED')
     }
     url.searchParams.set('api_key', apiKey)
   }

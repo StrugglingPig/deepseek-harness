@@ -1,4 +1,4 @@
-/** REST macro loaders: FRED, World Bank, and the IMF DataMapper. */
+/** REST macro loaders: FRED, World Bank, IMF DataMapper, EIA, and CFTC. */
 
 import { FinanceDataError } from './error.ts'
 import type { MacroObservation, MacroSeriesLoader, MacroSeriesQuery } from './macro.ts'
@@ -87,6 +87,96 @@ export class FredMacroLoader implements MacroSeriesLoader {
       if (typeof date !== 'string' || value === undefined) return []
       return [{ date, value }]
     })
+  }
+}
+
+/** EIA API v2 energy series, addressed through the `seriesid` route. */
+export class EiaMacroLoader implements MacroSeriesLoader {
+  readonly id = 'eia' as const
+
+  /**
+   * @param transport - Shared HTTP transport.
+   * @param enabled - Whether credentialed EIA requests are switched on in settings.
+   */
+  constructor(
+    private readonly transport: MacroHttpTransport,
+    private readonly enabled: () => boolean,
+  ) {}
+
+  /**
+   * Load one EIA series.
+   * @param query - Catalog request whose binding names the EIA series id.
+   * @param signal - optional caller cancellation.
+   * @returns Observations in upstream order.
+   */
+  async load(query: MacroSeriesQuery, signal?: AbortSignal): Promise<readonly MacroObservation[]> {
+    const seriesId = query.indicator.sources.eia?.seriesId
+    if (seriesId === undefined) {
+      throw new FinanceDataError(`${query.indicator.id} has no EIA series`, 'MACRO_SOURCE_UNAVAILABLE')
+    }
+    if (!this.enabled()) {
+      throw new FinanceDataError('EIA macro requests are disabled in settings', 'MACRO_SOURCE_DISABLED')
+    }
+    const response = await this.transport.request({
+      base: 'eia',
+      path: `/seriesid/${seriesId}`,
+      query: {},
+      auth: 'api-key',
+    }, signal)
+    // EIA returns one row per period with the value as a number or a blank string.
+    const rows = record(record(response.data)?.response)?.data
+    if (!Array.isArray(rows)) {
+      throw new FinanceDataError('EIA returned no data rows', 'MACRO_SOURCE_FAILED')
+    }
+    return rows.flatMap((row) => {
+      const entry = record(row)
+      const date = entry?.period
+      const value = finite(entry?.value)
+      if (typeof date !== 'string' || value === undefined) return []
+      return [{ date, value }]
+    })
+  }
+}
+
+/** CFTC Commitments of Traders weekly net positioning. */
+export class CftcMacroLoader implements MacroSeriesLoader {
+  readonly id = 'cftc' as const
+
+  /** @param transport - Shared HTTP transport. */
+  constructor(private readonly transport: MacroHttpTransport) {}
+
+  /**
+   * Load one market's weekly non-commercial net position.
+   * @param query - Catalog request whose binding names the CFTC market.
+   * @param signal - optional caller cancellation.
+   * @returns Observations in ascending report-date order.
+   */
+  async load(query: MacroSeriesQuery, signal?: AbortSignal): Promise<readonly MacroObservation[]> {
+    const market = query.indicator.sources.cftc?.market
+    if (market === undefined) {
+      throw new FinanceDataError(`${query.indicator.id} has no CFTC market`, 'MACRO_SOURCE_UNAVAILABLE')
+    }
+    const response = await this.transport.request({
+      base: 'cftc',
+      path: '/resource/6dca-aqww.json',
+      query: {
+        $where: `market_and_exchange_names='${market}'`,
+        $order: 'report_date_as_yyyy_mm_dd DESC',
+        $limit: '26',
+      },
+    }, signal)
+    if (!Array.isArray(response.data)) {
+      throw new FinanceDataError('CFTC returned no report rows', 'MACRO_SOURCE_FAILED')
+    }
+    const observations = response.data.flatMap((row) => {
+      const entry = record(row)
+      const reportDate = entry?.report_date_as_yyyy_mm_dd
+      const long = finite(entry?.noncomm_positions_long_all)
+      const short = finite(entry?.noncomm_positions_short_all)
+      if (typeof reportDate !== 'string' || long === undefined || short === undefined) return []
+      return [{ date: reportDate.slice(0, 10), value: long - short }]
+    })
+    return observations.sort((left, right) => left.date.localeCompare(right.date))
   }
 }
 

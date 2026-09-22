@@ -468,11 +468,14 @@ describe('FinanceSettingsPage', () => {
       coinGeckoBaseUrl: field('https://api.coingecko.test/v3'),
       finnhubBaseUrl: field('https://finnhub.test/api/v1'),
       fredBaseUrl: field('https://fred.test'),
+      eiaBaseUrl: field('https://api.eia.test/v2'),
+      cftcBaseUrl: field('https://cftc.test'),
       enableSignedRequests: field('true'),
       enableCoinMarketCapRequests: field('true'),
       enableCoinGeckoRequests: field('true'),
       enableFinnhubRequests: field('true'),
       enableFredRequests: field('true'),
+      enableEiaRequests: field('false'),
       enableAkshare: field('true'),
       enableIfind: field('true'),
       ifindTransport: field('http'),
@@ -498,6 +501,7 @@ describe('FinanceSettingsPage', () => {
       githubToken: field(''),
       finnhubApiKey: field(''),
       fredApiKey: field(''),
+      eiaApiKey: field(''),
       ifindUser: field(''),
       ifindPassword: field(''),
       ifindRefreshToken: field(''),
@@ -508,6 +512,7 @@ describe('FinanceSettingsPage', () => {
       githubTokenConfigured: true,
       finnhubApiKeyConfigured: true,
       fredApiKeyConfigured: true,
+      eiaApiKeyConfigured: false,
       ifindUserConfigured: true,
       ifindPasswordConfigured: true,
       ifindRefreshTokenConfigured: true,
@@ -518,6 +523,7 @@ describe('FinanceSettingsPage', () => {
       githubTokenWritable: true,
       finnhubApiKeyWritable: true,
       fredApiKeyWritable: true,
+      eiaApiKeyWritable: true,
       ifindUserWritable: true,
       ifindPasswordWritable: true,
       ifindRefreshTokenWritable: true,
@@ -630,6 +636,7 @@ describe('FinanceSettingsPage', () => {
       coinGeckoApiKeyConfigured: false,
       githubTokenConfigured: false,
       finnhubApiKeyConfigured: false,
+      eiaApiKeyConfigured: false,
       ifindUserConfigured: false,
       ifindPasswordConfigured: false,
       ifindRefreshTokenConfigured: false,
@@ -647,7 +654,8 @@ describe('FinanceSettingsPage', () => {
     fireEvent.change(screen.getByLabelText(en.financeIfindPassword), { target: { value: 'ifind-password' } })
     expect(screen.getByLabelText(en.financeProvider)).toHaveProperty('value', 'fixture')
     expect(screen.getByLabelText(en.financeIfindTransport)).toHaveProperty('value', 'http')
-    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(9)
+    // Every credential field renders its unset state while the owner is writable.
+    expect(screen.getAllByText(en.financeCredentialUnset)).toHaveLength(10)
   })
 
   it('disables settings and credential controls when their owners are read-only', () => {

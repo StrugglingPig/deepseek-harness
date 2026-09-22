@@ -473,7 +473,7 @@ describe('HTTP finance market data provider', () => {
       'binance-spot', 'binance-usdm', 'binance-coinm', 'binance-options',
       'yahoo', 'polymarket-gamma', 'polymarket-clob', 'coingecko', 'github', 'finnhub',
       'coinmarketcap',
-      'fred', 'worldbank', 'imf',
+      'fred', 'worldbank', 'imf', 'eia', 'cftc',
     ])
 
     await provider.request({ base: 'binance-spot', path: '/api/v3/ping' })

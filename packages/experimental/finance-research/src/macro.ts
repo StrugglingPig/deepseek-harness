@@ -174,11 +174,12 @@ export function buildMacroSeries(
 
 /**
  * Order that settles an `auto` tie when two upstreams publish the same latest
- * period: the authoritative long-history source first, then the local AKShare
- * bridge, then the global panels. It never decides which upstream wins outright;
- * recency does.
+ * period: the authoritative long-history and official statistical sources first,
+ * then the local AKShare bridge, then the global panels. It never decides which
+ * upstream wins outright; recency does. Every source a catalog binding can name
+ * has to appear here, because the provider only calls the loaders it lists.
  */
-const AUTO_TIE_BREAK: readonly MacroSourceId[] = ['fred', 'akshare', 'worldbank', 'imf']
+const AUTO_TIE_BREAK: readonly MacroSourceId[] = ['fred', 'eia', 'cftc', 'akshare', 'worldbank', 'imf']
 
 /** One upstream that answered an `auto` request. */
 interface MacroCandidate {

@@ -7,7 +7,7 @@
  */
 
 /** Upstreams that can serve a macro series. */
-export const MACRO_SOURCES = ['akshare', 'fred', 'worldbank', 'imf'] as const
+export const MACRO_SOURCES = ['akshare', 'fred', 'worldbank', 'imf', 'eia', 'cftc'] as const
 /** One macro upstream. */
 export type MacroSourceId = typeof MACRO_SOURCES[number]
 
@@ -19,6 +19,9 @@ export const MACRO_CATEGORIES = [
   // legs a commodity or FX report reads, so they stay out of the general macro
   // block and render in the commodity-balance and fx-drivers sections.
   'commodity', 'currency',
+  // Energy inventories, commodity futures positioning, and FX positioning carry
+  // the supply-demand balance and the crowd a commodity or FX report reads.
+  'inventory', 'supply-demand', 'positioning',
 ] as const
 /** One macro category. */
 export type MacroCategory = typeof MACRO_CATEGORIES[number]
@@ -55,6 +58,10 @@ export interface MacroSourceBindings {
   readonly worldbank?: { readonly indicator: string; readonly country: string }
   /** IMF DataMapper indicator id and country code. */
   readonly imf?: { readonly indicator: string; readonly country: string }
+  /** EIA API v2 series id, addressed through the `seriesid` route. */
+  readonly eia?: { readonly seriesId: string }
+  /** CFTC Commitments of Traders market name; net is longs minus shorts. */
+  readonly cftc?: { readonly market: string }
 }
 
 /** One macro indicator. */
@@ -407,6 +414,40 @@ export const MACRO_INDICATORS: readonly MacroIndicator[] = [
     'The JPY funding leg; a sustained rise unwinds carry positions funded in yen.',
     ['JPY', 'global bonds', 'carry trades'],
     { fred: { seriesId: 'IRLTLT01JPM156N' } }),
+
+  // Energy inventories and futures positioning
+  indicator('eia-crude-stocks', 'US crude oil ending stocks excluding SPR', '美国原油商业库存（不含战略储备）', 'inventory', 'us', 'thousand barrels', 'weekly', 'coincident',
+    'Stock builds confirm a surplus and pressure the front of the curve; draws tighten it.',
+    ['WTI', 'energy equities', 'inflation'],
+    { eia: { seriesId: 'PET.WCESTUS1.W' } }),
+  indicator('eia-gas-storage', 'US working natural gas in underground storage', '美国地下储气库工作气量', 'inventory', 'us', 'billion cubic feet', 'weekly', 'coincident',
+    'Storage against its seasonal range sets the gas curve and power-cost expectations.',
+    ['natural gas', 'utilities', 'fertilizers'],
+    { eia: { seriesId: 'NG.NW2_EPG0_SWO_R48_BCF.W' } }),
+  indicator('cftc-wti-net', 'WTI crude managed-money net position', 'WTI 原油管理基金净持仓', 'supply-demand', 'us', 'contracts', 'weekly', 'coincident',
+    'Crowded speculative length amplifies downside on any inventory build.',
+    ['WTI', 'energy equities'],
+    { cftc: { market: 'WTI-PHYSICAL - NEW YORK MERCANTILE EXCHANGE' } }),
+  indicator('cftc-gold-net', 'Gold non-commercial net position', '黄金非商业净持仓', 'supply-demand', 'global', 'contracts', 'weekly', 'coincident',
+    'Gold positioning shows how much of the move is speculative rather than reserve demand.',
+    ['gold', 'USD', 'real yields'],
+    { cftc: { market: 'GOLD - COMMODITY EXCHANGE INC.' } }),
+  indicator('cftc-copper-net', 'Copper non-commercial net position', '铜非商业净持仓', 'supply-demand', 'global', 'contracts', 'weekly', 'coincident',
+    'Copper length tracks the industrial cycle and warns when positioning runs ahead of demand.',
+    ['copper', 'industrial metals', 'mining equities'],
+    { cftc: { market: 'COPPER- #1 - COMMODITY EXCHANGE INC.' } }),
+  indicator('cftc-usd-index-net', 'US dollar index non-commercial net position', '美元指数非商业净持仓', 'positioning', 'us', 'contracts', 'weekly', 'coincident',
+    'Dollar positioning measures how crowded the reserve-currency trade already is.',
+    ['USD', 'EM assets', 'commodities'],
+    { cftc: { market: 'USD INDEX - ICE FUTURES U.S.' } }),
+  indicator('cftc-euro-net', 'Euro FX non-commercial net position', '欧元非商业净持仓', 'positioning', 'global', 'contracts', 'weekly', 'coincident',
+    'Euro positioning is the other leg of the dollar trade and reverses quickly on policy surprises.',
+    ['EUR', 'USD', 'European equities'],
+    { cftc: { market: 'EURO FX - CHICAGO MERCANTILE EXCHANGE' } }),
+  indicator('cftc-yen-net', 'Japanese yen non-commercial net position', '日元非商业净持仓', 'positioning', 'global', 'contracts', 'weekly', 'coincident',
+    'Yen shorts are the funding side of the carry trade; a squeeze transmits across risk assets.',
+    ['JPY', 'carry trades', 'global equities'],
+    { cftc: { market: 'JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE' } }),
 ]
 
 const BY_ID = new Map<string, MacroIndicator>(MACRO_INDICATORS.map(entry => [entry.id, entry]))

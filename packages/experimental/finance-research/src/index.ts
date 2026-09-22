@@ -10,7 +10,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   composeRequestAuthorizers,
   createBinanceRequestAuthorizer,
-  createCoinGeckoRequestAuthorizer, createCoinMarketCapRequestAuthorizer, createFredRequestAuthorizer,
+  createCoinGeckoRequestAuthorizer, createCoinMarketCapRequestAuthorizer, createEiaRequestAuthorizer,
+  createFredRequestAuthorizer,
   createFinnhubRequestAuthorizer,
   createGithubRequestAuthorizer,
   type FinanceCredentialResolver,
@@ -36,7 +37,7 @@ import {
 } from './asset-context.ts'
 import { registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
-import { FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
+import { CftcMacroLoader, EiaMacroLoader, FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
 import { SettingsFinanceMacroDataProvider } from './macro.ts'
 import type { MacroSeries } from './macro.ts'
 import { loadMacroContext, registerMacroTools } from './macro-tools.ts'
@@ -150,8 +151,14 @@ export interface Config {
   readonly worldBankBaseUrl?: string
   /** IMF DataMapper origin. */
   readonly imfBaseUrl?: string
+  /** EIA API v2 origin. */
+  readonly eiaBaseUrl?: string
+  /** CFTC Commitments of Traders dataset endpoint. */
+  readonly cftcBaseUrl?: string
   /** Whether the user permits credentialed FRED macro requests. */
   readonly enableFredRequests?: boolean
+  /** Whether the user permits credentialed EIA energy requests. */
+  readonly enableEiaRequests?: boolean
   /** Whether the user permits explicit signed Binance requests. */
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
@@ -222,7 +229,10 @@ export const Config: z<Config> = z.object({
   fredBaseUrl: z.string().default('https://api.stlouisfed.org'),
   worldBankBaseUrl: z.string().default('https://api.worldbank.org'),
   imfBaseUrl: z.string().default('https://www.imf.org/external/datamapper/api/v1'),
+  eiaBaseUrl: z.string().default('https://api.eia.gov/v2'),
+  cftcBaseUrl: z.string().default('https://publicreporting.cftc.gov'),
   enableFredRequests: z.boolean().default(false),
+  enableEiaRequests: z.boolean().default(false),
   enableSignedRequests: z.boolean().default(false),
   enableCoinMarketCapRequests: z.boolean().default(false),
   enableCoinGeckoRequests: z.boolean().default(false),
@@ -1165,7 +1175,10 @@ export function apply(ctx: Context, config: Config): void {
     fredBaseUrl: resolved.fredBaseUrl,
     worldBankBaseUrl: resolved.worldBankBaseUrl,
     imfBaseUrl: resolved.imfBaseUrl,
+    eiaBaseUrl: resolved.eiaBaseUrl,
+    cftcBaseUrl: resolved.cftcBaseUrl,
     enableFredRequests: resolved.enableFredRequests,
+    enableEiaRequests: resolved.enableEiaRequests,
     enableSignedRequests: resolved.enableSignedRequests,
     enableCoinMarketCapRequests: resolved.enableCoinMarketCapRequests,
     enableCoinGeckoRequests: resolved.enableCoinGeckoRequests,
@@ -1217,10 +1230,16 @@ export function apply(ctx: Context, config: Config): void {
       resolveCredential: ref => resolveCredential(ref),
       enabled: () => currentSettings.enableFredRequests,
     }),
+    createEiaRequestAuthorizer({
+      resolveCredential: ref => resolveCredential(ref),
+      enabled: () => currentSettings.enableEiaRequests,
+    }),
   )
   const provider = new SettingsFinanceMarketDataProvider(() => currentSettings, authorize)
   const macroProvider = new SettingsFinanceMacroDataProvider([
     new FredMacroLoader(provider, () => currentSettings.enableFredRequests),
+    new EiaMacroLoader(provider, () => currentSettings.enableEiaRequests),
+    new CftcMacroLoader(provider),
     new WorldBankMacroLoader(provider),
     new ImfMacroLoader(provider),
   ])

@@ -738,8 +738,14 @@ export interface Config {
   readonly worldBankBaseUrl?: string
   /** IMF DataMapper origin. */
   readonly imfBaseUrl?: string
+  /** EIA API v2 origin. */
+  readonly eiaBaseUrl?: string
+  /** CFTC Commitments of Traders dataset endpoint. */
+  readonly cftcBaseUrl?: string
   /** Whether the user permits credentialed FRED macro requests. */
   readonly enableFredRequests?: boolean
+  /** Whether the user permits credentialed EIA energy requests. */
+  readonly enableEiaRequests?: boolean
   /** Whether the user permits explicit signed Binance requests. */
   readonly enableSignedRequests?: boolean
   /** Whether the user permits CoinMarketCap API-key requests. */
@@ -787,7 +793,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:114`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:115`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 

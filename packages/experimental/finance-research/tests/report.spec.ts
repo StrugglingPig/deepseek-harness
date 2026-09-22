@@ -324,6 +324,28 @@ describe('macro blocks inside an asset report', () => {
     expect(fx).toContain('Still missing: ')
   })
 
+  it('drops the gap note once inventories and positioning loaded', async () => {
+    const macro = [
+      macroSeries('brent-crude', 130.8, 'commodity', 'global', 'USD/barrel', '2026-09-15'),
+      macroSeries('eia-crude-stocks', 415_000, 'inventory', 'us', 'thousand barrels', '2026-09-11'),
+      macroSeries('cftc-usd-index-net', 34_571, 'positioning', 'us', 'contracts', '2026-09-15'),
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'GLD', reportType: 'commodity-fx-deep-dive' },
+      undefined,
+      'en',
+      macro as never,
+    )
+    const balance = sectionOf(report, 'Supply And Demand Balance')
+    expect(balance).toContain('eia-crude-stocks')
+    // The cost curve has no upstream yet, so it stays named.
+    expect(balance).toContain('Still missing: the cost curve and futures term structure')
+    const fx = sectionOf(report, 'FX Drivers')
+    expect(fx).toContain('cftc-usd-index-net')
+    expect(fx).not.toContain('Still missing')
+  })
+
   it('keeps the input-demanding block when no commodity or currency series loaded', async () => {
     const report = await buildResearchReport(
       fixtureProvider,
