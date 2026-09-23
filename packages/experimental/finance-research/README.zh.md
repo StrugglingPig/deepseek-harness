@@ -178,7 +178,7 @@ Provider 不强制 endpoint whitelist。能获取哪些信息取决于上游 API
 - **面向全市场的 Finnhub 接口暂未接入** — 代码检索、市场状态与休市日历、全市场新闻属于市场级信息而非公司级信息，因此单公司查询不会请求它们，目前也没有金融工具消费这些数据。
 - **股票数据依赖 Provider 访问权限** — AKShare 需要安装 Python 包 `akshare`。iFinD HTTP 使用已授权账号的 refresh token；iFinD local 使用厂商 `iFinDPy` SDK 和账号/密码。依赖、凭据、权限或数据额度缺失时会显式失败。
 - **报告语言目前只有 `en` 和 `zh`** — `auto` 会把其他语言标签解析为英文；新增语言需要先提供对应报告词典。
-- **Web 仪表盘是独立插件** — 仪表盘从 Connection 的认证精确路由注册表读取 `/api/finance-dashboard/market`，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表；只有组合提供 Connection 时该路由才注册，私有账户数据仍只保留在 Host。
+- **Web 仪表盘是独立插件** — 仪表盘从 Connection 的认证精确路由注册表读取 `/api/finance-dashboard/market`，并通过 `lightweight-charts` 渲染加密货币、A 股和美股图表。美股响应还会带上模型研究摘要——参考价值区间、可信度等级、预注册动作、下次财报日与比率表——面板将其显示在图表旁边；研究读取失败时图表照常保留、只是不显示该摘要条。只有组合提供 Connection 时该路由才注册，私有账户数据仍只保留在 Host。
 - **方法论覆盖状态是显式的** — 只有所需数据存在时确定性方法才会运行；波浪计数、Wyckoff、横截面因子、统计套利、机器学习和微观结构方法仍作为需要额外输入或模型的目录项。
 - **Shared tool surface** — 同一组合中的每个 Agent Team 成员和 Workflow 子 Agent 都看到相同的金融工具；本包不提供按职责隔离工具。
 

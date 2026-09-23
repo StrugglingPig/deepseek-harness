@@ -1,3 +1,4 @@
+import type { ValuationAction, ValuationRatioId } from './valuation.ts'
 /** Wire contract shared by the Host dashboard route and the browser dashboard panel. */
 
 /** Absolute path of the dashboard market route on the authenticated API channel. */
@@ -28,6 +29,27 @@ export interface DashboardQuote {
 }
 
 /** One dashboard market response. */
+/** Compact research summary the dashboard shows beside the chart. */
+export interface DashboardResearch {
+  /** Upstream the figures came from. */
+  readonly source: string
+  /** Filing period the statement figures belong to. */
+  readonly reportedPeriod: string
+  /** Wording the recorded backtest allows for the value. */
+  readonly label: 'reference' | 'target'
+  /** Credibility grade, or undefined when the statements supported none. */
+  readonly grade: 'A' | 'B' | 'C' | 'D' | undefined
+  /** Action the pre-registered mapping states, or undefined when no value ran. */
+  readonly action: ValuationAction | undefined
+  /** Next scheduled earnings date, or undefined when the calendar published none. */
+  readonly nextEarnings: string | undefined
+  /** Model reference range, or undefined when the model could not value the instrument. */
+  readonly range: { readonly low: number; readonly high: number; readonly weighted: number } | undefined
+  /** One reading per ratio; a ratio without a value prints as not obtained. */
+  readonly ratios: readonly { readonly id: ValuationRatioId; readonly value: number | undefined }[]
+}
+
+/** One normalized dashboard answer: the bars, the quote, and any research summary beside them. */
 export interface DashboardMarketResponse {
   readonly asset: DashboardAsset
   readonly symbol: string
@@ -37,6 +59,8 @@ export interface DashboardMarketResponse {
   readonly asOf: string
   readonly bars: readonly DashboardBar[]
   readonly quote: DashboardQuote
+  /** Research summary for instruments the hosted model can read, absent otherwise. */
+  readonly research?: DashboardResearch
 }
 
 /**

@@ -30,13 +30,14 @@ import {
 } from './stock.ts'
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
+import { VALUATION_VALIDATION } from './validation-record.ts'
 import { VALUATION_PARAMETERS, type ValuationParameters } from './valuation.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import {
   cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromFundamentals,
   equityMetricsFromValuation, usComparableMetrics, usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
 } from './asset-context.ts'
-import { registerFinanceDashboardRoutes } from './dashboard.ts'
+import { dashboardResearchLoader, registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
 import { CftcMacroLoader, EiaMacroLoader, FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
 import { SettingsFinanceMacroDataProvider } from './macro.ts'
@@ -1433,6 +1434,7 @@ export function apply(ctx: Context, config: Config): void {
   registerFinanceDashboardRoutes(ctx, {
     market: provider,
     stock: () => stockProvider,
+    research: dashboardResearchLoader(provider, valuationParameters, VALUATION_VALIDATION),
     enabledStock: provider => provider === 'akshare'
       ? currentSettings.enableAkshare
       : currentSettings.enableIfind,

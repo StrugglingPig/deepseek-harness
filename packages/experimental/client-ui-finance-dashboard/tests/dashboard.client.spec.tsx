@@ -26,6 +26,7 @@ const state: FinanceDashboardState = {
   name: 'Bitcoin',
   source: 'binance-spot',
   asOf: '2026-09-20T00:00:00.000Z',
+  research: undefined,
   streamStatus: 'live',
   error: undefined,
 }
@@ -92,6 +93,60 @@ describe('FinanceDashboard', () => {
     expect(actions.setInterval).toHaveBeenCalledWith('1h')
     fireEvent.click(screen.getByRole('button', { name: en.refresh }))
     expect(actions.refresh).toHaveBeenCalledOnce()
+  })
+
+  it('renders the research summary the Host attached to a US snapshot', () => {
+    renderDashboard({
+      asset: 'us',
+      symbol: 'AAPL',
+      name: 'Apple Inc.',
+      research: {
+        source: 'finnhub',
+        reportedPeriod: 'FY2025 10-K',
+        label: 'reference',
+        grade: 'B',
+        action: 'reduce',
+        nextEarnings: '2026-10-22',
+        range: { low: 108.88, high: 147.57, weighted: 127.73 },
+        ratios: [
+          { id: 'netMargin', value: 26.92 },
+          { id: 'currentRatio', value: undefined },
+        ],
+      },
+    })
+    const summary = screen.getByRole('region', { name: en.researchTitle })
+    expect(within(summary).getByText('finnhub · Reported FY2025 10-K')).toBeDefined()
+    expect(within(summary).getByText('108.88 – 147.57')).toBeDefined()
+    expect(within(summary).getByText('127.73')).toBeDefined()
+    expect(within(summary).getByText('B')).toBeDefined()
+    expect(within(summary).getByText(en.actionReduce)).toBeDefined()
+    expect(within(summary).getByText('2026-10-22')).toBeDefined()
+    expect(within(summary).getByText('26.92')).toBeDefined()
+    // A ratio the statements cannot support prints as not obtained rather than blank.
+    expect(within(summary).getByText(en.researchMissing)).toBeDefined()
+  })
+
+  it('leaves the summary out when the snapshot carries none', () => {
+    renderDashboard()
+    expect(screen.queryByRole('region', { name: en.researchTitle })).toBeNull()
+    // A snapshot whose model could not value the instrument still shows the strip's ratios.
+    renderDashboard({
+      asset: 'us',
+      symbol: 'AAPL',
+      research: {
+        source: 'finnhub',
+        reportedPeriod: '',
+        label: 'reference',
+        grade: undefined,
+        action: undefined,
+        nextEarnings: undefined,
+        range: undefined,
+        ratios: [],
+      },
+    })
+    const summary = screen.getByRole('region', { name: en.researchTitle })
+    expect(within(summary).getByText('finnhub')).toBeDefined()
+    expect(within(summary).getAllByText(en.researchMissing).length).toBeGreaterThan(0)
   })
 
   it('renders the loading and empty panel states', () => {

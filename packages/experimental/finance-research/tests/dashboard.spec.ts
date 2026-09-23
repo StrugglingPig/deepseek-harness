@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FinanceDataError } from '../src/error.ts'
 import {
+  dashboardResearchLoader,
   loadDashboardMarket,
   parseDashboardRequest,
   registerFinanceDashboardRoutes,
@@ -9,7 +10,12 @@ import {
 import type { Context } from '@deepseek-ai/cordis'
 import { DASHBOARD_MARKET_PATH } from '../src/shared.ts'
 import type { DashboardBar } from '../src/shared.ts'
-import type { FinanceProviderRequest, FinanceProviderResponse, FinanceStockSnapshot } from '../src/types.ts'
+import { NO_BACKTEST } from '../src/backtest.ts'
+import { VALUATION_PARAMETERS } from '../src/valuation.ts'
+import type {
+  FinanceMarketDataProvider, FinanceProviderRequest, FinanceProviderResponse, FinanceStockSnapshot,
+  FinanceUsFundamentals,
+} from '../src/types.ts'
 
 /** Fetch route shape claimed from Connection's exact-route registry. */
 interface DashboardFetchRoute {
@@ -91,6 +97,105 @@ function deps(overrides: Partial<DashboardRouteDependencies> = {}): DashboardRou
   }
 }
 
+/**
+ * One reported set the loader can value, keyed the way the report builder emits it.
+ * @param overrides - Metric overrides for the case under test.
+ * @returns The provider answer.
+ */
+function fundamentalsWith(overrides: Readonly<Record<string, number>> = {}): FinanceUsFundamentals {
+  return {
+    symbol: 'AAPL',
+    name: 'Apple Inc.',
+    reportedFinancials: 'FY2025 10-K',
+    nextEarnings: '2026-10-22',
+    indicators: {
+      revenue: 1_000,
+      operatingIncome: 200,
+      netIncome: 150,
+      totalAssets: 1_000,
+      operatingCashFlow: 180,
+      capex: 20,
+      depreciation: 10,
+      marketCap: 10_000,
+      revenueGrowth: 6,
+      ...overrides,
+    },
+  }
+}
+
+/**
+ * Provider stub the loader reads; the chart seam is never called here.
+ * @param loadUsFundamentals - Fundamentals answer to serve, omitted to model a provider without the seam.
+ * @returns The provider.
+ */
+function researchProvider(
+  loadUsFundamentals?: (request: { readonly symbol: string }) => Promise<FinanceUsFundamentals | undefined>,
+): FinanceMarketDataProvider {
+  return {
+    id: 'stub',
+    load: async () => { throw new FinanceDataError('chart not used', 'DASHBOARD_UNAVAILABLE') },
+    ...loadUsFundamentals === undefined ? {} : { loadUsFundamentals },
+  }
+}
+
+describe('dashboard research summary', () => {
+  it('answers nothing when the provider cannot read US fundamentals', async () => {
+    const loader = dashboardResearchLoader(researchProvider(), () => VALUATION_PARAMETERS, NO_BACKTEST)
+    await expect(loader('AAPL', 100)).resolves.toBeUndefined()
+    const empty = dashboardResearchLoader(
+      researchProvider(async () => undefined),
+      () => VALUATION_PARAMETERS,
+      NO_BACKTEST,
+    )
+    await expect(empty('AAPL', 100)).resolves.toBeUndefined()
+  })
+
+  it('summarizes the model read the report would print', async () => {
+    const loader = dashboardResearchLoader(
+      researchProvider(async () => fundamentalsWith()),
+      () => VALUATION_PARAMETERS,
+      NO_BACKTEST,
+    )
+    const research = await loader('AAPL', 100)
+    expect(research).toMatchObject({
+      source: 'finnhub',
+      reportedPeriod: 'FY2025 10-K',
+      label: 'reference',
+      nextEarnings: '2026-10-22',
+    })
+    expect(research?.range?.low).toBeLessThan(research?.range?.high as number)
+    expect(research?.range?.weighted).toBeGreaterThan(0)
+    expect(research?.ratios.find(reading => reading.id === 'netMargin')?.value).toBeCloseTo(15, 6)
+    // Ratios the statements cannot support still travel, so the panel can print them as not obtained.
+    expect(research?.ratios.find(reading => reading.id === 'currentRatio')?.value).toBeUndefined()
+  })
+
+  it('carries the empty period and no next earnings when the filing published neither', async () => {
+    const loader = dashboardResearchLoader(
+      researchProvider(async () => {
+        const answer = fundamentalsWith()
+        return { symbol: answer.symbol, indicators: answer.indicators }
+      }),
+      () => VALUATION_PARAMETERS,
+      NO_BACKTEST,
+    )
+    const research = await loader('AAPL', 100)
+    expect(research?.reportedPeriod).toBe('')
+    expect(research?.nextEarnings).toBeUndefined()
+  })
+
+  it('leaves the range out when the model cannot value the instrument', async () => {
+    const loader = dashboardResearchLoader(
+      researchProvider(async () => fundamentalsWith({ operatingIncome: -50 })),
+      () => VALUATION_PARAMETERS,
+      NO_BACKTEST,
+    )
+    const research = await loader('AAPL', 100)
+    expect(research?.range).toBeUndefined()
+    expect(research?.action).toBeUndefined()
+    expect(research?.label).toBe('reference')
+  })
+})
 describe('finance dashboard market route', () => {
   it('parses and validates dashboard query parameters', () => {
     expect(parseDashboardRequest(new URL('http://localhost/api?asset=stock&symbol=600519&interval=1w&provider=ifind&limit=50')))
@@ -112,6 +217,40 @@ describe('finance dashboard market route', () => {
       bars: [{ open: 100, high: 110, low: 95, close: 105, volume: 12 }],
       quote: { price: 105, currency: 'USDT' },
     })
+  })
+
+  it('attaches the research summary to a US snapshot and survives a failing read', async () => {
+    const summary = {
+      source: 'finnhub',
+      reportedPeriod: 'FY2025 10-K',
+      label: 'reference' as const,
+      grade: undefined,
+      action: undefined,
+      nextEarnings: undefined,
+      range: undefined,
+      ratios: [],
+    }
+    const research = vi.fn(async () => summary)
+    const withResearch = await loadDashboardMarket(
+      parseDashboardRequest(new URL('http://localhost/api?asset=us&symbol=AAPL&interval=1d')),
+      deps({ research }),
+    )
+    expect(withResearch.research).toEqual(summary)
+    expect(research).toHaveBeenCalledWith('AAPL', 105, undefined)
+
+    // A failing research read leaves the chart mounted without its summary strip.
+    const failing = await loadDashboardMarket(
+      parseDashboardRequest(new URL('http://localhost/api?asset=us&symbol=AAPL&interval=1d')),
+      deps({ research: async () => { throw new FinanceDataError('finnhub down', 'PROVIDER_FAILED') } }),
+    )
+    expect(failing.research).toBeUndefined()
+    expect(failing.bars.length).toBeGreaterThan(0)
+    // Without a loader the route answers the chart alone.
+    const bare = await loadDashboardMarket(
+      parseDashboardRequest(new URL('http://localhost/api?asset=us&symbol=AAPL&interval=1d')),
+      deps(),
+    )
+    expect(bare.research).toBeUndefined()
   })
 
   it('normalizes Yahoo equity bars and quote', async () => {

@@ -7,6 +7,7 @@ import type {
   DashboardInterval,
   DashboardMarketResponse,
   DashboardQuote,
+  DashboardResearch,
 } from '@deepseek-ai/dsh-experimental-finance-research/shared'
 
 export type {
@@ -15,6 +16,7 @@ export type {
   DashboardInterval,
   DashboardMarketResponse,
   DashboardQuote,
+  DashboardResearch,
 }
 
 /** One normalized value in an indicator series. */

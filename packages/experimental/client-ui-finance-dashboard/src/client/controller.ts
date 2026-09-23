@@ -14,6 +14,7 @@ import {
   type DashboardBar,
   type DashboardInterval,
   type DashboardQuote,
+  type DashboardResearch,
 } from './market-data.ts'
 
 const DEFAULT_LIMIT = 240
@@ -30,6 +31,8 @@ export interface FinanceDashboardState {
   readonly name: string | undefined
   readonly source: string | undefined
   readonly asOf: string | undefined
+  /** Research summary the Host attached to a US equity snapshot. */
+  readonly research: DashboardResearch | undefined
   readonly streamStatus: 'disconnected' | 'connecting' | 'live' | 'error'
   readonly error: string | undefined
 }
@@ -164,6 +167,7 @@ export class FinanceDashboardController {
       name: undefined,
       source: undefined,
       asOf: undefined,
+      research: undefined,
       streamStatus: 'disconnected',
       error: undefined,
     })
@@ -222,6 +226,7 @@ export class FinanceDashboardController {
         name: parsed.name,
         source: parsed.source,
         asOf: parsed.asOf,
+        research: parsed.research,
         error: undefined,
       })
     } catch (error) {

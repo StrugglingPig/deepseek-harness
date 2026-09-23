@@ -1,10 +1,17 @@
 /** Host-side market data for the Web finance dashboard. */
 
+import { usMetricsFromFundamentals } from './asset-context.ts'
+import { buildValuation, buildValuationInputs, type ValuationParameters } from './valuation.ts'
+import type { ValuationValidation } from './backtest.ts'
+import type { FinanceMarketDataProvider } from './types.ts'
+
+
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import { FinanceDataError } from './error.ts'
 import {
   DASHBOARD_MARKET_PATH,
+  type DashboardResearch,
   barFromRow,
   type DashboardAsset,
   type DashboardBar,
@@ -38,6 +45,8 @@ export interface DashboardRouteDependencies {
   readonly market: DashboardMarketProvider
   readonly stock: () => DashboardStockProvider | undefined
   readonly enabledStock: (provider: FinanceStockProviderId) => boolean
+  /** Loads the research summary the dashboard shows beside a US equity chart. */
+  readonly research?: (symbol: string, price: number, signal?: AbortSignal) => Promise<DashboardResearch | undefined>
   readonly now?: () => Date
 }
 
@@ -183,6 +192,45 @@ export function parseDashboardRequest(url: URL): {
 }
 
 /**
+ * Build the research loader the US equity route calls.
+ * @param provider - Market-data provider carrying the settings-backed US fundamentals seam.
+ * @param parameters - Reads the valuation parameters the current settings resolve to.
+ * @param validation - Recorded backtest evidence that decides the wording.
+ * @returns A loader that answers one summary per symbol, or undefined when the provider cannot answer.
+ */
+export function dashboardResearchLoader(
+  provider: FinanceMarketDataProvider,
+  parameters: () => ValuationParameters,
+  validation: ValuationValidation,
+): (symbol: string, price: number, signal?: AbortSignal) => Promise<DashboardResearch | undefined> {
+  return async (symbol, price, signal) => {
+    if (provider.loadUsFundamentals === undefined) return undefined
+    const fundamentals = await provider.loadUsFundamentals({ symbol }, signal)
+    if (fundamentals === undefined) return undefined
+    const analysis = buildValuation(
+      buildValuationInputs(usMetricsFromFundamentals(fundamentals), [], price),
+      parameters(),
+      validation,
+    )
+    const value = analysis.value
+    return {
+      source: 'finnhub',
+      reportedPeriod: fundamentals.reportedFinancials ?? '',
+      label: analysis.label,
+      grade: analysis.quality.grade,
+      action: value === undefined ? undefined : analysis.verdict.action,
+      nextEarnings: fundamentals.nextEarnings,
+      range: value === undefined ? undefined : {
+        low: value.lowValuePerShare,
+        high: value.highValuePerShare,
+        weighted: value.weightedValuePerShare,
+      },
+      ratios: analysis.ratios.map(reading => ({ id: reading.id, value: reading.value })),
+    }
+  }
+}
+
+/**
  * Load one normalized dashboard response.
  * @param request - Parsed dashboard request.
  * @param deps - Market and stock providers owned by the route.
@@ -222,6 +270,11 @@ export async function loadDashboardMarket(
       query: { range: yahooRange(request.interval), interval: request.interval === '1M' ? '1mo' : request.interval },
     }, signal)
     const parsed = parseYahooBars(response.data)
+    const quote = quoteFromBars(parsed.bars, parsed.currency)
+    // A failing research read leaves the chart mounted without its summary strip.
+    const research = deps.research === undefined
+      ? undefined
+      : await deps.research(request.symbol, quote.price, signal).catch(() => undefined)
     return {
       asset: request.asset,
       symbol: request.symbol,
@@ -230,7 +283,8 @@ export async function loadDashboardMarket(
       source: 'yahoo-finance',
       asOf: new Date((parsed.bars.at(-1) as DashboardBar).time).toISOString(),
       bars: parsed.bars,
-      quote: quoteFromBars(parsed.bars, parsed.currency),
+      quote,
+      ...research === undefined ? {} : { research },
     }
   }
   const stock = deps.stock()

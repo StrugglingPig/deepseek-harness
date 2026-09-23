@@ -64,6 +64,13 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
   const latest = state.bars.at(-1)
   const currentAsset = state.asset
   const indicators = resolveIndicators(preferences.enabled, preferences.parameters)
+  const ACTION_LABELS = {
+    accumulate: 'actionAccumulate',
+    hold: 'actionHold',
+    reduce: 'actionReduce',
+    watch: 'actionWatch',
+    avoid: 'actionAvoid',
+  } as const
   const indicatorLabel = (indicator: (typeof indicators)[number]): string =>
     `${t(indicator.spec.labelKey)}${indicatorParameterSuffix(indicator.spec, indicator.values)}`
   const [draft, setDraft] = useState(state.symbol)
@@ -175,6 +182,54 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
             <strong>{state.name ?? state.symbol}</strong>
             <span>{state.symbol} · {state.source} · {state.asOf?.slice(0, 19).replace('T', ' ') ?? ''}</span>
           </div>
+          {state.research === undefined ? null : (
+            <section className={css.research} aria-label={t('researchTitle')}>
+              <header>
+                <strong>{t('researchTitle')}</strong>
+                <span>
+                  {state.research.source}
+                  {state.research.reportedPeriod === '' ? '' : ` · ${t('researchReported')} ${state.research.reportedPeriod}`}
+                </span>
+              </header>
+              <div className={css.researchGrid}>
+                <article>
+                  <span>{t('researchRange')}</span>
+                  <strong>
+                    {state.research.range === undefined
+                      ? t('researchMissing')
+                      : `${formatNumber(state.research.range.low)} – ${formatNumber(state.research.range.high)}`}
+                  </strong>
+                </article>
+                <article>
+                  <span>{t('researchWeighted')}</span>
+                  <strong>{state.research.range === undefined ? t('researchMissing') : formatNumber(state.research.range.weighted)}</strong>
+                </article>
+                <article>
+                  <span>{t('researchGrade')}</span>
+                  <strong>{state.research.grade ?? t('researchMissing')}</strong>
+                </article>
+                <article>
+                  <span>{t('researchAction')}</span>
+                  <strong>{state.research.action === undefined
+                    ? t('researchMissing')
+                    : t(ACTION_LABELS[state.research.action])}</strong>
+                </article>
+                <article>
+                  <span>{t('researchNextEarnings')}</span>
+                  <strong>{state.research.nextEarnings ?? t('researchMissing')}</strong>
+                </article>
+              </div>
+              <ul className={css.researchRatios}>
+                {state.research.ratios.map(reading => (
+                  <li key={reading.id}>
+                    <span>{t(reading.id)}</span>
+                    <strong>{reading.value === undefined ? t('researchMissing') : formatNumber(reading.value)}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p>{t('researchNote')}</p>
+            </section>
+          )}
           <div className={css.metrics}>
             <article><span>{t('close')}</span><strong>{formatNumber(state.quote?.price ?? latest.close)}</strong></article>
             <article><span>{t('change')}</span><strong data-direction={(state.quote?.changePercent ?? 0) >= 0 ? 'up' : 'down'}>{formatChange(state.quote?.changePercent)}</strong></article>
