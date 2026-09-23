@@ -22,7 +22,7 @@ export type ReportColumnKey =
   | 'name' | 'value' | 'source' | 'region' | 'date' | 'timing' | 'direction'
   | 'confidence' | 'status' | 'scenario' | 'price' | 'relative' | 'item' | 'method'
   | 'signal' | 'weight' | 'note' | 'company' | 'year' | 'revenue' | 'revenueGrowth' | 'netIncome' | 'eps'
-  | 'low' | 'high' | 'range'
+  | 'low' | 'high' | 'range' | 'versusDefault' | 'parameter'
 
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
@@ -60,7 +60,8 @@ export type ValuationLabelKey =
   | 'sensitivityTitle' | 'terminalTitle' | 'ratiosTitle' | 'qualityTitle' | 'earningsPathTitle'
   | 'notObtained' | 'modelNotice' | 'shareCountNotice' | 'suppressedNotice' | 'noGradeNotice'
   | 'verdictAction' | 'verdictTradingDirection' | 'targetRange' | 'targetNotice' | 'failedNotice'
-  | 'footballField' | 'assumptions' | 'tearsheet' | 'bandSensitivity'
+  | 'footballField' | 'assumptions' | 'assumptionNote' | 'assumptionDefault' | 'assumptionAdjusted'
+  | 'tearsheet' | 'bandSensitivity'
   | 'terminalBreached' | 'terminalWithin' | 'missingInputs'
 
 /** Locale copy the model valuation section renders. */
@@ -363,6 +364,8 @@ const EN: ReportCopy = {
     low: 'Low',
     high: 'High',
     range: 'Range',
+    versusDefault: 'Against default',
+    parameter: 'Parameter',
   },
   metrics: {
     eps: 'Diluted EPS',
@@ -538,7 +541,10 @@ const EN: ReportCopy = {
       failedNotice: 'The recorded out-of-sample backtest over {samples} symbol-dates on {asOf} did not beat the unchanged-price control ({modelMae} against {controlMae} mean absolute error), so this stays a model reference value rather than a target price.',
       verdictTradingDirection: 'One-to-three-month direction',
       footballField: 'Value range across methods',
-      assumptions: 'Model assumptions and sources',
+      assumptions: 'Model assumptions',
+      assumptionNote: 'Each parameter prints the value the model ran with; a changed parameter also names the default it moved from.',
+      assumptionDefault: 'Default',
+      assumptionAdjusted: 'Adjusted (default {value})',
       tearsheet: 'Sourced figures',
       bandSensitivity: 'Cost-of-capital range',
       modelNotice: 'This is a model reference range, not a target price or fair value, and the model has not passed an out-of-sample backtest.',
@@ -958,6 +964,8 @@ const ZH: ReportCopy = {
     low: '下限',
     high: '上限',
     range: '区间',
+    versusDefault: '与默认值',
+    parameter: '参数',
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -1147,7 +1155,10 @@ const ZH: ReportCopy = {
       failedNotice: '已记录的样本外回测（{samples} 个“标的×日期”样本，回测日期 {asOf}）没有跑赢“价格不变”控制组（平均绝对误差 {modelMae} 对 {controlMae}），因此本数值仍是模型参考价值，而不是目标价。',
       verdictTradingDirection: '1–3 个月方向',
       footballField: '各方法价值区间',
-      assumptions: '模型假设与来源',
+      assumptions: '模型假设',
+      assumptionNote: '每个参数给出模型实际使用的取值；若已改动，同时给出默认值。',
+      assumptionDefault: '默认',
+      assumptionAdjusted: '已调整（默认 {value}）',
       tearsheet: '关键数据与来源',
       bandSensitivity: '资本成本区间',
       modelNotice: '以上是模型参考价值区间，不是目标价或公允价值，且本模型尚未通过样本外回测。',

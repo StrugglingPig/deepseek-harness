@@ -243,6 +243,50 @@ export function buildValueBands(value: CashFlowValue): readonly ValuationBand[] 
   ]
 }
 
+/** How one assumption reads in the report, and the default it is compared with. */
+export interface ValuationAssumption {
+  /** Config field that sets it, as it appears in cordis.yml and the settings panel. */
+  readonly configField: string
+  readonly value: number
+  readonly defaultValue: number
+  /** Unit the value is read in: a count of years, a percent, or a probability. */
+  readonly unit: 'years' | 'percent' | 'probability'
+}
+
+/** Unit each parameter is read in, keyed by the parameter name. */
+const ASSUMPTION_UNITS: Readonly<Record<keyof ValuationParameters, ValuationAssumption['unit']>> = {
+  explicitYears: 'years',
+  fadeYears: 'years',
+  terminalGrowthPercent: 'percent',
+  equityRiskPremiumPercent: 'percent',
+  riskFreeFallbackPercent: 'percent',
+  creditSpreadPercent: 'percent',
+  taxRateFallbackPercent: 'percent',
+  bearGrowthShiftPercent: 'percent',
+  bullGrowthShiftPercent: 'percent',
+  bearMarginShiftPercent: 'percent',
+  bullMarginShiftPercent: 'percent',
+  bearProbability: 'probability',
+  bullProbability: 'probability',
+  accumulateUpsidePercent: 'percent',
+  reduceUpsidePercent: 'percent',
+  terminalValueCeilingPercent: 'percent',
+}
+
+/**
+ * Read every parameter the model ran with, beside the default it was compared against.
+ * @param parameters - Parameters the report ran with.
+ * @returns One row per parameter, naming the config field that sets it.
+ */
+export function buildAssumptions(parameters: ValuationParameters): readonly ValuationAssumption[] {
+  return (Object.keys(ASSUMPTION_UNITS) as readonly (keyof ValuationParameters)[]).map(field => ({
+    configField: `valuation${field.charAt(0).toUpperCase()}${field.slice(1)}`,
+    value: parameters[field],
+    defaultValue: VALUATION_PARAMETERS[field],
+    unit: ASSUMPTION_UNITS[field],
+  }))
+}
+
 /** One report's complete valuation read. */
 export interface ValuationAnalysis {
   /** Parameters the model ran with, so the report can print every assumption it made. */

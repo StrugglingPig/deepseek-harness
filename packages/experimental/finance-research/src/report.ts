@@ -12,8 +12,9 @@ import { buildEarningsForecast, type EarningsForecast, type EarningsForecastInpu
 import { VALUATION_VALIDATION } from './validation-record.ts'
 import type { ValuationValidation } from './backtest.ts'
 import {
-  buildValuation, buildValuationInputs, buildValueBands, VALUATION_PARAMETERS,
-  type CashFlowValue, type ValuationAnalysis, type ValuationBand, type ValuationParameters, type ValuationScenario,
+  buildAssumptions, buildValuation, buildValuationInputs, buildValueBands, VALUATION_PARAMETERS,
+  type CashFlowValue, type ValuationAnalysis, type ValuationAssumption, type ValuationBand,
+  type ValuationParameters, type ValuationScenario,
 } from './valuation.ts'
 import type {
   FinanceMarketDataProvider,
@@ -218,6 +219,17 @@ function forecastInputs(
     ...metricValueOf(metrics, 'netMargin') === undefined ? {} : { netMargin: metricValueOf(metrics, 'netMargin') as number },
     fromYear,
   }
+}
+
+/**
+ * Render one assumption value in the unit it is read in.
+ * @param row - Assumption row.
+ * @param value - Value to render; the row's own value when omitted.
+ * @returns The value with its unit.
+ */
+function assumptionValue(row: ValuationAssumption, value: number = row.value): string {
+  if (row.unit === 'percent') return percent(value)
+  return number(value, 2).replace(/\.00$/u, '')
 }
 
 /** One value rendered as money in the report's instrument currency. */
@@ -530,12 +542,16 @@ function valuationSection(context: SectionContext): ResearchReportSection {
       '',
       `**${labels.assumptions}**`,
       table(
-        [copy.columns.item, copy.columns.value, copy.columns.source],
-        // The table names each assumption by its config field, so a reader can change it in the panel.
-        Object.entries(valuation.parameters).map(([name, amount]) => [
-          `valuation${name.charAt(0).toUpperCase()}${name.slice(1)}`, number(amount as number, 2), 'assumption',
+        [copy.columns.parameter, copy.columns.value, copy.columns.versusDefault],
+        buildAssumptions(valuation.parameters).map(row => [
+          row.configField,
+          assumptionValue(row),
+          row.value === row.defaultValue
+            ? labels.assumptionDefault
+            : formatCopy(labels.assumptionAdjusted, { value: assumptionValue(row, row.defaultValue) }),
         ]),
       ),
+      `- ${labels.assumptionNote}`,
       '',
       `**${labels.ratiosTitle}**`,
       table(

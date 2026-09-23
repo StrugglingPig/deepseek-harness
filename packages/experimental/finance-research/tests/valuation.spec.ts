@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AssetMetric } from '../src/asset-context.ts'
 import type { MacroSeries } from '../src/macro.ts'
 import {
-  VALUATION_PARAMETERS, buildCashFlowValue, buildCostOfCapital, buildEarningsQuality, buildRatios, buildValueBands,
+  VALUATION_PARAMETERS, buildAssumptions, buildCashFlowValue, buildCostOfCapital, buildEarningsQuality, buildRatios, buildValueBands,
   buildValuation, buildValuationInputs, buildVerdict,
   type CashFlowValue, type ValuationInputs, type ValuationParameters,
 } from '../src/valuation.ts'
@@ -362,6 +362,22 @@ describe('complete valuation read', () => {
     expect(analysis.quality.grade).toBe('A')
     expect(analysis.value?.scenarios).toHaveLength(3)
     expect(analysis.verdict.suppressed).toBe(false)
+  })
+
+  it('reads every assumption beside the default it was compared against', () => {
+    const rows = buildAssumptions(VALUATION_PARAMETERS)
+    expect(rows).toHaveLength(16)
+    expect(rows[0]).toEqual({
+      configField: 'valuationExplicitYears', value: 3, defaultValue: 3, unit: 'years',
+    })
+    expect(rows.find(row => row.configField === 'valuationEquityRiskPremiumPercent'))
+      .toMatchObject({ value: 4.5, defaultValue: 4.5, unit: 'percent' })
+    expect(rows.find(row => row.configField === 'valuationBearProbability'))
+      .toMatchObject({ value: 0.25, unit: 'probability' })
+    // A parameter the deployment moved reports both values, so the report can name the default.
+    const adjusted = buildAssumptions({ ...VALUATION_PARAMETERS, terminalGrowthPercent: 1.5 })
+    expect(adjusted.find(row => row.configField === 'valuationTerminalGrowthPercent'))
+      .toMatchObject({ value: 1.5, defaultValue: 2.5 })
   })
 
   it('labels the value from the recorded backtest evidence', () => {

@@ -189,8 +189,13 @@ describe('finance research report', () => {
     // The football field carries one text bar per method, scaled to the same axis.
     expect(valuation).toContain('| Low | High | Range |')
     expect(valuation).toMatch(/\| FCFF DCF \| [\d,.]+ \| [\d,.]+ \| [·█│]{20} \|/u)
-    expect(valuation).toContain('**Model assumptions and sources**')
-    expect(valuation).toContain('| valuationEquityRiskPremiumPercent | 4.50 | assumption |')
+    expect(valuation).toContain('**Model assumptions**')
+    expect(valuation).toContain('| Parameter | Value | Against default |')
+    expect(valuation).toContain('| valuationEquityRiskPremiumPercent | 4.50% | Default |')
+    expect(valuation).toContain('| valuationBearProbability | 0.25 | Default |')
+    // The assumption sheet carries no source column: an assumption has no upstream to name.
+    const assumptions = valuation.slice(valuation.indexOf('**Model assumptions**'))
+    expect(assumptions.slice(0, assumptions.indexOf('**Financial ratios**'))).not.toContain('Source')
     expect(valuation).toContain('**Sourced figures**')
     expect(valuation).toContain('| Market cap | 3,800,000,000,000.00 USD | finnhub | FY2025 10-K |')
     expect(valuation).toContain('| Operating cash flow | 111,482,000,000.00 USD | finnhub | FY2025 10-K |')
