@@ -380,6 +380,19 @@ describe('complete valuation read', () => {
       .toMatchObject({ value: 1.5, defaultValue: 2.5 })
   })
 
+  it('starts the path from the multi-year reported base rate', () => {
+    const metrics = metricsFor({ revenue: 1_331, revenueGrowth: 30, revenueCagr: 10, operatingIncome: 200, marketCap: 10_000 })
+    const inputs = buildValuationInputs(metrics, [], 100)
+    expect(inputs.revenueGrowthPercent).toBe(30)
+    expect(inputs.revenueCagrPercent).toBe(10)
+    // The path starts from the base rate, so a spike in the trailing year does not set it.
+    const cost = costOf(INPUT) as never
+    void cost
+    const parameters = VALUATION_PARAMETERS
+    const value = buildCashFlowValue({ ...INPUT, revenueCagrPercent: 10 }, parameters, costOf(INPUT))
+    expect(value?.scenarios.map(scenario => scenario.startingGrowthPercent)).toEqual([5, 10, 15])
+  })
+
   it('labels the value from the recorded backtest evidence', () => {
     const reference = buildValuation(INPUT, VALUATION_PARAMETERS)
     expect(reference.label).toBe('reference')

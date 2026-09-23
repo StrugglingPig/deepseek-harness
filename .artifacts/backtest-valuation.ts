@@ -28,6 +28,8 @@ const SYMBOLS = [
 const HORIZON_DAYS = 365
 /** Days after a period end before the filing counts as available. */
 const FILING_LAG_DAYS = 90
+/** Years the base rate compounds over. */
+const BASE_YEARS = 3
 
 const json = async <T>(url: string): Promise<T> => {
   const response = await fetch(url, { signal: AbortSignal.timeout(30_000) })
@@ -86,6 +88,7 @@ console.log(`yields: ${allYields.length} observations`)
 function inputsFor(
   period: FinnhubReportedPeriod,
   previous: FinnhubReportedPeriod | undefined,
+  basePeriod: FinnhubReportedPeriod | undefined,
   price: number,
   riskFreePercent: number,
   asOf: string,
@@ -94,6 +97,10 @@ function inputsFor(
   const growth = previous?.lines.revenue === undefined || lines.revenue === undefined || previous.lines.revenue <= 0
     ? undefined
     : (lines.revenue / previous.lines.revenue - 1) * 100
+  const base = basePeriod?.lines.revenue
+  const cagr = base === undefined || lines.revenue === undefined || base <= 0
+    ? undefined
+    : ((lines.revenue / base) ** (1 / BASE_YEARS) - 1) * 100
   const shares = lines.sharesOutstanding
   if (shares === undefined || shares <= 0 || growth === undefined) return undefined
   const values = {
@@ -121,6 +128,7 @@ function inputsFor(
     price,
     reportedPeriod: period.label,
     revenueGrowthPercent: growth,
+    ...cagr === undefined ? {} : { revenueCagrPercent: cagr },
     marketCap: price * shares,
     // The free metric endpoint publishes only the current beta, so the backtest holds it at one.
     beta: 1,
@@ -151,7 +159,9 @@ for (const symbol of SYMBOLS) {
       const exitPrice = firstOnOrAfter(prices, shiftDays(asOf, HORIZON_DAYS))
       const riskFree = latestOnOrBefore(allYields, asOf)
       if (entryPrice === undefined || exitPrice === undefined || riskFree === undefined) continue
-      const inputs = inputsFor(period, previous, entryPrice, riskFree, asOf)
+      const basePeriod = periods.slice(index + BASE_YEARS).find(candidate =>
+        candidate.endDate !== undefined && candidate.endDate < (period.endDate as string))
+      const inputs = inputsFor(period, previous, basePeriod, entryPrice, riskFree, asOf)
       if (inputs === undefined) continue
       const analysis = buildValuation(inputs, VALUATION_PARAMETERS)
       const value = analysis.value?.weightedValuePerShare
@@ -205,10 +215,10 @@ const record = `/**
 import type { ValuationValidation } from './backtest.ts'
 
 /** Latest recorded backtest; the no-evidence record until one has run. */
-export const VALUATION_VALIDATION: ValuationValidation | undefined = ${
+export const VALUATION_VALIDATION: ValuationValidation = ${
   validation === undefined ? 'undefined' : JSON.stringify(validation, null, 2)
     .replaceAll('"', "'")
-    .replaceAll('\n}', ',\n}')}
+    .replace(/\n}\n$/, ',\n}\n').replace(/\n  },\n}\n$/, '\n  },\n}\n')}
 `
 writeFileSync('packages/experimental/finance-research/src/validation-record.ts', record)
 console.log(`\nrecorded: ${validation === undefined ? 'none' : `${summary?.samples} samples`}; label stays ${label}`)

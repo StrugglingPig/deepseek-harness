@@ -28,7 +28,7 @@ export const REPORT_METRIC_KEYS = [
   // Reported statement lines the financial-quality block quotes.
   'buybacks', 'capex', 'cash', 'currentAssets', 'currentLiabilities', 'depreciation', 'dividendsPaid', 'equity',
   'freeCashFlow', 'grossProfit', 'interestExpense', 'liabilities', 'operatingCashFlow', 'operatingIncome',
-  'pretaxIncome', 'retainedEarnings', 'stockBasedCompensation', 'taxExpense', 'totalAssets', 'totalDebt',
+  'pretaxIncome', 'retainedEarnings', 'revenueCagr', 'stockBasedCompensation', 'taxExpense', 'totalAssets', 'totalDebt',
 ] as const
 
 /** One metric key a report knows how to label. */
@@ -68,6 +68,7 @@ const EQUITY_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, str
   ['netMargin', 'profitability', '%'],
   ['operatingMargin', 'profitability', '%'],
   ['revenueGrowth', 'growth', '%'],
+  ['revenueCagr', 'growth', '%'],
   ['profitGrowth', 'growth', '%'],
   ['debtRatio', 'balance', '%'],
   ['currentRatio', 'balance', ''],
@@ -347,6 +348,7 @@ const US_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string]
   ['roa', 'profitability', '%'],
   ['roe', 'profitability', '%'],
   ['revenueGrowth', 'growth', '%'],
+  ['revenueCagr', 'growth', '%'],
   ['epsGrowth', 'growth', '%'],
   ['beta', 'market', ''],
 ]

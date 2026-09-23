@@ -16,11 +16,11 @@ export const VALUATION_VALIDATION: ValuationValidation = {
   'summary': {
     'samples': 63,
     'horizonMonths': 12,
-    'modelMaePercent': 66.9303,
+    'modelMaePercent': 58.0925,
     'controlMaePercent': 19.2468,
-    'modelHitRate': 0.1746,
-    'modelBiasPercent': 8.8306,
-    'dmStatistic': 3.757,
-    'dmPValue': 0.000172,
+    'modelHitRate': 0.2063,
+    'modelBiasPercent': 3.4658,
+    'dmStatistic': 3.6134,
+    'dmPValue': 0.000302,
   },
 }

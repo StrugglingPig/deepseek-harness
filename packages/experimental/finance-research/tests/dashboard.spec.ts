@@ -240,6 +240,7 @@ describe('finance dashboard market route', () => {
     const request = vi.fn(async (_request: FinanceProviderRequest) => marketResponse({
       release_dates: [
         { date: '2026-09-24', release_name: 'Gross Domestic Product' },
+        { date: '2026-09-24', release_name: 'CBOE Market Statistics' },
         { date: '2026-09-25' },
         { release_name: 'Employment Situation' },
       ],
@@ -248,7 +249,11 @@ describe('finance dashboard market route', () => {
     // The window is the point of the read: an unbounded ask returns the oldest dates in the dataset.
     const sent = request.mock.calls[0]?.[0] as FinanceProviderRequest
     expect(sent.query).toMatchObject({ realtime_start: '2026-09-23', realtime_end: '2026-12-22' })
-    expect(events).toEqual([{ date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' }])
+    // The watched release leads the day it shares with a daily series.
+    expect(events).toEqual([
+      { date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' },
+      { date: '2026-09-24', label: 'CBOE Market Statistics', source: 'fred' },
+    ])
 
     // A key FRED will not serve leaves the calendar empty instead of failing the panel.
     const unavailable = await loadDashboardEvents({

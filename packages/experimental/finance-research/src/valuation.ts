@@ -116,6 +116,8 @@ export interface ValuationInputs {
   readonly interestExpense?: number
   /** Trailing revenue growth the path starts from, in percent. */
   readonly revenueGrowthPercent?: number
+  /** Compound annual revenue growth across the annual filings, in percent. */
+  readonly revenueCagrPercent?: number
   /** Published five-year beta. */
   readonly beta?: number
   /** Market capitalisation in the reporting currency. */
@@ -356,9 +358,14 @@ export function buildValuationInputs(
     ...statement('pretaxIncome') === undefined ? {} : { pretaxIncome: statement('pretaxIncome') as number },
     ...statement('taxExpense') === undefined ? {} : { taxExpense: statement('taxExpense') as number },
     ...statement('interestExpense') === undefined ? {} : { interestExpense: statement('interestExpense') as number },
+    // The multi-year reported CAGR is the base rate; the trailing figure only stands in when the
+    // filing history is too short to compound.
     ...metricOf(metrics, 'revenueGrowth') === undefined
       ? {}
       : { revenueGrowthPercent: metricOf(metrics, 'revenueGrowth') as number },
+    ...metricOf(metrics, 'revenueCagr') === undefined
+      ? {}
+      : { revenueCagrPercent: metricOf(metrics, 'revenueCagr') as number },
     ...metricOf(metrics, 'beta') === undefined ? {} : { beta: metricOf(metrics, 'beta') as number },
     ...metricOf(metrics, 'marketCap') === undefined ? {} : { marketCap: metricOf(metrics, 'marketCap') as number },
     ...metricOf(metrics, 'epsTtm') === undefined ? {} : { epsTtm: metricOf(metrics, 'epsTtm') as number },
@@ -658,7 +665,7 @@ export function buildCashFlowValue(
 ): CashFlowValue | undefined {
   const basis = cashFlowBasis(inputs, parameters, cost)
   if (basis === undefined) return undefined
-  const reportedGrowth = inputs.revenueGrowthPercent ?? 0
+  const reportedGrowth = inputs.revenueCagrPercent ?? inputs.revenueGrowthPercent ?? 0
   const paths: readonly (readonly ['bear' | 'base' | 'bull', number, number, number])[] = [
     ['bear', parameters.bearProbability, reportedGrowth + parameters.bearGrowthShiftPercent, parameters.bearMarginShiftPercent],
     ['base', 1 - parameters.bearProbability - parameters.bullProbability, reportedGrowth, 0],

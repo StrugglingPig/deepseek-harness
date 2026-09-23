@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   insiderTradeTotals, latestAnalystConsensus, latestEpsSurprise, latestInsiderSentiment,
-  latestMaterialFiling, latestReportedFinancials, nextEarningsDate, reportedFinancialsHistory,
+  latestMaterialFiling, latestReportedFinancials, nextEarningsDate, reportedFinancialsHistory, reportedRevenueCagr,
   normalizeFinnhubExtras, normalizeFinnhubFundamentals,
 } from '../src/finnhub.ts'
 
@@ -260,6 +260,46 @@ describe('Finnhub free-tier extras', () => {
     ])
     expect(reportedFinancialsHistory({})).toEqual([])
     expect(reportedFinancialsHistory(undefined)).toEqual([])
+  })
+
+  it('compounds the reported revenue across the annual filings', () => {
+    const payload = { data: [
+      { year: 2025, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 1_331 }] } },
+      { year: 2024, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 1_100 }] } },
+      { year: 2023, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 1_050 }] } },
+      { year: 2022, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 1_000 }] } },
+      // A quarterly filing never anchors the annual base rate.
+      { year: 2026, quarter: 2, form: '10-Q', report: { ic: [{ concept: 'us-gaap_Revenues', value: 9_999 }] } },
+    ] }
+    expect(reportedRevenueCagr(payload, 3)).toBeCloseTo(10, 6)
+    // A history shorter than the window carries no base rate.
+    expect(reportedRevenueCagr(payload, 9)).toBeUndefined()
+    expect(reportedRevenueCagr({ data: [
+      { year: 2025, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 100 }] } },
+    ] }, 1)).toBeUndefined()
+    // A zero or negative figure at either end cannot compound.
+    expect(reportedRevenueCagr({ data: [
+      { year: 2025, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 100 }] } },
+      { year: 2024, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 0 }] } },
+    ] }, 1)).toBeUndefined()
+    expect(reportedRevenueCagr({ data: [
+      { year: 2025, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 0 }] } },
+      { year: 2024, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 100 }] } },
+    ] }, 1)).toBeUndefined()
+  })
+
+  it('carries the multi-year base rate when four annual filings answer', () => {
+    const today = new Date('2026-09-22T00:00:00.000Z')
+    const annual = [1_331, 1_100, 1_050, 1_000].map((value, index) => ({
+      year: 2025 - index,
+      quarter: 0,
+      form: '10-K',
+      report: { ic: [{ concept: 'us-gaap_Revenues', value }] },
+    }))
+    const extras = normalizeFinnhubExtras({ reported: { data: annual } }, today)
+    expect(extras.revenueCagr).toBeCloseTo(10, 6)
+    // A shorter history leaves the base rate out rather than guessing one.
+    expect(normalizeFinnhubExtras({ reported: { data: annual.slice(0, 2) } }, today).revenueCagr).toBeUndefined()
   })
 
   it('falls back to the concept each filer uses and drops the lines a filing omitted', () => {

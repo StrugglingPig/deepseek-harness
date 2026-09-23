@@ -383,6 +383,24 @@ export function reportedFinancialsHistory(payload: unknown): readonly FinnhubRep
 }
 
 /**
+ * Compound the reported revenue across the available annual filings.
+ * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
+ * @param years - Years to compound over, counted from the newest filing.
+ * @returns The compound annual growth rate in percent, or undefined when the history is too short.
+ */
+export function reportedRevenueCagr(payload: unknown, years: number): number | undefined {
+  const annual = reportedFinancialsHistory(payload)
+    .filter(period => period.form === '10-K' && period.lines.revenue !== undefined)
+  const newest = annual[0]
+  const oldest = annual[years]
+  if (newest === undefined || oldest === undefined) return undefined
+  const start = oldest.lines.revenue as number
+  const end = newest.lines.revenue as number
+  if (start <= 0 || end <= 0) return undefined
+  return ((end / start) ** (1 / years) - 1) * 100
+}
+
+/**
  * Read the period label and the reported lines of the newest reported statements.
  * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
  * @returns The label with whatever lines the statement published, or undefined when no period was published.
@@ -410,6 +428,8 @@ export interface FinnhubExtras {
   readonly reportedFinancials?: string
   /** Reported statement lines keyed by metric name, carrying the period `reportedFinancials` names. */
   readonly reportedLines?: Readonly<Record<string, number>>
+  /** Compound annual revenue growth across the annual filings, in percent. */
+  readonly revenueCagr?: number
 }
 
 /**
@@ -439,6 +459,8 @@ export function normalizeFinnhubExtras(
   const trades = insiderTradeTotals(payloads.transactions, today, 90)
   const filing = latestMaterialFiling(payloads.filings)
   const reported = latestReportedFinancials(payloads.reported)
+  // The base rate the growth assumption has to beat, read from the same filing history.
+  const cagr = reportedRevenueCagr(payloads.reported, 3)
   return {
     ...headlines.length === 0 ? {} : { headlines },
     ...nextEarnings === undefined ? {} : { nextEarnings },
@@ -454,5 +476,6 @@ export function normalizeFinnhubExtras(
     ...filing.form === undefined ? {} : { latestFilingForm: filing.form },
     ...filing.date === undefined ? {} : { latestFilingDate: filing.date },
     ...reported === undefined ? {} : { reportedFinancials: reported.label, reportedLines: reported.lines },
+    ...cagr === undefined ? {} : { revenueCagr: cagr },
   }
 }

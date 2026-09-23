@@ -31,6 +31,12 @@ import type {
   MarketBar,
 } from './types.ts'
 
+/** Release names a trader watches; these fill the calendar before anything else does. */
+const KEY_RELEASES = [
+  'consumer price', 'producer price', 'employment situation', 'unemployment',
+  'gross domestic product', 'personal consumption', 'retail sales', 'fomc', 'jolts',
+]
+
 /** Provider surface required by the dashboard route. */
 export interface DashboardMarketProvider {
   request(request: FinanceProviderRequest, signal?: AbortSignal): Promise<FinanceProviderResponse>
@@ -307,11 +313,17 @@ export async function loadDashboardEvents(
       },
     }, signal)
     const releases = rows(record(response.data)?.release_dates)
-    return releases.flatMap((row) => {
+    const events = releases.flatMap((row) => {
       const date = stringValue(row.date)
       const label = stringValue(row.release_name)
       return date === undefined || label === undefined ? [] : [{ date, label, source: 'fred' }]
     })
+    // Same-day daily series would otherwise fill the whole calendar, so the releases a trader
+    // watches come first and the rest only fill what is left.
+    const keyed = events.filter(event =>
+      KEY_RELEASES.some(name => event.label.toLowerCase().includes(name)))
+    const rest = events.filter(event => !keyed.includes(event))
+    return [...keyed, ...rest].slice(0, limit)
   } catch {
     // The calendar is context, so a FRED answer the key cannot serve leaves the panel without it.
     return []
