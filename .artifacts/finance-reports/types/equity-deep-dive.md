@@ -125,25 +125,26 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 | 零增长盈利能力价值 | 74.21 | 74.21 | █··················│ |
 | 资本成本区间 | 111.26 | 148.30 | ···███·············│ |
 
-**模型假设与来源**
-| 项目 | 数值 | 来源 |
+**模型假设**
+| 参数 | 数值 | 与默认值 |
 | --- | --- | --- |
-| valuationExplicitYears | 3.00 | assumption |
-| valuationFadeYears | 4.00 | assumption |
-| valuationTerminalGrowthPercent | 2.50 | assumption |
-| valuationEquityRiskPremiumPercent | 4.50 | assumption |
-| valuationRiskFreeFallbackPercent | 4.00 | assumption |
-| valuationCreditSpreadPercent | 1.20 | assumption |
-| valuationTaxRateFallbackPercent | 21.00 | assumption |
-| valuationBearGrowthShiftPercent | -5.00 | assumption |
-| valuationBullGrowthShiftPercent | 5.00 | assumption |
-| valuationBearMarginShiftPercent | -2.00 | assumption |
-| valuationBullMarginShiftPercent | 2.00 | assumption |
-| valuationBearProbability | 0.25 | assumption |
-| valuationBullProbability | 0.25 | assumption |
-| valuationAccumulateUpsidePercent | 15.00 | assumption |
-| valuationReduceUpsidePercent | -10.00 | assumption |
-| valuationTerminalValueCeilingPercent | 75.00 | assumption |
+| valuationExplicitYears | 3 | 默认 |
+| valuationFadeYears | 4 | 默认 |
+| valuationTerminalGrowthPercent | 2.50% | 默认 |
+| valuationEquityRiskPremiumPercent | 4.50% | 默认 |
+| valuationRiskFreeFallbackPercent | 4.00% | 默认 |
+| valuationCreditSpreadPercent | 1.20% | 默认 |
+| valuationTaxRateFallbackPercent | 21.00% | 默认 |
+| valuationBearGrowthShiftPercent | -5.00% | 默认 |
+| valuationBullGrowthShiftPercent | 5.00% | 默认 |
+| valuationBearMarginShiftPercent | -2.00% | 默认 |
+| valuationBullMarginShiftPercent | 2.00% | 默认 |
+| valuationBearProbability | 0.25 | 默认 |
+| valuationBullProbability | 0.25 | 默认 |
+| valuationAccumulateUpsidePercent | 15.00% | 默认 |
+| valuationReduceUpsidePercent | -10.00% | 默认 |
+| valuationTerminalValueCeilingPercent | 75.00% | 默认 |
+- 每个参数给出模型实际使用的取值；若已改动，同时给出默认值。
 
 **财务比率**
 | 指标 | 数值 |

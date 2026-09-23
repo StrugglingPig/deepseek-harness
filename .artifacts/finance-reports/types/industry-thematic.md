@@ -149,7 +149,7 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 | 指标 | 数值 | 来源 |
 | --- | --- | --- |
 | 下次财报日 | 2026-10-28 | finnhub |
-| 近期新闻标题 | If You Buy Monster Beverage With $10,000 Today, Could You Become a Millionaire in 25 Years? / Invest Like Buffett: Lessons From the Oracle of Omaha / VGT Holders Bought ‘Tech’ and Own No Google, Meta, or Amazon: The Sector Rule That Decides What’s Inside | finnhub |
+| 近期新闻标题 | Why Did AAPL, OKTA, AMD Stocks Jump To 52-Week Highs Today? / If You Buy Monster Beverage With $10,000 Today, Could You Become a Millionaire in 25 Years? / Invest Like Buffett: Lessons From the Oracle of Omaha | finnhub |
 | 最近一次重大公告类型 | 10-Q | finnhub |
 | 最近一次重大公告日期 | 2026-07-31 | finnhub |
 
