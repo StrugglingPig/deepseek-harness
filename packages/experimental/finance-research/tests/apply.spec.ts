@@ -60,6 +60,22 @@ const CONFIG: Required<Config> = {
   coinMarketCapWebSocketBaseUrl: 'wss://pro-stream.test/v1',
   marketStreamTimeoutMs: 100,
   marketStreamMaxEvents: 2,
+  valuationExplicitYears: 3,
+  valuationFadeYears: 4,
+  valuationTerminalGrowthPercent: 2.5,
+  valuationEquityRiskPremiumPercent: 4.5,
+  valuationRiskFreeFallbackPercent: 4,
+  valuationCreditSpreadPercent: 1.2,
+  valuationTaxRateFallbackPercent: 21,
+  valuationBearGrowthShiftPercent: -5,
+  valuationBullGrowthShiftPercent: 5,
+  valuationBearMarginShiftPercent: -2,
+  valuationBullMarginShiftPercent: 2,
+  valuationBearProbability: 0.25,
+  valuationBullProbability: 0.25,
+  valuationAccumulateUpsidePercent: 15,
+  valuationReduceUpsidePercent: -10,
+  valuationTerminalValueCeilingPercent: 75,
 }
 
 describe('finance apply', () => {

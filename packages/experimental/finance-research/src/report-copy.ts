@@ -8,17 +8,20 @@ export type ReportSectionKey =
   | 'summary' | 'researchQuestion' | 'marketSnapshot' | 'priceAction' | 'technicalIndicators' | 'synthesis'
   | 'predictionMarket' | 'methodologyCoverage' | 'investorLenses' | 'valuationFramework' | 'financialQuality'
   | 'investmentView' | 'projectAndCommunity' | 'ownershipAndInsiders'
-  | 'earningsReview' | 'forecast' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
+  | 'earningsReview' | 'valuationRange' | 'eventContext' | 'industryLandscape' | 'competitivePosition' | 'macroDrivers'
   | 'ratesCredit' | 'commodityBalance' | 'fxDrivers' | 'fundFlows' | 'onchainTokenomics' | 'allocation'
   | 'scenarioAnalysis' | 'catalysts' | 'monitoringPlan' | 'dataRequirements' | 'strategyGaps' | 'riskAndLimitations'
 
 import type { ReportMetricKey } from './asset-context.ts'
+import type {
+  CostComponentId, QualitySignalId, ValuationAction, ValuationRatioId,
+} from './valuation.ts'
 
 /** Table column labels owned by the report writer. */
 export type ReportColumnKey =
   | 'name' | 'value' | 'source' | 'region' | 'date' | 'timing' | 'direction'
   | 'confidence' | 'status' | 'scenario' | 'price' | 'relative' | 'item' | 'method'
-  | 'signal' | 'weight' | 'note' | 'company' | 'year' | 'revenue' | 'revenueGrowth' | 'netIncome'
+  | 'signal' | 'weight' | 'note' | 'company' | 'year' | 'revenue' | 'revenueGrowth' | 'netIncome' | 'eps'
 
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
@@ -46,8 +49,28 @@ export type ReportTemplateKey =
 
 /** Chrome labels of the interactive HTML report. */
 export type ReportHtmlKey =
-  | 'eyebrow' | 'cardPrice' | 'cardChange' | 'cardComposite' | 'cardAtr' | 'chartTitle' | 'chartAria'
-  | 'rangeAll' | 'navAria' | 'footer'
+  | 'eyebrow' | 'cardPrice' | 'cardChange' | 'cardComposite' | 'cardAtr' | 'cardRange' | 'cardGrade'
+  | 'chartTitle' | 'chartAria' | 'rangeAll' | 'navAria' | 'footer'
+
+/** Line labels the model valuation section prints. */
+export type ValuationLabelKey =
+  | 'verdictRange' | 'verdictWeighted' | 'verdictUpsideRange' | 'verdictPrice' | 'impliedGrowth'
+  | 'modelGrowth' | 'expectationsGap' | 'credibility' | 'atBound' | 'methodsTitle' | 'costTitle'
+  | 'sensitivityTitle' | 'terminalTitle' | 'ratiosTitle' | 'qualityTitle' | 'earningsPathTitle'
+  | 'notObtained' | 'modelNotice' | 'shareCountNotice' | 'suppressedNotice' | 'noGradeNotice'
+  | 'terminalBreached' | 'terminalWithin' | 'missingInputs'
+
+/** Locale copy the model valuation section renders. */
+export interface ValuationCopy {
+  readonly labels: Readonly<Record<ValuationLabelKey, string>>
+  readonly templates: Readonly<Record<'range' | 'terminal' | 'noteDcf' | 'noteEpv' | 'noteReverse', string>>
+  readonly ratios: Readonly<Record<ValuationRatioId, string>>
+  readonly costComponents: Readonly<Record<CostComponentId, string>>
+  readonly qualitySignals: Readonly<Record<QualitySignalId, string>>
+  readonly methods: Readonly<Record<'dcf' | 'epv' | 'reverse', string>>
+  readonly scenarios: Readonly<Record<'bear' | 'base' | 'bull', string>>
+  readonly actions: Readonly<Record<ValuationAction, string>>
+}
 
 /** Category copy rendered in report headers, focus lines, and catalysts. */
 export interface ReportCategoryCopy {
@@ -113,6 +136,8 @@ export interface ReportCopy {
   readonly reportForms: Readonly<Record<string, string>>
   /** Input-demanding section blocks keyed by section id. */
   readonly blocks: Readonly<Record<string, ReportBlockCopy>>
+  /** Model valuation copy: labels, ratio names, cost components, methods, and actions. */
+  readonly valuation: ValuationCopy
 }
 
 const EN: ReportCopy = {
@@ -133,7 +158,7 @@ const EN: ReportCopy = {
     valuationFramework: 'Valuation Framework',
     financialQuality: 'Financial Quality',
     earningsReview: 'Earnings Review',
-    forecast: 'Earnings Forecast And Target Price',
+    valuationRange: 'Model Valuation And Reference Range',
     eventContext: 'Event Context',
     industryLandscape: 'Industry Landscape',
     competitivePosition: 'Competitive Position',
@@ -239,7 +264,7 @@ const EN: ReportCopy = {
     investorRisk: '  - Risk: {risk}',
     gap: '- {name} ({category}): {status}; requires {requirements}',
     forecastBase: 'Trailing revenue growth of {growth} starts the path.',
-    forecastFade: 'Growth fades toward 3% across {years} projected years.',
+    forecastFade: 'Growth fades toward {terminal} across {years} projected years.',
     reportTitle: '{label} · {category} {form}',
     htmlMeta: '{symbol} · {currency} · As of {asOf} · Source {provider}',
     htmlPill: '{direction} · {confidence}% confidence',
@@ -257,6 +282,8 @@ const EN: ReportCopy = {
     cardChange: 'Change',
     cardComposite: 'Composite',
     cardAtr: 'ATR',
+    cardRange: 'Reference range',
+    cardGrade: 'Credibility',
     chartTitle: 'Interactive price chart',
     chartAria: 'Interactive price chart',
     rangeAll: 'All',
@@ -329,6 +356,7 @@ const EN: ReportCopy = {
     revenue: 'Revenue',
     revenueGrowth: 'Revenue growth',
     netIncome: 'Net income',
+    eps: 'EPS',
   },
   metrics: {
     eps: 'Diluted EPS',
@@ -365,6 +393,11 @@ const EN: ReportCopy = {
     latestFilingForm: 'Newest material SEC filing',
     latestFilingDate: 'Newest material filing date',
     reportedFinancials: 'Newest reported statements',
+    pretaxIncome: 'Pretax income',
+    taxExpense: 'Income tax expense',
+    interestExpense: 'Interest expense',
+    currentLiabilities: 'Current liabilities',
+    retainedEarnings: 'Retained earnings',
     revenue: 'Revenue',
     netIncome: 'Net income',
     grossProfit: 'Gross profit',
@@ -463,9 +496,80 @@ const EN: ReportCopy = {
     'onchain-tokenomics': { requires: ['on-chain activity metrics', 'token unlock schedule', 'exchange and ETF flows'], checks: ['Is network usage growing with price?', 'What supply pressure comes from unlocks?', 'Which venue or issuer concentrates flow?'] },
     'project-and-community': { requires: ['developer activity', 'community size', 'sentiment'], checks: ['Is development still active?', 'Is the community growing or fading?', 'Does sentiment diverge from price?'] },
     'ownership-and-insiders': { requires: ['insider transactions', 'ownership breakdown', 'institutional holders'], checks: ['Are insiders accumulating or selling?', 'How concentrated is ownership?', 'Which holders set the agenda?'] },
-    forecast: { requires: ['reported revenue and EPS', 'trailing growth rate', 'comparable or industry multiple'], checks: ['Is the growth path credible against history?', 'Does the multiple match the peer set?', 'What would break the target?'] },
+    'valuation-range': { requires: ['reported statements', 'trailing growth and margin', 'published beta', 'a government yield'], checks: ['Which inputs are still not obtained?', 'How much of the value sits in the terminal value?', 'What growth does the current price imply?'] },
     catalysts: { requires: ['scheduled events', 'news flow', 'filing calendar'], checks: ['Which dated event can move the price next?', 'Is the news flow confirming or contradicting the trend?', 'What would invalidate the standing catalyst list?'] },
     allocation: { requires: ['index valuation and earnings', 'fund flows and positioning', 'macro regime series'], checks: ['What does the current regime imply for each asset class?', 'How much risk does the budget allow?', 'What would force a rebalance?'] },
+  },
+  valuation: {
+    templates: {
+      range: '{low} – {high}',
+      terminal: 'Terminal value is {share} of enterprise value, at an implied exit multiple of {multiple}x, against a {ceiling} ceiling.',
+      noteDcf: 'Explicit {explicit} years, {fade} fade years at {terminal}, then a terminal value at the same rate',
+      noteEpv: 'Current profit capitalised at the cost of capital, with no growth',
+      noteReverse: 'The same model solved for the growth the current price implies',
+    },
+    labels: {
+      verdictRange: 'Model reference range (bear–bull)',
+      verdictWeighted: 'Probability-weighted reference value',
+      verdictUpsideRange: 'Implied upside range',
+      verdictPrice: 'Current price',
+      impliedGrowth: 'Growth the market implies (reverse DCF)',
+      modelGrowth: 'Growth this model assumes (base)',
+      expectationsGap: 'Expectations gap (model − market)',
+      credibility: 'Credibility grade',
+      atBound: 'at the search bound',
+      methodsTitle: 'Methods behind the range',
+      costTitle: 'Cost of capital and its components',
+      sensitivityTitle: 'Discount-rate sensitivity (±1 percentage point)',
+      terminalTitle: 'Terminal-value check',
+      ratiosTitle: 'Financial ratios',
+      qualityTitle: 'Earnings-quality signals',
+      earningsPathTitle: 'Projected path',
+      notObtained: 'Not obtained',
+      modelNotice: 'This is a model reference range, not a target price or fair value, and the model has not passed an out-of-sample backtest.',
+      shareCountNotice: 'The paths hold the reported share count, so a buyback does not add to the per-share value.',
+      suppressedNotice: 'A D credibility grade suppresses the valuation, so this report states no range.',
+      noGradeNotice: 'No credibility grade could be computed, so the action is capped at watch.',
+      terminalBreached: 'The terminal-value share is above its ceiling, so read the range as an upper bound.',
+      terminalWithin: 'The terminal-value share is within its ceiling.',
+      missingInputs: 'Inputs this read still needs: ',
+    },
+    ratios: {
+      grossMargin: 'Gross margin',
+      operatingMargin: 'Operating margin',
+      netMargin: 'Net margin',
+      cashConversion: 'Cash conversion (operating cash flow / net income)',
+      fcfMargin: 'Free-cash-flow margin',
+      accrualsRatio: 'Accruals ratio (net income − operating cash flow) / total assets',
+      debtToEquity: 'Interest-bearing debt / equity',
+      netDebtToEbitda: 'Net debt / EBITDA',
+      currentRatio: 'Current ratio',
+      roic: 'Return on invested capital (after tax)',
+    },
+    costComponents: {
+      riskFree: 'Risk-free rate',
+      equityRiskPremium: 'Equity risk premium',
+      beta: 'Beta',
+      costOfEquity: 'Cost of equity',
+      costOfDebt: 'Cost of debt',
+      taxRate: 'Effective tax rate',
+      afterTaxCostOfDebt: 'After-tax cost of debt',
+      equityWeight: 'Equity weight',
+      debtWeight: 'Debt weight',
+      wacc: 'WACC',
+    },
+    qualitySignals: {
+      accrualsRatio: 'Accruals ratio',
+      cashConversion: 'Cash conversion',
+      altmanZ: 'Altman Z-score',
+    },
+    methods: {
+      dcf: 'FCFF DCF',
+      epv: 'Earnings power value (no growth)',
+      reverse: 'Reverse DCF',
+    },
+    scenarios: { bear: 'Bear', base: 'Base', bull: 'Bull' },
+    actions: { accumulate: 'Accumulate', hold: 'Hold', reduce: 'Reduce', watch: 'Watch', avoid: 'Avoid' },
   },
 }
 
@@ -487,7 +591,7 @@ const ZH: ReportCopy = {
     valuationFramework: '估值框架',
     financialQuality: '财务质量',
     earningsReview: '业绩点评',
-    forecast: '盈利预测与目标价',
+    valuationRange: '模型估值与参考价值区间',
     eventContext: '事件背景',
     industryLandscape: '行业格局',
     competitivePosition: '竞争格局',
@@ -598,7 +702,7 @@ const ZH: ReportCopy = {
     investorRisk: '  - 风险：{risk}',
     gap: '- {name}（{category}）：{status}；需要 {requirements}',
     forecastBase: '以最近 12 个月营收增速 {growth} 作为起点。',
-    forecastFade: '增速在 {years} 个预测年度内向 3% 收敛。',
+    forecastFade: '增速在 {years} 个预测年度内向 {terminal} 收敛。',
     reportTitle: '{label} · {category}{form}',
     htmlMeta: '{symbol} · {currency} · 截至 {asOf} · 来源 {provider}',
     htmlPill: '{direction} · 置信度 {confidence}%',
@@ -611,6 +715,8 @@ const ZH: ReportCopy = {
     cardChange: '涨跌幅',
     cardComposite: '综合评分',
     cardAtr: 'ATR',
+    cardRange: '参考区间',
+    cardGrade: '可信度',
     chartTitle: '交互式价格图',
     chartAria: '交互式价格图',
     rangeAll: '全部',
@@ -806,7 +912,7 @@ const ZH: ReportCopy = {
     'onchain-tokenomics': { requires: ['链上活跃度指标', '代币解锁计划', '交易所与 ETF 资金流'], checks: ['网络使用量是否与价格同步增长？', '解锁带来多大的供应压力？', '资金流集中在哪些交易所或发行方？'] },
     'project-and-community': { requires: ['开发活跃度', '社区规模', '情绪'], checks: ['开发是否仍然活跃？', '社区在增长还是流失？', '情绪与价格是否背离？'] },
     'ownership-and-insiders': { requires: ['内部人交易', '股权结构', '机构持仓'], checks: ['内部人在增持还是减持？', '股权集中度如何？', '谁在影响公司议程？'] },
-    forecast: { requires: ['已披露的营收与 EPS', '最近增速', '同业或行业倍数'], checks: ['增速路径是否可信？', '采用的倍数与同业是否匹配？', '什么会推翻目标价？'] },
+    'valuation-range': { requires: ['已披露三张报表', '最近增速与利润率', '已发布的 Beta', '国债收益率'], checks: ['还有哪些输入未获取到？', '多少价值来自终值？', '当前价格隐含了多高的增长？'] },
     catalysts: { requires: ['日程事件', '新闻流', '公告日程'], checks: ['下一个可能推动价格的事件是什么？', '新闻流在确认还是否定趋势？', '什么会推翻这份催化剂清单？'] },
     allocation: { requires: ['指数估值与盈利', '资金流与仓位', '宏观状态序列'], checks: ['当前状态对各资产类别意味着什么？', '风险预算允许多大仓位？', '什么会触发再平衡？'] },
   },
@@ -833,6 +939,7 @@ const ZH: ReportCopy = {
     revenue: '营业收入',
     revenueGrowth: '营收同比',
     netIncome: '净利润',
+    eps: '每股收益',
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -869,6 +976,11 @@ const ZH: ReportCopy = {
     latestFilingForm: '最近一次重大公告类型',
     latestFilingDate: '最近一次重大公告日期',
     reportedFinancials: '最近披露的财报期间',
+    pretaxIncome: '税前利润',
+    taxExpense: '所得税费用',
+    interestExpense: '利息支出',
+    currentLiabilities: '流动负债',
+    retainedEarnings: '留存收益',
     revenue: '营业收入',
     netIncome: '净利润',
     grossProfit: '毛利润',
@@ -984,6 +1096,77 @@ const ZH: ReportCopy = {
     'order size': '订单规模',
     'market impact model': '市场冲击模型',
     'level-2 order book': 'Level-2 订单簿',
+  },
+  valuation: {
+    templates: {
+      range: '{low} – {high}',
+      terminal: '终值占企业价值 {share}，隐含退出倍数 {multiple}x，上限为 {ceiling}。',
+      noteDcf: '显式 {explicit} 年，再以 {terminal} 递延 {fade} 年，最后按同一增速计算终值',
+      noteEpv: '按当前盈利水平、以资本成本资本化，不含增长',
+      noteReverse: '用同一模型反解当前价格隐含的起始增速',
+    },
+    labels: {
+      verdictRange: '模型参考价值区间（熊市–牛市）',
+      verdictWeighted: '概率加权参考价值',
+      verdictUpsideRange: '对应上行空间区间',
+      verdictPrice: '现价',
+      impliedGrowth: '市场隐含增长（反向 DCF）',
+      modelGrowth: '本模型基准假设增长',
+      expectationsGap: '期望差（模型 − 市场）',
+      credibility: '可信度等级',
+      atBound: '已到搜索边界',
+      methodsTitle: '区间背后采用的方法',
+      costTitle: '资本成本及其构成',
+      sensitivityTitle: '贴现率敏感性（±1 个百分点）',
+      terminalTitle: '终值检查',
+      ratiosTitle: '财务比率',
+      qualityTitle: '盈利质量信号',
+      earningsPathTitle: '预测路径',
+      notObtained: '未获取到',
+      modelNotice: '以上是模型参考价值区间，不是目标价或公允价值，且本模型尚未通过样本外回测。',
+      shareCountNotice: '模型按已披露股本数测算，回购带来的每股增厚未计入。',
+      suppressedNotice: '可信度等级为 D，本次不输出估值区间。',
+      noGradeNotice: '未能计算可信度等级，动作上限为观察。',
+      terminalBreached: '终值占比已超过上限，区间请按上限口径理解。',
+      terminalWithin: '终值占比在上限以内。',
+      missingInputs: '本次判断仍缺少的输入：',
+    },
+    ratios: {
+      grossMargin: '毛利率',
+      operatingMargin: '营业利润率',
+      netMargin: '净利率',
+      cashConversion: '现金转换（经营现金流/净利润）',
+      fcfMargin: '自由现金流率',
+      accrualsRatio: '应计比率（净利润−经营现金流）/总资产',
+      debtToEquity: '有息负债/股东权益',
+      netDebtToEbitda: '净负债/EBITDA',
+      currentRatio: '流动比率',
+      roic: '投入资本回报率（税后）',
+    },
+    costComponents: {
+      riskFree: '无风险利率',
+      equityRiskPremium: '股权风险溢价',
+      beta: 'Beta',
+      costOfEquity: '股权成本',
+      costOfDebt: '债务成本',
+      taxRate: '有效税率',
+      afterTaxCostOfDebt: '税后债务成本',
+      equityWeight: '股权权重',
+      debtWeight: '债务权重',
+      wacc: 'WACC',
+    },
+    qualitySignals: {
+      accrualsRatio: '应计比率',
+      cashConversion: '现金转换',
+      altmanZ: 'Altman Z 值',
+    },
+    methods: {
+      dcf: 'FCFF 现金流折现',
+      epv: '零增长盈利能力价值',
+      reverse: '反向 DCF',
+    },
+    scenarios: { bear: '熊市', base: '基准', bull: '牛市' },
+    actions: { accumulate: '增持', hold: '持有', reduce: '减持', watch: '观察', avoid: '规避' },
   },
 }
 

@@ -26,9 +26,9 @@ export const REPORT_METRIC_KEYS = [
   'latestFilingDate', 'latestFilingForm', 'netIncome', 'newsHeadlines', 'nextEarnings',
   'reportedFinancials', 'revenue',
   // Reported statement lines the financial-quality block quotes.
-  'buybacks', 'capex', 'cash', 'currentAssets', 'depreciation', 'dividendsPaid', 'equity',
-  'freeCashFlow', 'grossProfit', 'liabilities', 'operatingCashFlow', 'operatingIncome',
-  'stockBasedCompensation', 'totalAssets', 'totalDebt',
+  'buybacks', 'capex', 'cash', 'currentAssets', 'currentLiabilities', 'depreciation', 'dividendsPaid', 'equity',
+  'freeCashFlow', 'grossProfit', 'interestExpense', 'liabilities', 'operatingCashFlow', 'operatingIncome',
+  'pretaxIncome', 'retainedEarnings', 'stockBasedCompensation', 'taxExpense', 'totalAssets', 'totalDebt',
 ] as const
 
 /** One metric key a report knows how to label. */
@@ -360,8 +360,13 @@ const US_STATEMENT_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGrou
   ['grossProfit', 'profitability', 'USD'],
   ['operatingIncome', 'profitability', 'USD'],
   ['netIncome', 'profitability', 'USD'],
+  ['pretaxIncome', 'profitability', 'USD'],
+  ['taxExpense', 'profitability', 'USD'],
+  ['interestExpense', 'profitability', 'USD'],
   ['totalAssets', 'balance', 'USD'],
   ['currentAssets', 'balance', 'USD'],
+  ['currentLiabilities', 'balance', 'USD'],
+  ['retainedEarnings', 'balance', 'USD'],
   ['liabilities', 'balance', 'USD'],
   ['equity', 'balance', 'USD'],
   ['totalDebt', 'balance', 'USD'],

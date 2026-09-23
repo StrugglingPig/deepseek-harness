@@ -9,6 +9,10 @@ import type { AssetMetric, AssetMetricGroup, ReportMetricKey } from './asset-con
 import type { MacroCategory } from './macro-catalog.ts'
 import type { MacroSeries } from './macro.ts'
 import { buildEarningsForecast, type EarningsForecast, type EarningsForecastInput } from './forecast.ts'
+import {
+  buildValuation, buildValuationInputs, VALUATION_PARAMETERS,
+  type ValuationAnalysis, type ValuationParameters, type ValuationScenario,
+} from './valuation.ts'
 import type {
   FinanceMarketDataProvider,
   IndicatorAnalysis,
@@ -59,8 +63,10 @@ interface SectionContext {
   readonly macro: readonly MacroSeries[]
   /** Latest quoted price, the anchor for the target-price model. */
   readonly price: number
-  /** Earnings model output, when its inputs were available. */
+  /** Earnings path the report prints beside the valuation, when its inputs were available. */
   readonly forecast?: EarningsForecast
+  /** Model valuation read, when the report loaded instrument metrics. */
+  readonly valuation?: ValuationAnalysis
   /** Instrument metrics available to this report; absent when the caller loaded none. */
   readonly metrics: readonly AssetMetric[]
 }
@@ -187,96 +193,220 @@ function metricValueOf(metrics: readonly AssetMetric[], key: ReportMetricKey): n
 }
 
 /**
- * Read the trailing price-to-earnings multiple the snapshot published.
- * @param metrics - Loaded metrics.
- * @returns The multiple, or undefined when the snapshot published none.
- */
-function trailingMultipleOf(metrics: readonly AssetMetric[]): number | undefined {
-  return metricValueOf(metrics, 'peRatio') ?? metricValueOf(metrics, 'peTtm')
-}
-
-/**
- * Derive the earnings model's inputs from the loaded metrics.
+ * Derive the earnings path inputs from the loaded metrics.
  * @param metrics - Loaded instrument metrics.
- * @param price - Latest quoted price, the target's reference point.
+ * @param parameters - Resolved valuation parameters; the path converges to the configured terminal rate.
  * @param fromYear - Calendar year the first projection covers.
  * @returns The model inputs, or undefined when a required input is missing.
  */
 function forecastInputs(
   metrics: readonly AssetMetric[],
-  price: number,
+  parameters: ValuationParameters,
   fromYear: number,
 ): EarningsForecastInput | undefined {
   const eps = metricValueOf(metrics, 'epsTtm') ?? metricValueOf(metrics, 'eps')
   const revenueGrowth = metricValueOf(metrics, 'revenueGrowth')
   if (eps === undefined || revenueGrowth === undefined) return undefined
-  // A peer median only counts once enough peers published a multiple.
-  const peerPrices = metrics
-    .filter(metric => metric.subject !== undefined && metric.key === 'peRatio')
-    .map(metric => metric.value)
-    .sort((left, right) => left - right)
-  const peerMedianPe = peerPrices.length < 3 ? undefined : peerPrices[Math.floor(peerPrices.length / 2)]
-  const trailingMultiple = trailingMultipleOf(metrics)
   return {
-    price,
     eps,
     revenueGrowth,
+    terminalGrowthPercent: parameters.terminalGrowthPercent,
     ...metricValueOf(metrics, 'revenue') === undefined ? {} : { revenue: metricValueOf(metrics, 'revenue') as number },
     ...metricValueOf(metrics, 'netIncome') === undefined ? {} : { netIncome: metricValueOf(metrics, 'netIncome') as number },
     ...metricValueOf(metrics, 'netMargin') === undefined ? {} : { netMargin: metricValueOf(metrics, 'netMargin') as number },
-    ...trailingMultiple === undefined ? {} : { peRatio: trailingMultiple },
-    ...metricValueOf(metrics, 'industryPe') === undefined ? {} : { industryPe: metricValueOf(metrics, 'industryPe') as number },
-    ...peerMedianPe === undefined ? {} : { peerMedianPe },
     fromYear,
   }
 }
 
+/** One value rendered as money in the report's instrument currency. */
+function money(amount: number, currency: string): string {
+  return `${number(amount, 2)} ${currency}`
+}
+
 /**
- * Render the earnings forecast, its target price, and the assumptions behind them.
- * @param context - Section context carrying the loaded metrics.
- * @returns The rendered section, or the input-demanding block when the model cannot run.
+ * Render the model reference range one valuation produced.
+ * @param copy - Report copy carrying the range template.
+ * @param valuation - Valuation read.
+ * @returns The range text, or undefined when no scenario produced a value.
  */
-function forecastSection(context: SectionContext): ResearchReportSection {
+function valuationRangeText(copy: ReportCopy, valuation: ValuationAnalysis): string | undefined {
+  const { lowValuePerShare, highValuePerShare } = valuation.value ?? {}
+  if (lowValuePerShare === undefined || highValuePerShare === undefined) return undefined
+  return formatCopy(copy.valuation.templates.range, {
+    low: number(lowValuePerShare, 2),
+    high: number(highValuePerShare, 2),
+  })
+}
+
+/** One line the investment view states about the model valuation. */
+function valuationLine(context: SectionContext): readonly string[] {
+  const valuation = context.valuation
+  if (valuation === undefined) return []
   const copy = context.copy
-  const id: ReportSectionId = 'forecast'
-  const forecast = context.forecast
-  if (forecast === undefined) return inputBlock(context, id)
-  const { years } = forecast
-  const method = forecast.multipleSource === 'peers'
-    ? copy.labels.fairMultiplePeers
-    : forecast.multipleSource === 'industry' ? copy.labels.fairMultipleIndustry : copy.labels.fairMultipleOwn
+  const labels = copy.valuation.labels
+  const action = copy.valuation.actions[valuation.verdict.action]
+  const range = valuationRangeText(copy, valuation) ?? labels.notObtained
+  const grade = valuation.quality.grade
+  return [
+    `- ${labels.verdictRange}${range} · ${action}${grade === undefined ? '' : ` · ${labels.credibility}${grade}`}`,
+  ]
+}
+
+/**
+ * Render the model valuation: the reference range, the methods behind it, and every input it read.
+ * @param context - Section context carrying the loaded metrics, macro series, and valuation read.
+ * @returns The rendered section, or the input-demanding block when no valuation ran.
+ */
+function valuationSection(context: SectionContext): ResearchReportSection {
+  const copy = context.copy
+  const labels = copy.valuation.labels
+  const id: ReportSectionId = 'valuation-range'
+  const title = copy.sections.valuationRange
+  const valuation = context.valuation
+  if (valuation === undefined) return inputBlock(context, id)
+  const action = copy.valuation.actions[valuation.verdict.action]
+  if (valuation.verdict.suppressed) {
+    return { title, content: [`**${action}**`, '', `- ${labels.suppressedNotice}`].join('\n') }
+  }
+  const cost = valuation.cost
+  const value = valuation.value
+  const notObtained = labels.notObtained
+  if (cost === undefined || value === undefined) {
+    const missing = valuation.ratios
+      .filter(reading => reading.value === undefined)
+      .map(reading => copy.valuation.ratios[reading.id])
+    return inputBlock(context, id, missing.length === 0 ? [] : [`${labels.missingInputs}${missing.join('; ')}`])
+  }
+  const currency = context.snapshot.instrument.currency
+  // The model emits every scenario it prices, so each lookup below resolves.
+  const scenarioOf = (scenarioId: 'bear' | 'base' | 'bull'): ValuationScenario =>
+    value.scenarios.find(entry => entry.id === scenarioId) as ValuationScenario
+  const upside = (target: number): string => percent((target / context.price - 1) * 100)
+  const scenario = (scenarioId: 'bear' | 'base' | 'bull'): string => money(scenarioOf(scenarioId).valuePerShare, currency)
+  const base = scenarioOf('base')
+  const impliedGrowth = `${percent(value.impliedGrowthPercent)}${value.impliedGrowthAtBound ? ` ${labels.atBound}` : ''}`
+  const modelGrowth = percent(base.startingGrowthPercent)
+  const gap = percent(base.startingGrowthPercent - value.impliedGrowthPercent)
+  const terminal = formatCopy(copy.valuation.templates.terminal, {
+    share: percent(value.terminalValueSharePercent),
+    multiple: number(value.impliedExitMultiple, 1),
+    ceiling: percent(valuation.parameters.terminalValueCeilingPercent),
+  })
+  const earningsPath = context.forecast === undefined ? [] : [
+    '',
+    `**${labels.earningsPathTitle}**`,
+    table(
+      [copy.columns.year, copy.columns.revenue, copy.columns.revenueGrowth, copy.columns.netIncome, copy.columns.eps],
+      context.forecast.years.map(year => [
+        String(year.year),
+        // The cash-flow model this section prints beside requires the reported revenue, so the path always carries it.
+        number(year.revenue as number),
+        percent(year.revenueGrowth),
+        year.netIncome === undefined ? '—' : number(year.netIncome),
+        number(year.eps, 2),
+      ]),
+    ),
+    `- ${formatCopy(copy.templates.forecastBase, { growth: percent(context.forecast.startingGrowth) })}`,
+    `- ${formatCopy(copy.templates.forecastFade, {
+      terminal: percent(valuation.parameters.terminalGrowthPercent),
+      years: String(context.forecast.years.length),
+    })}`,
+  ]
   return {
-    title: copy.sections.forecast,
+    title,
     content: [
-      table(
-        [copy.columns.year, copy.columns.revenue, copy.columns.revenueGrowth, copy.columns.netIncome, 'EPS'],
-        years.map(year => [
-          String(year.year),
-          year.revenue === undefined ? '—' : number(year.revenue),
-          percent(year.revenueGrowth),
-          year.netIncome === undefined ? '—' : number(year.netIncome),
-          number(year.eps, 2),
-        ]),
-      ),
+      `**${action}** · ${labels.credibility}${valuation.quality.grade ?? notObtained}`,
       '',
       table(
         [copy.columns.item, copy.columns.value],
         [
-          [copy.labels.targetPrice, number(forecast.targetPrice, 2)],
-          [copy.labels.upside, percent(forecast.upsidePercent)],
-          [copy.labels.fairMultiple, `${number(forecast.fairMultiple, 1)}x`],
-          [copy.labels.trailingMultiple, trailingMultipleOf(context.metrics) === undefined
-            ? '—'
-            : `${number(trailingMultipleOf(context.metrics) as number, 1)}x`],
+          [labels.verdictRange, formatCopy(copy.valuation.templates.range, {
+            low: money(value.lowValuePerShare, currency),
+            high: money(value.highValuePerShare, currency),
+          })],
+          [labels.verdictWeighted, money(value.weightedValuePerShare, currency)],
+          [labels.verdictUpsideRange, `${upside(value.lowValuePerShare)} ~ ${upside(value.highValuePerShare)}`],
+          [labels.verdictPrice, money(context.price, currency)],
+          [labels.impliedGrowth, impliedGrowth],
+          [labels.modelGrowth, modelGrowth],
+          [labels.expectationsGap, gap],
         ],
       ),
       '',
-      `**${copy.labels.modelAssumptions}**`,
-      `- ${copy.labels.modelOwn}${method}`,
-      `- ${formatCopy(copy.templates.forecastBase, { growth: percent(forecast.startingGrowth) })}`,
-      `- ${formatCopy(copy.templates.forecastFade, { years: String(years.length) })}`,
-      `- ${copy.labels.forecastMargin}`,
-      `- ${copy.labels.forecastLimits}`,
+      `**${labels.methodsTitle}**`,
+      table(
+        [
+          copy.columns.method, copy.valuation.scenarios.bear, copy.valuation.scenarios.base,
+          copy.valuation.scenarios.bull, copy.columns.note,
+        ],
+        [
+          [
+            copy.valuation.methods.dcf, scenario('bear'), scenario('base'), scenario('bull'),
+            formatCopy(copy.valuation.templates.noteDcf, {
+              explicit: String(valuation.parameters.explicitYears),
+              fade: String(valuation.parameters.fadeYears),
+              terminal: percent(valuation.parameters.terminalGrowthPercent),
+            }),
+          ],
+          [
+            copy.valuation.methods.epv,
+            money(value.earningsPowerValuePerShare, currency),
+            '', '', copy.valuation.templates.noteEpv,
+          ],
+          [copy.valuation.methods.reverse, impliedGrowth, '', '', copy.valuation.templates.noteReverse],
+        ],
+      ),
+      '',
+      `**${labels.ratiosTitle}**`,
+      table(
+        [copy.columns.name, copy.columns.value],
+        valuation.ratios.map(reading => [
+          copy.valuation.ratios[reading.id],
+          reading.value === undefined
+            ? notObtained
+            : reading.unit === '%' ? percent(reading.value) : number(reading.value, 2),
+        ]),
+      ),
+      '',
+      `**${labels.qualityTitle}**`,
+      table(
+        [copy.columns.signal, copy.columns.value],
+        valuation.quality.signals.map(signal => [
+          copy.valuation.qualitySignals[signal.id],
+          signal.value === undefined
+            ? notObtained
+            : signal.id === 'accrualsRatio' ? percent(signal.value) : number(signal.value, 2),
+        ]),
+      ),
+      '',
+      `**${labels.costTitle}**`,
+      table(
+        [copy.columns.item, copy.columns.value, copy.columns.source, copy.columns.date],
+        cost.components.map(component => [
+          copy.valuation.costComponents[component.id],
+          component.unit === '%' ? percent(component.value) : number(component.value, 2),
+          component.source,
+          component.asOf,
+        ]),
+      ),
+      '',
+      `**${labels.sensitivityTitle}**`,
+      table(
+        [copy.valuation.costComponents.wacc, copy.columns.value],
+        value.sensitivity.map(entry => [
+          percent(entry.waccPercent),
+          entry.valuePerShare === undefined ? notObtained : money(entry.valuePerShare, currency),
+        ]),
+      ),
+      '',
+      `**${labels.terminalTitle}**`,
+      `- ${terminal}`,
+      `- ${value.terminalValueCeilingBreached ? labels.terminalBreached : labels.terminalWithin}`,
+      ...earningsPath,
+      '',
+      `- ${labels.modelNotice}`,
+      `- ${labels.shareCountNotice}`,
+      ...valuation.quality.grade === undefined ? [`- ${labels.noGradeNotice}`] : [],
     ].join('\n'),
   }
 }
@@ -365,9 +495,9 @@ const sectionIdKeys: Record<ReportSectionId, keyof ReportCopy['sections']> = {
   'methodology-coverage': 'methodologyCoverage',
   'investor-lenses': 'investorLenses',
   'valuation-framework': 'valuationFramework',
+  'valuation-range': 'valuationRange',
   'financial-quality': 'financialQuality',
   'earnings-review': 'earningsReview',
-  forecast: 'forecast',
   'event-context': 'eventContext',
   'industry-landscape': 'industryLandscape',
   'competitive-position': 'competitivePosition',
@@ -430,9 +560,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
           `**${stance}**`,
           '',
           `- ${copy.labels.compositeScore}${number(composite.score)} · ${copy.labels.viewConfidence}${String(composite.confidence)}%`,
-          ...context.forecast === undefined ? [] : [
-            `- ${copy.labels.targetPrice}${number(context.forecast.targetPrice, 2)} · ${copy.labels.upside}${percent(context.forecast.upsidePercent)}`,
-          ],
+          ...valuationLine(context),
           '',
           `**${copy.labels.viewReasons}**`,
           `- ${formatCopy(copy.templates.viewBreadth, {
@@ -747,8 +875,8 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
       return metricBlock(context, id, ['profitability', 'balance', 'cash'])
     case 'earnings-review':
       return metricBlock(context, id, ['growth'])
-    case 'forecast':
-      return forecastSection(context)
+    case 'valuation-range':
+      return valuationSection(context)
     case 'industry-landscape':
       return metricBlock(context, id, ['industry'])
     case 'competitive-position': {
@@ -796,6 +924,7 @@ function sectionsFor(
   macro: readonly MacroSeries[],
   metrics: readonly AssetMetric[],
   forecast: EarningsForecast | undefined,
+  valuation: ValuationAnalysis | undefined,
 ): ResearchReportSection[] {
   const copy = REPORT_COPY[language]
   const context: SectionContext = {
@@ -810,6 +939,7 @@ function sectionsFor(
     metrics,
     price: snapshot.quote.price,
     ...forecast === undefined ? {} : { forecast },
+    ...valuation === undefined ? {} : { valuation },
   }
   const sections = type.sections.map(id => renderSection(id, context))
   const prediction = predictionSection(snapshot, copy)
@@ -930,8 +1060,10 @@ function reportHtml(
   sections: readonly ResearchReportSection[],
   copy: ReportCopy,
   type: ReportTypeDefinition,
-  forecast?: EarningsForecast,
+  valuation?: ValuationAnalysis,
 ): string {
+  const rangeCard = valuation === undefined ? undefined : valuationRangeText(copy, valuation)
+  const gradeCard = valuation?.quality.grade
   const data = safeJson({
     symbol: snapshot.instrument.symbol,
     name: snapshot.instrument.name,
@@ -1000,8 +1132,8 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
   <div class="cards">
     <div class="card"><span>${escapeHtml(copy.html.cardPrice)}</span><strong>${String(snapshot.quote.price)}</strong></div>
     <div class="card"><span>${escapeHtml(copy.html.cardChange)}</span><strong class="${snapshot.quote.changePercent >= 0 ? 'positive' : 'negative'}">${snapshot.quote.changePercent.toFixed(2)}%</strong></div>
-    ${forecast === undefined ? '' : `<div class="card accent"><span>${escapeHtml(copy.labels.targetPrice)}</span><strong>${number(forecast.targetPrice, 2)}</strong></div>
-    <div class="card accent"><span>${escapeHtml(copy.labels.upside)}</span><strong class="${forecast.upsidePercent >= 0 ? 'positive' : 'negative'}">${percent(forecast.upsidePercent)}</strong></div>`}
+    ${rangeCard === undefined ? '' : `<div class="card accent"><span>${escapeHtml(copy.html.cardRange)}</span><strong>${escapeHtml(rangeCard)}</strong></div>`}
+    ${gradeCard === undefined ? '' : `<div class="card accent"><span>${escapeHtml(copy.html.cardGrade)}</span><strong>${escapeHtml(gradeCard)}</strong></div>`}
     <div class="card"><span>${escapeHtml(copy.html.cardComposite)}</span><strong>${String(analysis.composite.score)}</strong></div>
     <div class="card"><span>${escapeHtml(copy.html.cardAtr)}</span><strong>${analysis.risk.atrPercent.toFixed(2)}%</strong></div>
   </div>
@@ -1074,6 +1206,7 @@ export function resolveReportType(request: ResearchReportRequest, snapshot: Mark
  * @param language - Report language; defaults to English.
  * @param macro - Macro series rendered as the report precondition; empty when none loaded.
  * @param metrics - Instrument metrics rendered into the fundamental blocks; empty when none loaded.
+ * @param parameters - Resolved valuation parameters the model runs with.
  * @returns The structured report with Markdown and interactive HTML renderings.
  */
 export async function buildResearchReport(
@@ -1083,14 +1216,18 @@ export async function buildResearchReport(
   language: ReportLanguage = 'en',
   macro: readonly MacroSeries[] = [],
   metrics: readonly AssetMetric[] = [],
+  parameters: ValuationParameters = VALUATION_PARAMETERS,
 ): Promise<ResearchReport> {
   const copy = REPORT_COPY[language]
   const snapshot = await provider.load(request.symbol, signal)
   const analysis = buildIndicatorAnalysis(snapshot)
   const type = resolveReportType(request, snapshot)
-  const inputs = forecastInputs(metrics, snapshot.quote.price, new Date(snapshot.asOf).getUTCFullYear())
+  const inputs = forecastInputs(metrics, parameters, new Date(snapshot.asOf).getUTCFullYear())
   const forecast = inputs === undefined ? undefined : buildEarningsForecast(inputs)
-  const sections = sectionsFor(snapshot, analysis, request, language, type, macro, metrics, forecast)
+  const valuation = metrics.length === 0
+    ? undefined
+    : buildValuation(buildValuationInputs(metrics, macro, snapshot.quote.price), parameters)
+  const sections = sectionsFor(snapshot, analysis, request, language, type, macro, metrics, forecast, valuation)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol
     : `${snapshot.instrument.name} (${snapshot.instrument.symbol})`
@@ -1108,7 +1245,7 @@ export async function buildResearchReport(
     title,
     reportType: type.id,
     markdown,
-    html: reportHtml(title, snapshot, analysis, sections, copy, type, forecast),
+    html: reportHtml(title, snapshot, analysis, sections, copy, type, valuation),
     sections,
     evidence: [{
       source: snapshot.source.provider,

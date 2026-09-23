@@ -792,10 +792,42 @@ export interface Config {
   readonly marketStreamTimeoutMs?: number
   /** Maximum WebSocket events returned by one collection. */
   readonly marketStreamMaxEvents?: number
+  /** Years the valuation projects at the faded growth rate. */
+  readonly valuationExplicitYears?: number
+  /** Years the valuation projects at the terminal rate before its terminal value. */
+  readonly valuationFadeYears?: number
+  /** Long-run growth the valuation converges to, in percent. */
+  readonly valuationTerminalGrowthPercent?: number
+  /** Equity risk premium the cost of equity adds, in percent. */
+  readonly valuationEquityRiskPremiumPercent?: number
+  /** Risk-free rate used when no government yield loaded, in percent. */
+  readonly valuationRiskFreeFallbackPercent?: number
+  /** Spread over the risk-free rate used when the filing carries no interest expense, in percent. */
+  readonly valuationCreditSpreadPercent?: number
+  /** Tax rate used when the filing carries no usable pretax income, in percent. */
+  readonly valuationTaxRateFallbackPercent?: number
+  /** Growth shift the bear case applies, in percentage points. */
+  readonly valuationBearGrowthShiftPercent?: number
+  /** Growth shift the bull case applies, in percentage points. */
+  readonly valuationBullGrowthShiftPercent?: number
+  /** Margin shift the bear case applies, in percentage points. */
+  readonly valuationBearMarginShiftPercent?: number
+  /** Margin shift the bull case applies, in percentage points. */
+  readonly valuationBullMarginShiftPercent?: number
+  /** Probability weight of the bear case. */
+  readonly valuationBearProbability?: number
+  /** Probability weight of the bull case. */
+  readonly valuationBullProbability?: number
+  /** Implied upside at or above which the mapping accumulates. */
+  readonly valuationAccumulateUpsidePercent?: number
+  /** Implied upside at or below which the mapping reduces. */
+  readonly valuationReduceUpsidePercent?: number
+  /** Terminal-value share above which the report marks its ceiling breached, in percent. */
+  readonly valuationTerminalValueCeilingPercent?: number
 }
 ```
 
-Source: [`packages/experimental/finance-research/src/index.ts:115`](../packages/experimental/finance-research/src/index.ts)
+Source: [`packages/experimental/finance-research/src/index.ts:116`](../packages/experimental/finance-research/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-inspector"></a>
 

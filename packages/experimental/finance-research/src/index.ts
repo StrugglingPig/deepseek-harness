@@ -30,6 +30,7 @@ import {
 } from './stock.ts'
 import { MONITOR_DEFAULT_BTC_INTERVAL_SECONDS, MONITOR_MINIMUM_BTC_INTERVAL_SECONDS, planFinanceMonitor } from './monitor.ts'
 import { buildResearchReport } from './report.ts'
+import { VALUATION_PARAMETERS, type ValuationParameters } from './valuation.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import {
   cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromFundamentals,
@@ -205,6 +206,38 @@ export interface Config {
   readonly marketStreamTimeoutMs?: number
   /** Maximum WebSocket events returned by one collection. */
   readonly marketStreamMaxEvents?: number
+  /** Years the valuation projects at the faded growth rate. */
+  readonly valuationExplicitYears?: number
+  /** Years the valuation projects at the terminal rate before its terminal value. */
+  readonly valuationFadeYears?: number
+  /** Long-run growth the valuation converges to, in percent. */
+  readonly valuationTerminalGrowthPercent?: number
+  /** Equity risk premium the cost of equity adds, in percent. */
+  readonly valuationEquityRiskPremiumPercent?: number
+  /** Risk-free rate used when no government yield loaded, in percent. */
+  readonly valuationRiskFreeFallbackPercent?: number
+  /** Spread over the risk-free rate used when the filing carries no interest expense, in percent. */
+  readonly valuationCreditSpreadPercent?: number
+  /** Tax rate used when the filing carries no usable pretax income, in percent. */
+  readonly valuationTaxRateFallbackPercent?: number
+  /** Growth shift the bear case applies, in percentage points. */
+  readonly valuationBearGrowthShiftPercent?: number
+  /** Growth shift the bull case applies, in percentage points. */
+  readonly valuationBullGrowthShiftPercent?: number
+  /** Margin shift the bear case applies, in percentage points. */
+  readonly valuationBearMarginShiftPercent?: number
+  /** Margin shift the bull case applies, in percentage points. */
+  readonly valuationBullMarginShiftPercent?: number
+  /** Probability weight of the bear case. */
+  readonly valuationBearProbability?: number
+  /** Probability weight of the bull case. */
+  readonly valuationBullProbability?: number
+  /** Implied upside at or above which the mapping accumulates. */
+  readonly valuationAccumulateUpsidePercent?: number
+  /** Implied upside at or below which the mapping reduces. */
+  readonly valuationReduceUpsidePercent?: number
+  /** Terminal-value share above which the report marks its ceiling breached, in percent. */
+  readonly valuationTerminalValueCeilingPercent?: number
 }
 
 /** Settings namespace owned by the finance research plugin. */
@@ -258,6 +291,22 @@ export const Config: z<Config> = z.object({
   coinMarketCapWebSocketBaseUrl: z.string().default('wss://pro-stream.coinmarketcap.com/v1'),
   marketStreamTimeoutMs: z.number().min(1).default(15_000),
   marketStreamMaxEvents: z.number().step(1).min(1).default(100),
+  valuationExplicitYears: z.number().step(1).min(1).max(10).default(VALUATION_PARAMETERS.explicitYears),
+  valuationFadeYears: z.number().step(1).min(0).max(20).default(VALUATION_PARAMETERS.fadeYears),
+  valuationTerminalGrowthPercent: z.number().min(-5).max(10).default(VALUATION_PARAMETERS.terminalGrowthPercent),
+  valuationEquityRiskPremiumPercent: z.number().min(0).max(15).default(VALUATION_PARAMETERS.equityRiskPremiumPercent),
+  valuationRiskFreeFallbackPercent: z.number().min(0).max(20).default(VALUATION_PARAMETERS.riskFreeFallbackPercent),
+  valuationCreditSpreadPercent: z.number().min(0).max(15).default(VALUATION_PARAMETERS.creditSpreadPercent),
+  valuationTaxRateFallbackPercent: z.number().min(0).max(60).default(VALUATION_PARAMETERS.taxRateFallbackPercent),
+  valuationBearGrowthShiftPercent: z.number().min(-40).max(0).default(VALUATION_PARAMETERS.bearGrowthShiftPercent),
+  valuationBullGrowthShiftPercent: z.number().min(0).max(40).default(VALUATION_PARAMETERS.bullGrowthShiftPercent),
+  valuationBearMarginShiftPercent: z.number().min(-20).max(0).default(VALUATION_PARAMETERS.bearMarginShiftPercent),
+  valuationBullMarginShiftPercent: z.number().min(0).max(20).default(VALUATION_PARAMETERS.bullMarginShiftPercent),
+  valuationBearProbability: z.number().min(0).max(0.5).default(VALUATION_PARAMETERS.bearProbability),
+  valuationBullProbability: z.number().min(0).max(0.5).default(VALUATION_PARAMETERS.bullProbability),
+  valuationAccumulateUpsidePercent: z.number().min(0).max(100).default(VALUATION_PARAMETERS.accumulateUpsidePercent),
+  valuationReduceUpsidePercent: z.number().min(-100).max(0).default(VALUATION_PARAMETERS.reduceUpsidePercent),
+  valuationTerminalValueCeilingPercent: z.number().min(20).max(95).default(VALUATION_PARAMETERS.terminalValueCeilingPercent),
 })
 
 
@@ -269,6 +318,7 @@ export const Config: z<Config> = z.object({
  * @param reportLanguage - Resolves the report language for generated reports.
  * @param macroContext - Loads the macro series the report quotes as its precondition.
  * @param assetContext - Loads the instrument metrics the report quotes.
+ * @param valuationParameters - Reads the valuation parameters the report model runs with.
  */
 export function registerFinanceTools(
   ctx: Context,
@@ -277,6 +327,7 @@ export function registerFinanceTools(
   reportLanguage: () => ReportLanguage = () => 'en',
   macroContext: () => Promise<readonly MacroSeries[]> = () => Promise.resolve([]),
   assetContext: ReportAssetContext = () => Promise.resolve([]),
+  valuationParameters: () => ValuationParameters = () => VALUATION_PARAMETERS,
 ): void {
   /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
@@ -384,7 +435,9 @@ export function registerFinanceTools(
     async execute(args, exec) {
       const macro = await macroContext()
       const metrics = await assetContext({ symbol: args.symbol })
-      return reportValue(await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(), macro, metrics))
+      return reportValue(await buildResearchReport(
+        provider, reportRequest(args), exec.signal, reportLanguage(), macro, metrics, valuationParameters(),
+      ))
     },
   }))
 
@@ -467,7 +520,7 @@ export function registerFinanceTools(
       },
       async execute(args, exec) {
         const report = await buildResearchReport(provider, reportRequest(args), exec.signal, reportLanguage(),
-          await macroContext(), await assetContext({ symbol: args.symbol }))
+          await macroContext(), await assetContext({ symbol: args.symbol }), valuationParameters())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,
@@ -1205,6 +1258,22 @@ export function apply(ctx: Context, config: Config): void {
     coinMarketCapWebSocketBaseUrl: resolved.coinMarketCapWebSocketBaseUrl,
     marketStreamTimeoutMs: resolved.marketStreamTimeoutMs,
     marketStreamMaxEvents: resolved.marketStreamMaxEvents,
+    valuationExplicitYears: resolved.valuationExplicitYears,
+    valuationFadeYears: resolved.valuationFadeYears,
+    valuationTerminalGrowthPercent: resolved.valuationTerminalGrowthPercent,
+    valuationEquityRiskPremiumPercent: resolved.valuationEquityRiskPremiumPercent,
+    valuationRiskFreeFallbackPercent: resolved.valuationRiskFreeFallbackPercent,
+    valuationCreditSpreadPercent: resolved.valuationCreditSpreadPercent,
+    valuationTaxRateFallbackPercent: resolved.valuationTaxRateFallbackPercent,
+    valuationBearGrowthShiftPercent: resolved.valuationBearGrowthShiftPercent,
+    valuationBullGrowthShiftPercent: resolved.valuationBullGrowthShiftPercent,
+    valuationBearMarginShiftPercent: resolved.valuationBearMarginShiftPercent,
+    valuationBullMarginShiftPercent: resolved.valuationBullMarginShiftPercent,
+    valuationBearProbability: resolved.valuationBearProbability,
+    valuationBullProbability: resolved.valuationBullProbability,
+    valuationAccumulateUpsidePercent: resolved.valuationAccumulateUpsidePercent,
+    valuationReduceUpsidePercent: resolved.valuationReduceUpsidePercent,
+    valuationTerminalValueCeilingPercent: resolved.valuationTerminalValueCeilingPercent,
   }
   let stockProvider: SubprocessFinanceStockDataProvider | undefined
   let readLocalePreference: () => string | undefined = () => undefined
@@ -1251,6 +1320,24 @@ export function apply(ctx: Context, config: Config): void {
     () => currentSettings,
     ref => resolveCredential(ref),
   )
+  const valuationParameters = (): ValuationParameters => ({
+    explicitYears: currentSettings.valuationExplicitYears,
+    fadeYears: currentSettings.valuationFadeYears,
+    terminalGrowthPercent: currentSettings.valuationTerminalGrowthPercent,
+    equityRiskPremiumPercent: currentSettings.valuationEquityRiskPremiumPercent,
+    riskFreeFallbackPercent: currentSettings.valuationRiskFreeFallbackPercent,
+    creditSpreadPercent: currentSettings.valuationCreditSpreadPercent,
+    taxRateFallbackPercent: currentSettings.valuationTaxRateFallbackPercent,
+    bearGrowthShiftPercent: currentSettings.valuationBearGrowthShiftPercent,
+    bullGrowthShiftPercent: currentSettings.valuationBullGrowthShiftPercent,
+    bearMarginShiftPercent: currentSettings.valuationBearMarginShiftPercent,
+    bullMarginShiftPercent: currentSettings.valuationBullMarginShiftPercent,
+    bearProbability: currentSettings.valuationBearProbability,
+    bullProbability: currentSettings.valuationBullProbability,
+    accumulateUpsidePercent: currentSettings.valuationAccumulateUpsidePercent,
+    reduceUpsidePercent: currentSettings.valuationReduceUpsidePercent,
+    terminalValueCeilingPercent: currentSettings.valuationTerminalValueCeilingPercent,
+  })
   registerFinanceTools(ctx, provider, streamProvider, reportLanguage, () => loadMacroContext(macroProvider),
     async (request) => {
       // A quoted pair carries its base asset; anything else is treated as a listed ticker.
@@ -1284,7 +1371,7 @@ export function apply(ctx: Context, config: Config): void {
         // A report keeps its price and macro sections when fundamentals are unavailable.
         return []
       }
-    })
+    }, valuationParameters)
   registerMacroTools(ctx, macroProvider, reportLanguage)
   ctx.inject(['subprocess'], (subprocessCtx) => {
     const bridge = new FinanceStockSubprocessBridge({
@@ -1325,7 +1412,7 @@ export function apply(ctx: Context, config: Config): void {
         // Valuation and industry data are optional for the same reason.
       }
       return metrics
-    })
+    }, valuationParameters)
   })
 
   ctx.inject(['settings'], (settingsCtx) => {

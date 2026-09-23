@@ -249,8 +249,16 @@ const REPORTED_LINES: readonly ReportedLineSpec[] = [
   { key: 'grossProfit', bucket: 'ic', concepts: ['us-gaap_GrossProfit'] },
   { key: 'operatingIncome', bucket: 'ic', concepts: ['us-gaap_OperatingIncomeLoss'] },
   { key: 'netIncome', bucket: 'ic', concepts: NET_INCOME_CONCEPTS },
+  { key: 'pretaxIncome', bucket: 'ic', concepts: [
+    'us-gaap_IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest',
+    'us-gaap_IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments',
+  ] },
+  { key: 'taxExpense', bucket: 'ic', concepts: ['us-gaap_IncomeTaxExpenseBenefit'] },
+  { key: 'interestExpense', bucket: 'ic', concepts: ['us-gaap_InterestExpense', 'us-gaap_InterestExpenseNonoperating'] },
   { key: 'totalAssets', bucket: 'bs', concepts: ['us-gaap_Assets'] },
   { key: 'currentAssets', bucket: 'bs', concepts: ['us-gaap_AssetsCurrent'] },
+  { key: 'currentLiabilities', bucket: 'bs', concepts: ['us-gaap_LiabilitiesCurrent'] },
+  { key: 'retainedEarnings', bucket: 'bs', concepts: ['us-gaap_RetainedEarningsAccumulatedDeficit'] },
   { key: 'liabilities', bucket: 'bs', concepts: ['us-gaap_Liabilities'] },
   { key: 'equity', bucket: 'bs', concepts: [
     'us-gaap_StockholdersEquity',

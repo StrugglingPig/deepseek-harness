@@ -11,7 +11,7 @@ import { REPORT_TYPES } from '../src/report-types.ts'
 const INPUT_BLOCKS = [
   'valuation-framework', 'financial-quality', 'earnings-review', 'event-context', 'industry-landscape',
   'competitive-position', 'macro-drivers', 'rates-credit', 'commodity-balance', 'fx-drivers',
-  'fund-flows', 'onchain-tokenomics', 'ownership-and-insiders', 'catalysts', 'allocation', 'forecast',
+  'fund-flows', 'onchain-tokenomics', 'ownership-and-insiders', 'catalysts', 'allocation', 'valuation-range',
 ] as const
 
 function textOf(result: { content: { type: string; text?: string }[] }): string {

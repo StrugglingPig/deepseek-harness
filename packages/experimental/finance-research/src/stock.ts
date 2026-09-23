@@ -13,6 +13,7 @@ import { exportResearchReport } from './export.ts'
 import type { AssetMetric } from './asset-context.ts'
 import type { MacroSeries } from './macro.ts'
 import { buildResearchReport } from './report.ts'
+import { VALUATION_PARAMETERS, type ValuationParameters } from './valuation.ts'
 import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, STOCK_INPUT_PARAMETERS, analysisValue, snapshotValue } from './tool-schemas.ts'
 import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
 import type { ReportLanguage } from './report-language.ts'
@@ -515,6 +516,7 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
  * @param reportLanguage - Resolves the report language for generated reports.
  * @param macroContext - Loads the macro series the report quotes as its precondition.
  * @param assetContext - Loads the instrument metrics the report quotes.
+ * @param valuationParameters - Reads the valuation parameters the report model runs with.
  */
 export function registerStockTools(
   ctx: Context,
@@ -522,6 +524,7 @@ export function registerStockTools(
   reportLanguage: () => ReportLanguage = () => 'en',
   macroContext: () => Promise<readonly MacroSeries[]> = () => Promise.resolve([]),
   assetContext: StockAssetContext = () => Promise.resolve([]),
+  valuationParameters: () => ValuationParameters = () => VALUATION_PARAMETERS,
 ): void {
   /* jscpd:ignore-start -- the tool table declares each wire schema literally; shared mappers live in tool-schemas.ts */
   ctx.tools.register(defineTool({
@@ -707,7 +710,9 @@ export function registerStockTools(
       }
       const macro = await macroContext()
       const metrics = await assetContext({ provider: args.provider, symbol: args.symbol })
-      return reportValue(await buildResearchReport(stockMarketProvider, reportRequest(args), exec.signal, reportLanguage(), macro, metrics))
+      return reportValue(await buildResearchReport(
+        stockMarketProvider, reportRequest(args), exec.signal, reportLanguage(), macro, metrics, valuationParameters(),
+      ))
     },
   }))
 
@@ -788,7 +793,7 @@ export function registerStockTools(
           id: 'stock-python',
           load: () => Promise.resolve(snapshot),
         }, reportRequest(args), exec.signal, reportLanguage(), await macroContext(),
-        await assetContext({ provider: args.provider, symbol: args.symbol }))
+        await assetContext({ provider: args.provider, symbol: args.symbol }), valuationParameters())
         const files = await exportResearchReport(
           fsCtx.fs,
           report,

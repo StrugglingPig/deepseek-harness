@@ -77,6 +77,22 @@ export interface FinanceRuntimeSettings {
   readonly coinMarketCapWebSocketBaseUrl: string
   readonly marketStreamTimeoutMs: number
   readonly marketStreamMaxEvents: number
+  readonly valuationExplicitYears: number
+  readonly valuationFadeYears: number
+  readonly valuationTerminalGrowthPercent: number
+  readonly valuationEquityRiskPremiumPercent: number
+  readonly valuationRiskFreeFallbackPercent: number
+  readonly valuationCreditSpreadPercent: number
+  readonly valuationTaxRateFallbackPercent: number
+  readonly valuationBearGrowthShiftPercent: number
+  readonly valuationBullGrowthShiftPercent: number
+  readonly valuationBearMarginShiftPercent: number
+  readonly valuationBullMarginShiftPercent: number
+  readonly valuationBearProbability: number
+  readonly valuationBullProbability: number
+  readonly valuationAccumulateUpsidePercent: number
+  readonly valuationReduceUpsidePercent: number
+  readonly valuationTerminalValueCeilingPercent: number
 }
 
 /** Provider facade whose target follows the latest settings snapshot. */

@@ -34,7 +34,7 @@ describe('finance research report', () => {
     expect(report.reportType).toBe('equity-deep-dive')
     expect(report.sections.map(section => section.title)).toEqual([
       'Investment View', 'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action',
-      'Industry Landscape', 'Valuation Framework', 'Earnings Forecast And Target Price', 'Earnings Review',
+      'Industry Landscape', 'Valuation Framework', 'Model Valuation And Reference Range', 'Earnings Review',
       'Financial Quality', 'Competitive Position', 'Ownership And Insiders', 'Technical Indicators',
       'Multi-Indicator Synthesis', 'Methodology Coverage',
       'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
@@ -131,18 +131,32 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Technical Indicators')).toContain('overbought')
   })
 
-  it('projects three years and prices a target from the peer multiple', async () => {
+  it('states a reference range with the methods, inputs, and expectations gap behind it', async () => {
     const metrics: readonly AssetMetric[] = [
       { group: 'valuation', key: 'epsTtm', value: 8.72, unit: 'USD', asOf: '', source: 'finnhub' },
-      { group: 'growth', key: 'revenueGrowth', value: 14.24, unit: '%', asOf: '', source: 'finnhub' },
-      { group: 'growth', key: 'revenue', value: 416_161_000_000, unit: 'USD', asOf: '', source: 'finnhub' },
-      { group: 'profitability', key: 'netIncome', value: 112_010_000_000, unit: 'USD', asOf: '', source: 'finnhub' },
-      { group: 'profitability', key: 'netMargin', value: 26.91, unit: '%', asOf: '', source: 'finnhub' },
-      { group: 'valuation', key: 'peRatio', value: 38.3, unit: '', asOf: '', source: 'finnhub' },
-      ...[20, 25, 30].map((value, index) => ({
-        group: 'competition' as const, key: 'peRatio' as const, value, unit: '', asOf: '', source: 'finnhub',
-        subject: `P${String(index)}`,
-      })),
+      { group: 'growth', key: 'revenueGrowth', value: 8, unit: '%', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenue', value: 416_161_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'grossProfit', value: 195_201_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 133_050_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 112_010_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'pretaxIncome', value: 132_729_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'taxExpense', value: 20_719_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalAssets', value: 359_241_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'currentAssets', value: 147_957_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'currentLiabilities', value: 165_631_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'retainedEarnings', value: -14_264_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'liabilities', value: 285_508_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'equity', value: 73_733_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalDebt', value: 98_657_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'cash', value: 35_934_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'operatingCashFlow', value: 111_482_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 12_715_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'freeCashFlow', value: 98_767_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 11_698_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netMargin', value: 26.92, unit: '%', asOf: '', source: 'finnhub' },
+      { group: 'profitability', key: 'reportedFinancials', value: 0, text: 'FY2025 10-K', unit: '', asOf: '', source: 'finnhub' },
+      { group: 'valuation', key: 'marketCap', value: 3_800_000_000_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'market', key: 'beta', value: 1.1, unit: '', asOf: '', source: 'finnhub' },
     ]
     const report = await buildResearchReport(
       fixtureProvider,
@@ -152,60 +166,137 @@ describe('finance research report', () => {
       [],
       metrics,
     )
-    const forecast = sectionOf(report, 'Earnings Forecast And Target Price')
-    expect(forecast).toContain('| Year | Revenue | Revenue growth | Net income | EPS |')
-    expect(forecast).toContain('| 2027 |')
-    expect(forecast).toContain('| Model target price |')
-    expect(forecast).toContain('| Fair multiple applied | 25.0x |')
-    expect(forecast).toContain('In-house model, not a consensus estimate: the peer-set median P/E')
-    // The investment view quotes the same target.
-    expect(sectionOf(report, 'Investment View')).toContain('Model target price')
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toMatch(/\*\*(Accumulate|Hold|Reduce)\*\* · Credibility gradeB/u)
+    expect(valuation).toContain('| Model reference range (bear–bull) |')
+    expect(valuation).toContain('| Probability-weighted reference value |')
+    expect(valuation).toContain('**Methods behind the range**')
+    expect(valuation).toContain('| FCFF DCF |')
+    expect(valuation).toContain('| Earnings power value (no growth) |')
+    expect(valuation).toContain('| Reverse DCF |')
+    expect(valuation).toContain('**Financial ratios**')
+    expect(valuation).toContain('| Accruals ratio (net income − operating cash flow) / total assets |')
+    expect(valuation).toContain('**Earnings-quality signals**')
+    expect(valuation).toContain('**Cost of capital and its components**')
+    expect(valuation).toContain('| Risk-free rate | 4.00% | assumption |')
+    expect(valuation).toContain('**Discount-rate sensitivity (±1 percentage point)**')
+    expect(valuation).toContain('**Terminal-value check**')
+    expect(valuation).toContain('**Projected path**')
+    expect(valuation).toContain('| 2027 |')
+    expect(valuation).toContain('This is a model reference range, not a target price or fair value')
+    // The investment view carries the same range rather than a single price.
+    expect(sectionOf(report, 'Investment View')).toContain('Model reference range')
+    expect(report.markdown).not.toContain('Model target price')
+    expect(report.html).toContain('<span>Reference range</span>')
   })
 
-  it('names the industry or own multiple when no peer set answered', async () => {
-    const aShare: readonly AssetMetric[] = [
-      { group: 'valuation', key: 'eps', value: 36.82, unit: 'CNY', asOf: '', source: 'akshare' },
-      { group: 'growth', key: 'revenueGrowth', value: 1.47, unit: '%', asOf: '', source: 'akshare' },
-      { group: 'industry', key: 'industryPe', value: 18.94, unit: '', asOf: '', source: 'akshare' },
-    ]
-    const industry = await buildResearchReport(
-      fixtureProvider,
-      { symbol: '600519', reportType: 'equity-deep-dive' },
-      undefined,
-      'en',
-      [],
-      aShare,
-    )
-    const industryForecast = sectionOf(industry, 'Earnings Forecast And Target Price')
-    expect(industryForecast).toContain('the published industry P/E')
-    // No revenue base and no own multiple reach the table as em dashes.
-    expect(industryForecast).toContain('| 2027 | — |')
-    expect(industryForecast).toContain('| Current multiple | — |')
-
-    const own = await buildResearchReport(
-      fixtureProvider,
-      { symbol: '600519', reportType: 'equity-deep-dive' },
-      undefined,
-      'en',
-      [],
-      [...aShare.slice(0, 2), { group: 'valuation', key: 'peTtm', value: 19.2, unit: '', asOf: '', source: 'akshare' }],
-    )
-    expect(sectionOf(own, 'Earnings Forecast And Target Price')).toContain('the instrument own P/E')
-  })
-
-  it('asks for the forecast inputs when the model cannot run', async () => {
-    const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' })
-    expect(sectionOf(report, 'Earnings Forecast And Target Price')).toContain('reported revenue and EPS')
-  })
-
-  it('quotes the reported statements with the period they cover', async () => {
+  it('uses the loaded ten-year yield as the risk-free rate', async () => {
     const metrics: readonly AssetMetric[] = [
-      { group: 'profitability', key: 'grossProfit', value: 195_201_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'operatingCashFlow', value: 180, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'valuation', key: 'marketCap', value: 10_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+    ]
+    const macro = [{
+      indicator: 'us-10y-yield',
+      name: 'US 10-year Treasury yield',
+      nameZh: '美国 10 年期国债收益率',
+      category: 'market' as const,
+      country: 'us' as const,
+      unit: '%',
+      frequency: 'daily' as const,
+      timing: 'coincident' as const,
+      reading: 'The realised yield.',
+      affectedAssets: [],
+      source: 'fred' as const,
+      observations: [{ date: '2026-09-22', value: 5.01 }],
+      latest: { date: '2026-09-22', value: 5.01 },
+      previous: undefined,
+      retrievedAt: '2026-09-23T00:00:00.000Z',
+    }]
+    const report = await buildResearchReport(
+      fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' }, undefined, 'en', macro, metrics,
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('| Risk-free rate | 5.01% | fred | 2026-09-22 |')
+  })
+
+  it('suppresses the valuation when the credibility grade is D', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 100, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 100, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'operatingCashFlow', value: 0, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 5, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'valuation', key: 'marketCap', value: 1_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' }, undefined, 'en', [], metrics,
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('**Avoid**')
+    expect(valuation).toContain('A D credibility grade suppresses the valuation')
+    expect(valuation).not.toContain('Model reference range (bear–bull)')
+  })
+
+  it('caps the action at watch when no credibility grade can be computed', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'valuation', key: 'epsTtm', value: 7.5, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'valuation', key: 'marketCap', value: 10_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' }, undefined, 'en', [], metrics,
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('**Watch**')
+    expect(valuation).toContain('No credibility grade could be computed, so the action is capped at watch.')
+    expect(valuation).toContain('| Not obtained |')
+    // The projected path prints an em dash for the net income this filing did not publish.
+    expect(valuation).toContain('| — |')
+  })
+
+  it('lists the ratios a stalled valuation still misses', async () => {
+    // Without a reported revenue base the cash-flow model cannot run, so the block lists every missing ratio.
+    const metrics: readonly AssetMetric[] = [
+      { group: 'valuation', key: 'epsTtm', value: 8.72, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' }, undefined, 'en', [], metrics,
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('Inputs this read still needs:')
+    expect(valuation).toContain('Gross margin')
+  })
+
+  it('marks a discount-rate step that reaches the terminal growth and a breached ceiling', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'valuation', key: 'epsTtm', value: 8.72, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 8, unit: '%', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenue', value: 416_161_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 133_050_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
       { group: 'profitability', key: 'netIncome', value: 112_010_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
       { group: 'balance', key: 'totalAssets', value: 359_241_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
       { group: 'balance', key: 'totalDebt', value: 98_657_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'cash', value: 35_934_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
       { group: 'cash', key: 'operatingCashFlow', value: 111_482_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
-      { group: 'cash', key: 'freeCashFlow', value: 98_767_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 12_715_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 11_698_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'valuation', key: 'marketCap', value: 3_800_000_000_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'market', key: 'beta', value: 1.1, unit: '', asOf: '', source: 'finnhub' },
     ]
     const report = await buildResearchReport(
       fixtureProvider,
@@ -214,12 +305,61 @@ describe('finance research report', () => {
       'en',
       [],
       metrics,
+      {
+        explicitYears: 3,
+        fadeYears: 4,
+        terminalGrowthPercent: 3.5,
+        equityRiskPremiumPercent: 0,
+        riskFreeFallbackPercent: 4,
+        creditSpreadPercent: 0,
+        taxRateFallbackPercent: 21,
+        bearGrowthShiftPercent: -5,
+        bullGrowthShiftPercent: 5,
+        bearMarginShiftPercent: -2,
+        bullMarginShiftPercent: 2,
+        bearProbability: 0.25,
+        bullProbability: 0.25,
+        accumulateUpsidePercent: 15,
+        reduceUpsidePercent: -10,
+        terminalValueCeilingPercent: 20,
+      },
     )
-    const quality = sectionOf(report, 'Financial Quality')
-    expect(quality).toContain('| Gross profit | 195.2B USD（FY2025 10-K） | finnhub |')
-    expect(quality).toContain('| Total assets | 359.24B USD（FY2025 10-K） | finnhub |')
-    expect(quality).toContain('| Interest-bearing debt | 98.66B USD（FY2025 10-K） | finnhub |')
-    expect(quality).toContain('| Free cash flow | 98.77B USD（FY2025 10-K） | finnhub |')
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('| Not obtained |')
+    expect(valuation).toContain('The terminal-value share is above its ceiling, so read the range as an upper bound.')
+  })
+
+  it('stalls the valuation without listing a ratio it could compute', async () => {
+    // Every ratio resolves, but no equity value means the weighted cost of capital cannot exist.
+    const metrics: readonly AssetMetric[] = [
+      { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'grossProfit', value: 450, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'currentAssets', value: 400, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'currentLiabilities', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'equity', value: 400, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalDebt', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'cash', value: 100, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'operatingCashFlow', value: 180, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'freeCashFlow', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 30, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' }, undefined, 'en', [], metrics,
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('Required inputs: reported statements')
+    expect(valuation).not.toContain('Inputs this read still needs:')
+  })
+
+  it('asks for the valuation inputs when no instrument metrics loaded', async () => {
+    const report = await buildResearchReport(fixtureProvider, { symbol: 'AAPL', reportType: 'equity-deep-dive' })
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('reported statements')
+    expect(valuation).toContain('a government yield')
   })
 
   it('renders the comparable-company table when peer figures loaded', async () => {
@@ -306,7 +446,7 @@ describe('finance research report', () => {
     expect(report.title).toBe('Apple Inc. (AAPL) · 股票深度报告')
     expect(report.sections.map(section => section.title)).toEqual([
       '投资结论', '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为',
-      '行业格局', '估值框架', '盈利预测与目标价', '业绩点评', '财务质量', '竞争格局', '股权与内部人',
+      '行业格局', '估值框架', '模型估值与参考价值区间', '业绩点评', '财务质量', '竞争格局', '股权与内部人',
       '技术指标', '多指标综合',
       '方法论覆盖', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
