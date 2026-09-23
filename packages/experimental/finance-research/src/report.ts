@@ -374,7 +374,9 @@ function valuationTable(context: SectionContext): readonly string[] {
       [
         [labels.verdictRange, range === undefined ? labels.notObtained : `${range} ${currency}`],
         ...weighted === undefined ? [] : [[labels.verdictWeighted, money(weighted, currency)]],
-        ...weighted === undefined ? [] : [[labels.verdictUpsideRange, percent((weighted / context.price - 1) * 100)]],
+        ...valuation.value === undefined ? [] : [[labels.verdictUpsideRange, `${percent(
+          (valuation.value.lowValuePerShare / context.price - 1) * 100)} ~ ${percent(
+          (valuation.value.highValuePerShare / context.price - 1) * 100)}`]],
         [labels.verdictAction, copy.valuation.actions[valuation.verdict.action]],
         [labels.credibility, valuation.quality.grade ?? labels.notObtained],
         [labels.verdictTradingDirection, word(copy.directions, composites.direction)],
