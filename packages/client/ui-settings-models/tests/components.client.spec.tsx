@@ -1785,6 +1785,28 @@ describe('ModelsSection', () => {
     ])
   })
 
+  it('offers the add card for a withdrawn route when no other namespace can open an editor', async () => {
+    // A DeepSeek-only deployment: deleting the built-in route leaves no live
+    // row and no pi-ai namespace, so the withdrawn declaration is the only
+    // thing the add card could restore. Reading the offer from live rows alone
+    // would hide the entry and strand the route off the page for good.
+    const scripted = scriptedFace()
+    scripted.face.settings.describe.mockResolvedValue(remoteOk({
+      writable: true,
+      hasDocument: false,
+      namespaces: wireNamespaces().filter(view => view.ns === 'llm-deepseek'),
+    }))
+    scripted.face.llm.listProviders.mockResolvedValue(remoteOk([]))
+    scripted.face.llm.listConfigurableProviders.mockResolvedValue(remoteOk([
+      { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [], disabled: true },
+    ]))
+    await mountFace(scripted)
+    const add = screen.getByRole('button', { name: en.add })
+    expect((add as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(add)
+    expect(await screen.findByLabelText(en.provider)).toBeTruthy()
+  })
+
   it('restores a withdrawn route by clearing the withdrawal beside the edit', async () => {
     const scripted = scriptedFace()
     // The shipped DeepSeek route is withdrawn: the directory still declares it,

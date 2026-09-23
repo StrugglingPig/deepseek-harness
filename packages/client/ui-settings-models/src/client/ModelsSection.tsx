@@ -364,7 +364,13 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   // step: whether the user already has a provider to talk to.
   const anyUsable = state.rows.some(providerUsable)
   const configured = state.rows.filter(row => row.configured)
-  const configurable = state.rows.filter(row => state.namespaces.has(row.entry.settingsNs))
+  // The catalog mode is offered whenever some directory row has an editor to
+  // open, and a row its adapter withdrew is exactly that: a live row is not
+  // the only thing the mode restores. Reading the offer from live rows alone
+  // would hide the entry on a deployment whose only configurable route was
+  // just deleted, stranding it off the page.
+  const configurable = [...state.rows, ...state.restorable]
+    .filter(row => state.namespaces.has(row.entry.settingsNs))
   /**
    * Every route this page can add, as the row plus the namespace view its
    * editor needs. A withdrawn route is one the add flow can restore, so it is
