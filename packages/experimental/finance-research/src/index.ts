@@ -1441,7 +1441,7 @@ export function apply(ctx: Context, config: Config): void {
     stock: () => stockProvider,
     research: dashboardResearchLoader(provider, valuationParameters, VALUATION_VALIDATION),
     macro: () => loadDashboardMacroStrip(macroProvider, DASHBOARD_MACRO_INDICATORS),
-    events: signal => loadDashboardEvents(provider, DASHBOARD_EVENT_LIMIT, signal),
+    events: signal => loadDashboardEvents(provider, DASHBOARD_EVENT_LIMIT, new Date().toISOString().slice(0, 10), signal),
     enabledStock: provider => provider === 'akshare'
       ? currentSettings.enableAkshare
       : currentSettings.enableIfind,

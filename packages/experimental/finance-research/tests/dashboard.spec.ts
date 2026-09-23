@@ -237,23 +237,25 @@ describe('finance dashboard market route', () => {
   })
 
   it('reads the upcoming release calendar and keeps malformed rows out', async () => {
-    const events = await loadDashboardEvents({
-      request: vi.fn(async () => marketResponse({
-        release_dates: [
-          { date: '2026-09-24', release_name: 'Gross Domestic Product' },
-          { date: '2026-09-25' },
-          { release_name: 'Employment Situation' },
-        ],
-      })),
-    }, 5)
+    const request = vi.fn(async (_request: FinanceProviderRequest) => marketResponse({
+      release_dates: [
+        { date: '2026-09-24', release_name: 'Gross Domestic Product' },
+        { date: '2026-09-25' },
+        { release_name: 'Employment Situation' },
+      ],
+    }))
+    const events = await loadDashboardEvents({ request }, 5, '2026-09-23')
+    // The window is the point of the read: an unbounded ask returns the oldest dates in the dataset.
+    const sent = request.mock.calls[0]?.[0] as FinanceProviderRequest
+    expect(sent.query).toMatchObject({ realtime_start: '2026-09-23', realtime_end: '2026-12-22' })
     expect(events).toEqual([{ date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' }])
 
     // A key FRED will not serve leaves the calendar empty instead of failing the panel.
     const unavailable = await loadDashboardEvents({
       request: vi.fn(async () => { throw new FinanceDataError('no key', 'PROVIDER_UNAUTHORIZED') }),
-    }, 5)
+    }, 5, '2026-09-23')
     expect(unavailable).toEqual([])
-    const empty = await loadDashboardEvents({ request: vi.fn(async () => marketResponse({})) }, 5)
+    const empty = await loadDashboardEvents({ request: vi.fn(async () => marketResponse({})) }, 5, '2026-09-23')
     expect(empty).toEqual([])
   })
 

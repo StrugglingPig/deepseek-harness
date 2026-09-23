@@ -280,14 +280,17 @@ export async function loadDashboardMacroStrip(
  * Load the upcoming release calendar.
  * @param provider - Market-data provider carrying the FRED transport.
  * @param limit - Maximum events to keep.
+ * @param from - First release date to ask for, as `YYYY-MM-DD`.
  * @param signal - optional caller cancellation.
  * @returns One entry per release date that answered, or an empty list when FRED cannot serve them.
  */
 export async function loadDashboardEvents(
   provider: DashboardMarketProvider,
   limit: number,
+  from: string,
   signal?: AbortSignal,
 ): Promise<readonly DashboardEvent[]> {
+  const until = new Date(Date.parse(`${from}T00:00:00Z`) + 90 * 86_400_000).toISOString().slice(0, 10)
   try {
     const response = await provider.request({
       base: 'fred',
@@ -296,6 +299,8 @@ export async function loadDashboardEvents(
       query: {
         file_type: 'json',
         sort_order: 'asc',
+        realtime_start: from,
+        realtime_end: until,
         limit: String(limit),
         include_release_dates_with_no_data: 'false',
       },
