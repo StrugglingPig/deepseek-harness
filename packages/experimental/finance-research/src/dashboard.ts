@@ -302,7 +302,8 @@ export async function loadDashboardEvents(
         realtime_start: from,
         realtime_end: until,
         limit: String(limit),
-        include_release_dates_with_no_data: 'false',
+        // A calendar lists what is scheduled, including releases whose data has not published yet.
+        include_release_dates_with_no_data: 'true',
       },
     }, signal)
     const releases = rows(record(response.data)?.release_dates)
