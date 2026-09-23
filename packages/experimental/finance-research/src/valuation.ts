@@ -8,6 +8,7 @@
  * target price, until the out-of-sample backtest in the accepted design passes.
  */
 
+import { NO_BACKTEST, validationLabel, type ValuationLabel, type ValuationValidation } from './backtest.ts'
 import type { AssetMetric, ReportMetricKey } from './asset-context.ts'
 import type { MacroSeries } from './macro.ts'
 
@@ -252,6 +253,10 @@ export interface ValuationAnalysis {
   readonly quality: EarningsQuality
   readonly value?: CashFlowValue
   readonly verdict: ValuationVerdict
+  /** Wording the recorded backtest evidence allows the report to use. */
+  readonly label: ValuationLabel
+  /** Recorded evidence behind that wording; the no-evidence record before a backtest runs. */
+  readonly validation: ValuationValidation
 }
 
 /** Read one metric value by key, ignoring the comparable-table rows that carry a subject. */
@@ -711,11 +716,13 @@ export function buildVerdict(
  * Run the complete valuation read for one report.
  * @param inputs - Explicit input record built from the loaded metrics and macro series.
  * @param parameters - Resolved valuation parameters.
- * @returns Ratios, the cost of capital, the credibility grade, the scenario range, and the action.
+ * @param validation - Recorded backtest evidence, or the no-evidence record.
+ * @returns Ratios, the cost of capital, the credibility grade, the scenario range, the action, and the wording.
  */
 export function buildValuation(
   inputs: ValuationInputs,
   parameters: ValuationParameters,
+  validation: ValuationValidation = NO_BACKTEST,
 ): ValuationAnalysis {
   const ratios = buildRatios(inputs, parameters)
   const cost = buildCostOfCapital(inputs, parameters)
@@ -731,5 +738,7 @@ export function buildValuation(
     quality,
     ...value === undefined ? {} : { value },
     verdict: buildVerdict(inputs, parameters, quality, value),
+    label: validationLabel(validation),
+    validation,
   }
 }

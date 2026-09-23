@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureProvider } from '../src/data.ts'
+import { NO_BACKTEST, summarizeBacktest, type BacktestSummary, type ValuationValidation } from '../src/backtest.ts'
 import { buildResearchReport } from '../src/report.ts'
 import type { AssetMetric } from '../src/asset-context.ts'
 import type { FinanceMarketDataProvider } from '../src/types.ts'
@@ -183,7 +184,8 @@ describe('finance research report', () => {
     expect(valuation).toContain('**Terminal-value check**')
     expect(valuation).toContain('**Projected path**')
     expect(valuation).toContain('| 2027 |')
-    expect(valuation).toContain('This is a model reference range, not a target price or fair value')
+    // The recorded backtest did not beat the unchanged-price control, so the value stays a reference.
+    expect(valuation).toContain('did not beat the unchanged-price control')
     // The football field carries one text bar per method, scaled to the same axis.
     expect(valuation).toContain('| Low | High | Range |')
     expect(valuation).toMatch(/\| FCFF DCF \| [\d,.]+ \| [\d,.]+ \| [·█│]{20} \|/u)
@@ -371,6 +373,54 @@ describe('finance research report', () => {
     const valuation = sectionOf(report, 'Model Valuation And Reference Range')
     expect(valuation).toContain('Required inputs: reported statements')
     expect(valuation).not.toContain('Inputs this read still needs:')
+  })
+
+  it('calls the value a target price only when a passing backtest is recorded', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'operatingCashFlow', value: 180, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'capex', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'depreciation', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'valuation', key: 'marketCap', value: 10_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+    ]
+    const summary = summarizeBacktest(
+      Array.from({ length: 60 }, () => ({ valuePerShare: 100, entryPrice: 120, exitPrice: 100 })),
+      12,
+    ) as BacktestSummary
+    const validation: ValuationValidation = { asOf: '2026-09-23', symbols: 8, horizonMonths: 12, summary }
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      metrics,
+      undefined,
+      validation,
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('| Target price range (bear–bull) |')
+    expect(valuation).toContain('passed the recorded out-of-sample backtest over 60 symbol-dates on 2026-09-23')
+    expect(sectionOf(report, 'Investment View')).toContain('Target price range')
+    expect(report.markdown).not.toContain('Model reference range')
+
+    // A checkout whose backtest has never run carries no evidence and prints the plain notice.
+    const unrun = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      metrics,
+      undefined,
+      NO_BACKTEST,
+    )
+    expect(sectionOf(unrun, 'Model Valuation And Reference Range'))
+      .toContain('the model has not passed an out-of-sample backtest')
   })
 
   it('asks for the valuation inputs when no instrument metrics loaded', async () => {

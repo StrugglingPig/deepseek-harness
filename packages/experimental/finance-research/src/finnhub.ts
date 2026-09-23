@@ -259,6 +259,15 @@ const REPORTED_LINES: readonly ReportedLineSpec[] = [
   { key: 'currentAssets', bucket: 'bs', concepts: ['us-gaap_AssetsCurrent'] },
   { key: 'currentLiabilities', bucket: 'bs', concepts: ['us-gaap_LiabilitiesCurrent'] },
   { key: 'retainedEarnings', bucket: 'bs', concepts: ['us-gaap_RetainedEarningsAccumulatedDeficit'] },
+  // Filers publish either the period-end share count or a weighted average; the later entry wins.
+  { key: 'sharesOutstanding', bucket: 'ic', concepts: [
+    'us-gaap_WeightedAverageNumberOfDilutedSharesOutstanding',
+    'us-gaap_WeightedAverageNumberOfSharesOutstandingBasic',
+  ] },
+  { key: 'sharesOutstanding', bucket: 'bs', concepts: [
+    'us-gaap_CommonStockSharesOutstanding',
+    'us-gaap_EntityCommonStockSharesOutstanding',
+  ] },
   { key: 'liabilities', bucket: 'bs', concepts: ['us-gaap_Liabilities'] },
   { key: 'equity', bucket: 'bs', concepts: [
     'us-gaap_StockholdersEquity',
@@ -340,24 +349,47 @@ export interface FinnhubReportedFinancials {
   readonly lines: Readonly<Record<string, number>>
 }
 
+/** One reported period, with the filing it came from. */
+export interface FinnhubReportedPeriod extends FinnhubReportedFinancials {
+  /** Period the statement covers, as `YYYY-MM-DD`, when the answer published one. */
+  readonly endDate?: string
+  /** SEC form the statement was filed on, such as `10-K`. */
+  readonly form: string
+}
+
+/**
+ * Read every reported period an answer carries, newest first as the endpoint orders them.
+ * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
+ * @returns One record per period the answer published, or an empty list when it carried none.
+ */
+export function reportedFinancialsHistory(payload: unknown): readonly FinnhubReportedPeriod[] {
+  const rows = record(payload)?.data
+  if (!Array.isArray(rows)) return []
+  return rows.flatMap((row) => {
+    const entry = record(row)
+    const year = finite(entry?.year)
+    const form = text(entry?.form)
+    if (year === undefined || form === undefined) return []
+    const quarter = finite(entry?.quarter)
+    const period = quarter === undefined || quarter === 0 ? `FY${year}` : `Q${quarter} ${year}`
+    const endDate = text(entry?.endDate)?.slice(0, 10)
+    return [{
+      label: `${period} ${form}`,
+      form,
+      ...endDate === undefined ? {} : { endDate },
+      lines: reportedLines(record(entry)?.report),
+    }]
+  })
+}
+
 /**
  * Read the period label and the reported lines of the newest reported statements.
  * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
  * @returns The label with whatever lines the statement published, or undefined when no period was published.
  */
 export function latestReportedFinancials(payload: unknown): FinnhubReportedFinancials | undefined {
-  const rows = record(payload)?.data
-  if (!Array.isArray(rows)) return undefined
-  for (const row of rows) {
-    const entry = record(row)
-    const year = finite(entry?.year)
-    const form = text(entry?.form)
-    if (year === undefined || form === undefined) continue
-    const quarter = finite(entry?.quarter)
-    const period = quarter === undefined || quarter === 0 ? `FY${year}` : `Q${quarter} ${year}`
-    return { label: `${period} ${form}`, lines: reportedLines(record(entry)?.report) }
-  }
-  return undefined
+  const [newest] = reportedFinancialsHistory(payload)
+  return newest === undefined ? undefined : { label: newest.label, lines: newest.lines }
 }
 
 /** Free-tier extras a Finnhub lookup adds to the fundamentals snapshot. */

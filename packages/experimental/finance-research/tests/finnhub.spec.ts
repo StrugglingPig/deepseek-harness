@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   insiderTradeTotals, latestAnalystConsensus, latestEpsSurprise, latestInsiderSentiment,
-  latestMaterialFiling, latestReportedFinancials, nextEarningsDate,
+  latestMaterialFiling, latestReportedFinancials, nextEarningsDate, reportedFinancialsHistory,
   normalizeFinnhubExtras, normalizeFinnhubFundamentals,
 } from '../src/finnhub.ts'
 
@@ -228,6 +228,38 @@ describe('Finnhub free-tier extras', () => {
       dividendsPaid: 15_421_000_000,
       buybacks: 90_711_000_000,
     })
+  })
+
+  it('reads every reported period with the filing and period end it carries', () => {
+    const history = reportedFinancialsHistory({ data: [
+      {
+        year: 2025,
+        quarter: 0,
+        form: '10-K',
+        endDate: '2025-09-27 00:00:00',
+        report: { ic: [{ concept: 'us-gaap_Revenues', value: 10 }] },
+      },
+      {
+        year: 2024,
+        quarter: 0,
+        form: '10-K',
+        report: { bs: [{ concept: 'us-gaap_CommonStockSharesOutstanding', value: 14_773_260_000 }] },
+      },
+      { year: 2023, form: '10-K', report: { ic: [] } },
+      { quarter: 3, form: '10-Q' },
+      'nope',
+    ] })
+    expect(history).toEqual([
+      { label: 'FY2025 10-K', form: '10-K', endDate: '2025-09-27', lines: { revenue: 10 } },
+      {
+        label: 'FY2024 10-K',
+        form: '10-K',
+        lines: { sharesOutstanding: 14_773_260_000 },
+      },
+      { label: 'FY2023 10-K', form: '10-K', lines: {} },
+    ])
+    expect(reportedFinancialsHistory({})).toEqual([])
+    expect(reportedFinancialsHistory(undefined)).toEqual([])
   })
 
   it('falls back to the concept each filer uses and drops the lines a filing omitted', () => {

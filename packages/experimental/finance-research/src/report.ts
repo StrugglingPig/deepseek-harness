@@ -9,6 +9,8 @@ import type { AssetMetric, AssetMetricGroup, ReportMetricKey } from './asset-con
 import type { MacroCategory } from './macro-catalog.ts'
 import type { MacroSeries } from './macro.ts'
 import { buildEarningsForecast, type EarningsForecast, type EarningsForecastInput } from './forecast.ts'
+import { VALUATION_VALIDATION } from './validation-record.ts'
+import type { ValuationValidation } from './backtest.ts'
 import {
   buildValuation, buildValuationInputs, buildValueBands, VALUATION_PARAMETERS,
   type CashFlowValue, type ValuationAnalysis, type ValuationBand, type ValuationParameters, type ValuationScenario,
@@ -259,6 +261,31 @@ function bandLabel(copy: ReportCopy, id: ValuationBand['id']): string {
 }
 
 /**
+ * Read the notice the valuation section prints under its range.
+ * @param labels - Valuation labels.
+ * @param label - Wording the record allows.
+ * @param validation - Recorded backtest evidence, whose sample count says whether one ran.
+ * @returns The notice, naming the recorded result when a run exists.
+ */
+function valuationNotice(
+  labels: ReportCopy['valuation']['labels'],
+  label: ValuationAnalysis['label'],
+  validation: ValuationValidation,
+): string {
+  const { summary } = validation
+  if (summary.samples === 0) return labels.modelNotice
+  if (label === 'target') {
+    return formatCopy(labels.targetNotice, { samples: String(summary.samples), asOf: validation.asOf })
+  }
+  return formatCopy(labels.failedNotice, {
+    samples: String(summary.samples),
+    asOf: validation.asOf,
+    modelMae: percent(summary.modelMaePercent),
+    controlMae: percent(summary.controlMaePercent),
+  })
+}
+
+/**
  * Draw one value band as a text bar with the current price marked.
  * @param band - Value band to draw.
  * @param low - Lowest value on the shared scale.
@@ -367,12 +394,13 @@ function valuationTable(context: SectionContext): readonly string[] {
   const range = valuationRangeText(copy, valuation)
   const weighted = valuation.value?.weightedValuePerShare
   const currency = context.snapshot.instrument.currency
+  const rangeLabel = valuation.label === 'target' ? labels.targetRange : labels.verdictRange
   return [
     '',
     table(
       [copy.columns.item, copy.columns.value],
       [
-        [labels.verdictRange, range === undefined ? labels.notObtained : `${range} ${currency}`],
+        [rangeLabel, range === undefined ? labels.notObtained : `${range} ${currency}`],
         ...weighted === undefined ? [] : [[labels.verdictWeighted, money(weighted, currency)]],
         ...valuation.value === undefined ? [] : [[labels.verdictUpsideRange, `${percent(
           (valuation.value.lowValuePerShare / context.price - 1) * 100)} ~ ${percent(
@@ -412,6 +440,9 @@ function valuationSection(context: SectionContext): ResearchReportSection {
     return inputBlock(context, id, missing.length === 0 ? [] : [`${labels.missingInputs}${missing.join('; ')}`])
   }
   const currency = context.snapshot.instrument.currency
+  // The wording follows the recorded backtest evidence: target price only once it passed.
+  const rangeLabel = valuation.label === 'target' ? labels.targetRange : labels.verdictRange
+  const notice = valuationNotice(labels, valuation.label, valuation.validation)
   // The model emits every scenario it prices, so each lookup below resolves.
   const scenarioOf = (scenarioId: 'bear' | 'base' | 'bull'): ValuationScenario =>
     value.scenarios.find(entry => entry.id === scenarioId) as ValuationScenario
@@ -454,7 +485,7 @@ function valuationSection(context: SectionContext): ResearchReportSection {
       table(
         [copy.columns.item, copy.columns.value],
         [
-          [labels.verdictRange, formatCopy(copy.valuation.templates.range, {
+          [rangeLabel, formatCopy(copy.valuation.templates.range, {
             low: money(value.lowValuePerShare, currency),
             high: money(value.highValuePerShare, currency),
           })],
@@ -559,7 +590,7 @@ function valuationSection(context: SectionContext): ResearchReportSection {
       ),
       ...earningsPath,
       '',
-      `- ${labels.modelNotice}`,
+      `- ${notice}`,
       `- ${labels.shareCountNotice}`,
       ...valuation.quality.grade === undefined ? [`- ${labels.noGradeNotice}`] : [],
     ].join('\n'),
@@ -1073,7 +1104,8 @@ function verdictBoxHtml(
   const entries: readonly (readonly [string, string])[] = [
     [labels.verdictAction, copy.valuation.actions[valuation.verdict.action]],
     [labels.credibility, valuation.quality.grade ?? labels.notObtained],
-    [labels.verdictRange, range === undefined ? labels.notObtained : `${range} ${currency}`],
+    [valuation.label === 'target' ? labels.targetRange : labels.verdictRange,
+      range === undefined ? labels.notObtained : `${range} ${currency}`],
     [labels.verdictWeighted, weighted === undefined ? labels.notObtained : money(weighted, currency)],
     [labels.verdictUpsideRange, valuation.value === undefined
       ? labels.notObtained
@@ -1447,6 +1479,7 @@ export function resolveReportType(request: ResearchReportRequest, snapshot: Mark
  * @param macro - Macro series rendered as the report precondition; empty when none loaded.
  * @param metrics - Instrument metrics rendered into the fundamental blocks; empty when none loaded.
  * @param parameters - Resolved valuation parameters the model runs with.
+ * @param validation - Recorded backtest evidence that decides whether the value is a target price.
  * @returns The structured report with Markdown and interactive HTML renderings.
  */
 export async function buildResearchReport(
@@ -1457,6 +1490,7 @@ export async function buildResearchReport(
   macro: readonly MacroSeries[] = [],
   metrics: readonly AssetMetric[] = [],
   parameters: ValuationParameters = VALUATION_PARAMETERS,
+  validation: ValuationValidation = VALUATION_VALIDATION,
 ): Promise<ResearchReport> {
   const copy = REPORT_COPY[language]
   const snapshot = await provider.load(request.symbol, signal)
@@ -1466,7 +1500,7 @@ export async function buildResearchReport(
   const forecast = inputs === undefined ? undefined : buildEarningsForecast(inputs)
   const valuation = metrics.length === 0
     ? undefined
-    : buildValuation(buildValuationInputs(metrics, macro, snapshot.quote.price), parameters)
+    : buildValuation(buildValuationInputs(metrics, macro, snapshot.quote.price), parameters, validation)
   const sections = sectionsFor(snapshot, analysis, request, language, type, macro, metrics, forecast, valuation)
   const label = snapshot.instrument.name === snapshot.instrument.symbol
     ? snapshot.instrument.symbol

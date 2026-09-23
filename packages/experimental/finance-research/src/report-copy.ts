@@ -59,7 +59,8 @@ export type ValuationLabelKey =
   | 'modelGrowth' | 'expectationsGap' | 'credibility' | 'atBound' | 'methodsTitle' | 'costTitle'
   | 'sensitivityTitle' | 'terminalTitle' | 'ratiosTitle' | 'qualityTitle' | 'earningsPathTitle'
   | 'notObtained' | 'modelNotice' | 'shareCountNotice' | 'suppressedNotice' | 'noGradeNotice'
-  | 'verdictAction' | 'verdictTradingDirection' | 'footballField' | 'assumptions' | 'tearsheet' | 'bandSensitivity'
+  | 'verdictAction' | 'verdictTradingDirection' | 'targetRange' | 'targetNotice' | 'failedNotice'
+  | 'footballField' | 'assumptions' | 'tearsheet' | 'bandSensitivity'
   | 'terminalBreached' | 'terminalWithin' | 'missingInputs'
 
 /** Locale copy the model valuation section renders. */
@@ -532,6 +533,9 @@ const EN: ReportCopy = {
       earningsPathTitle: 'Projected path',
       notObtained: 'Not obtained',
       verdictAction: 'Action',
+      targetRange: 'Target price range (bear–bull)',
+      targetNotice: 'This target price comes from a model that passed the recorded out-of-sample backtest over {samples} symbol-dates on {asOf}.',
+      failedNotice: 'The recorded out-of-sample backtest over {samples} symbol-dates on {asOf} did not beat the unchanged-price control ({modelMae} against {controlMae} mean absolute error), so this stays a model reference value rather than a target price.',
       verdictTradingDirection: 'One-to-three-month direction',
       footballField: 'Value range across methods',
       assumptions: 'Model assumptions and sources',
@@ -1138,6 +1142,9 @@ const ZH: ReportCopy = {
       earningsPathTitle: '预测路径',
       notObtained: '未获取到',
       verdictAction: '动作',
+      targetRange: '目标价区间（熊市–牛市）',
+      targetNotice: '本目标价来自已通过样本外回测的模型：{samples} 个“标的×日期”样本，回测日期 {asOf}。',
+      failedNotice: '已记录的样本外回测（{samples} 个“标的×日期”样本，回测日期 {asOf}）没有跑赢“价格不变”控制组（平均绝对误差 {modelMae} 对 {controlMae}），因此本数值仍是模型参考价值，而不是目标价。',
       verdictTradingDirection: '1–3 个月方向',
       footballField: '各方法价值区间',
       assumptions: '模型假设与来源',

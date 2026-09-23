@@ -6,6 +6,7 @@ import {
   buildValuation, buildValuationInputs, buildVerdict,
   type CashFlowValue, type ValuationInputs, type ValuationParameters,
 } from '../src/valuation.ts'
+import { NO_BACKTEST, summarizeBacktest, type BacktestSummary } from '../src/backtest.ts'
 
 /** A reported set with clean signals, so each case changes one thing. */
 const INPUT: ValuationInputs = {
@@ -361,6 +362,20 @@ describe('complete valuation read', () => {
     expect(analysis.quality.grade).toBe('A')
     expect(analysis.value?.scenarios).toHaveLength(3)
     expect(analysis.verdict.suppressed).toBe(false)
+  })
+
+  it('labels the value from the recorded backtest evidence', () => {
+    const reference = buildValuation(INPUT, VALUATION_PARAMETERS)
+    expect(reference.label).toBe('reference')
+    expect(reference.validation).toEqual(NO_BACKTEST)
+    const summary = summarizeBacktest(
+      Array.from({ length: 60 }, () => ({ valuePerShare: 100, entryPrice: 120, exitPrice: 100 })),
+      12,
+    ) as BacktestSummary
+    const validation = { asOf: '2026-09-23', symbols: 8, horizonMonths: 12, summary }
+    const target = buildValuation(INPUT, VALUATION_PARAMETERS, validation)
+    expect(target.label).toBe('target')
+    expect(target.validation).toBe(validation)
   })
 
   it('suppresses the range when the grade is D, and reports no cost without an equity value', () => {
