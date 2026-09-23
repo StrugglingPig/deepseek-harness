@@ -219,6 +219,31 @@ describe('finance dashboard market route', () => {
     })
   })
 
+  it('drops the in-progress Yahoo session that carries zero prices', async () => {
+    const response = await loadDashboardMarket(
+      parseDashboardRequest(new URL('http://localhost/api?asset=us&symbol=AAPL&interval=1d')),
+      deps({
+        market: {
+          request: vi.fn(async () => marketResponse({
+            chart: {
+              result: [{
+                meta: { shortName: 'Apple Inc.', currency: 'USD' },
+                timestamp: [1_700_000_000, 1_700_086_400],
+                indicators: { quote: [{
+                  open: [100, 0], high: [110, 0], low: [95, 0], close: [105, 0], volume: [12, 0],
+                }] },
+              }],
+            },
+          })),
+        },
+      }),
+    )
+    // The quote and the chart read the last session that actually traded.
+    expect(response.bars).toHaveLength(1)
+    expect(response.quote.price).toBe(105)
+    expect(response.quote.changePercent).toBe(0)
+  })
+
   it('attaches the research summary to a US snapshot and survives a failing read', async () => {
     const summary = {
       source: 'finnhub',

@@ -118,6 +118,9 @@ function parseYahooBars(payload: unknown): { readonly bars: readonly DashboardBa
     const volume = finite(volumes[index])
     if (time === undefined || open === undefined || high === undefined || low === undefined
       || close === undefined || volume === undefined) return []
+    // Yahoo publishes the in-progress session with zero prices before its first print, which would
+    // otherwise become a zero close and a −100% change on the dashboard.
+    if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return []
     return [{ time: time * 1_000, open, high, low, close, volume }]
   })
   if (bars.length === 0) throw new FinanceDataError('Yahoo returned no complete bars', 'DASHBOARD_EMPTY')
