@@ -27,6 +27,8 @@ const state: FinanceDashboardState = {
   source: 'binance-spot',
   asOf: '2026-09-20T00:00:00.000Z',
   research: undefined,
+  macro: undefined,
+  events: undefined,
   streamStatus: 'live',
   error: undefined,
 }
@@ -93,6 +95,39 @@ describe('FinanceDashboard', () => {
     expect(actions.setInterval).toHaveBeenCalledWith('1h')
     fireEvent.click(screen.getByRole('button', { name: en.refresh }))
     expect(actions.refresh).toHaveBeenCalledOnce()
+  })
+
+  it('renders the macro strip and the event calendar', () => {
+    renderDashboard({
+      macro: [
+        { id: 'us-10y-yield', value: 4.25, unit: '%', date: '2026-09-22', source: 'fred' },
+        { id: 'unknown-series', value: 1, unit: '', date: '2026-09-22', source: 'fred' },
+      ],
+      events: [{ date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' }],
+    })
+    const macro = screen.getByRole('region', { name: en.macroTitle })
+    expect(within(macro).getByText(en.macroUs10y)).toBeDefined()
+    // A series the client has no label for still prints under the generic name.
+    expect(within(macro).getByText(en.macroUnknown)).toBeDefined()
+    expect(within(macro).getByText('4.25 %')).toBeDefined()
+    const events = screen.getByRole('region', { name: en.eventsTitle })
+    expect(within(events).getByText('Gross Domestic Product')).toBeDefined()
+    expect(within(events).getByText('2026-09-24')).toBeDefined()
+  })
+
+  it('says so when the calendar has no scheduled release, and stays quiet without strips', () => {
+    renderDashboard({ events: [] })
+    const events = screen.getByRole('region', { name: en.eventsTitle })
+    expect(within(events).getByText(en.eventsEmpty)).toBeDefined()
+    cleanup()
+    // A macro-only answer renders the strip without the calendar.
+    renderDashboard({ macro: [{ id: 'us-cpi', value: 3.1, unit: '%', date: '2026-08-01', source: 'fred' }] })
+    expect(screen.getByRole('region', { name: en.macroTitle })).toBeDefined()
+    expect(screen.queryByRole('region', { name: en.eventsTitle })).toBeNull()
+    cleanup()
+    renderDashboard()
+    expect(screen.queryByRole('region', { name: en.macroTitle })).toBeNull()
+    expect(screen.queryByRole('region', { name: en.eventsTitle })).toBeNull()
   })
 
   it('renders the research summary the Host attached to a US snapshot', () => {

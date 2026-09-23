@@ -1,6 +1,8 @@
 /** Host-side market data for the Web finance dashboard. */
 
 import { usMetricsFromFundamentals } from './asset-context.ts'
+import { MACRO_INDICATORS } from './macro-catalog.ts'
+import type { FinanceMacroDataProvider } from './macro.ts'
 import { buildValuation, buildValuationInputs, type ValuationParameters } from './valuation.ts'
 import type { ValuationValidation } from './backtest.ts'
 import type { FinanceMarketDataProvider } from './types.ts'
@@ -11,6 +13,8 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import { FinanceDataError } from './error.ts'
 import {
   DASHBOARD_MARKET_PATH,
+  type DashboardEvent,
+  type DashboardMacroEntry,
   type DashboardResearch,
   barFromRow,
   type DashboardAsset,
@@ -47,6 +51,14 @@ export interface DashboardRouteDependencies {
   readonly enabledStock: (provider: FinanceStockProviderId) => boolean
   /** Loads the research summary the dashboard shows beside a US equity chart. */
   readonly research?: (symbol: string, price: number, signal?: AbortSignal) => Promise<DashboardResearch | undefined>
+  /** Loads the macro strip; the transport cache keeps the poll from repeating the upstream reads. */
+  readonly macro?: (signal?: AbortSignal) => Promise<readonly DashboardMacroEntry[]>
+  /** Loads the upcoming event calendar. */
+  readonly events?: (signal?: AbortSignal) => Promise<readonly DashboardEvent[]>
+  /** Macro series the strip quotes, in the order it prints them. */
+  readonly macroIndicators?: readonly string[]
+  /** Upcoming events the calendar keeps. */
+  readonly eventLimit?: number
   readonly now?: () => Date
 }
 
@@ -234,6 +246,73 @@ export function dashboardResearchLoader(
 }
 
 /**
+ * Load the macro strip the dashboard prints above the chart.
+ * @param provider - Macro provider the finance tools already use.
+ * @param indicators - Catalog ids to quote.
+ * @returns One entry per series that answered; a series the upstream cannot serve is left out.
+ */
+export async function loadDashboardMacroStrip(
+  provider: FinanceMacroDataProvider,
+  indicators: readonly string[],
+): Promise<readonly DashboardMacroEntry[]> {
+  const wanted = indicators.flatMap((id) => {
+    const entry = MACRO_INDICATORS.find(candidate => candidate.id === id)
+    return entry === undefined ? [] : [entry]
+  })
+  const outcomes = await Promise.all(wanted.map(async (entry) => {
+    try {
+      return await provider.load({ indicator: entry, country: entry.country })
+    } catch {
+      // A macro series an upstream cannot serve simply does not appear in the strip.
+      return undefined
+    }
+  }))
+  return outcomes.flatMap(series => series === undefined ? [] : [{
+    id: series.indicator,
+    value: series.latest.value,
+    unit: series.unit,
+    date: series.latest.date,
+    source: series.source,
+  }])
+}
+
+/**
+ * Load the upcoming release calendar.
+ * @param provider - Market-data provider carrying the FRED transport.
+ * @param limit - Maximum events to keep.
+ * @param signal - optional caller cancellation.
+ * @returns One entry per release date that answered, or an empty list when FRED cannot serve them.
+ */
+export async function loadDashboardEvents(
+  provider: DashboardMarketProvider,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<readonly DashboardEvent[]> {
+  try {
+    const response = await provider.request({
+      base: 'fred',
+      path: '/fred/releases/dates',
+      auth: 'api-key',
+      query: {
+        file_type: 'json',
+        sort_order: 'asc',
+        limit: String(limit),
+        include_release_dates_with_no_data: 'false',
+      },
+    }, signal)
+    const releases = rows(record(response.data)?.release_dates)
+    return releases.flatMap((row) => {
+      const date = stringValue(row.date)
+      const label = stringValue(row.release_name)
+      return date === undefined || label === undefined ? [] : [{ date, label, source: 'fred' }]
+    })
+  } catch {
+    // The calendar is context, so a FRED answer the key cannot serve leaves the panel without it.
+    return []
+  }
+}
+
+/**
  * Load one normalized dashboard response.
  * @param request - Parsed dashboard request.
  * @param deps - Market and stock providers owned by the route.
@@ -246,6 +325,15 @@ export async function loadDashboardMarket(
   signal?: AbortSignal,
 ): Promise<DashboardMarketResponse> {
   const now = deps.now ?? (() => new Date())
+  // The strips are context for every asset, so they load once and attach to whichever answer follows.
+  const [macro, events] = await Promise.all([
+    deps.macro === undefined ? Promise.resolve(undefined) : deps.macro(signal).catch(() => undefined),
+    deps.events === undefined ? Promise.resolve(undefined) : deps.events(signal).catch(() => undefined),
+  ])
+  const strips = {
+    ...macro === undefined ? {} : { macro },
+    ...events === undefined ? {} : { events },
+  }
   if (request.asset === 'crypto') {
     const pair = request.symbol.endsWith('USDT') ? request.symbol : `${request.symbol}USDT`
     const response = await deps.market.request({
@@ -264,6 +352,7 @@ export async function loadDashboardMarket(
       asOf: new Date((bars.at(-1) as DashboardBar).time).toISOString(),
       bars,
       quote: quoteFromBars(bars, 'USDT'),
+      ...strips,
     }
   }
   if (request.asset === 'us') {
@@ -288,6 +377,7 @@ export async function loadDashboardMarket(
       bars: parsed.bars,
       quote,
       ...research === undefined ? {} : { research },
+      ...strips,
     }
   }
   const stock = deps.stock()
@@ -320,6 +410,7 @@ export async function loadDashboardMarket(
     asOf: snapshot.asOf,
     bars,
     quote: quoteFromBars(bars, snapshot.instrument.currency),
+    ...strips,
   }
 }
 

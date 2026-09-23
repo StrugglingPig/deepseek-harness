@@ -10,6 +10,7 @@ import {
   type DashboardInterval,
 } from './market-data.ts'
 import type { FinanceDashboardFace, FinanceDashboardState } from './controller.ts'
+import type { FinanceDashboardLocaleKey } from './locales.ts'
 import { IndicatorSettings } from './IndicatorSettings.tsx'
 import { INDICATOR_COLORS, indicatorParameterSuffix, resolveIndicators } from './indicators.ts'
 import { TradingChart } from './TradingChart.tsx'
@@ -64,6 +65,12 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
   const latest = state.bars.at(-1)
   const currentAsset = state.asset
   const indicators = resolveIndicators(preferences.enabled, preferences.parameters)
+  const MACRO_LABELS: Readonly<Record<string, FinanceDashboardLocaleKey>> = {
+    'us-10y-yield': 'macroUs10y',
+    'us-fed-funds-rate': 'macroUsFedFunds',
+    'us-cpi': 'macroUsCpi',
+    'us-unemployment-rate': 'macroUsUnemployment',
+  }
   const ACTION_LABELS = {
     accumulate: 'actionAccumulate',
     hold: 'actionHold',
@@ -182,6 +189,41 @@ export function FinanceDashboard(props: FinanceDashboardProps) {
             <strong>{state.name ?? state.symbol}</strong>
             <span>{state.symbol} · {state.source} · {state.asOf?.slice(0, 19).replace('T', ' ') ?? ''}</span>
           </div>
+          {state.macro === undefined && state.events === undefined ? null : (
+            <section className={css.strips}>
+              {state.macro === undefined ? null : (
+                <section className={css.strip} aria-label={t('macroTitle')}>
+                  <strong>{t('macroTitle')}</strong>
+                  <ul>
+                    {state.macro.map(entry => (
+                      <li key={entry.id}>
+                        <span>{t(MACRO_LABELS[entry.id] ?? 'macroUnknown')}</span>
+                        <strong>{formatNumber(entry.value)} {entry.unit}</strong>
+                        <em>{entry.date} · {entry.source}</em>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {state.events === undefined ? null : (
+                <section className={css.strip} aria-label={t('eventsTitle')}>
+                  <strong>{t('eventsTitle')}</strong>
+                  {state.events.length === 0
+                    ? <p>{t('eventsEmpty')}</p>
+                    : (
+                      <ul>
+                        {state.events.map(event => (
+                          <li key={`${event.date}-${event.label}`}>
+                            <span>{event.date}</span>
+                            <strong>{event.label}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                </section>
+              )}
+            </section>
+          )}
           {state.research === undefined ? null : (
             <section className={css.research} aria-label={t('researchTitle')}>
               <header>

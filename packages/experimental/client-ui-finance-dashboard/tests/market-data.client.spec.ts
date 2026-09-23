@@ -265,3 +265,24 @@ describe('finance dashboard market data', () => {
   })
 
 })
+
+describe('dashboard strip parsing', () => {
+  it('forwards the research, macro, and event blocks the Host attached', () => {
+    const parsed = parseDashboardMarket({
+      asset: 'us',
+      symbol: 'AAPL',
+      name: 'Apple Inc.',
+      interval: '1d',
+      source: 'yahoo-finance',
+      asOf: '2026-09-23T00:00:00.000Z',
+      bars: [{ time: 1_700_000_000_000, open: 1, high: 2, low: 1, close: 2, volume: 3 }],
+      quote: { price: 2, changePercent: 0, volume: 3, currency: 'USD' },
+      research: { source: 'finnhub', reportedPeriod: 'FY2025 10-K', label: 'reference', ratios: [] },
+      macro: [{ id: 'us-10y-yield', value: 4.25, unit: '%', date: '2026-09-22', source: 'fred' }],
+      events: [{ date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' }],
+    })
+    expect(parsed?.research?.reportedPeriod).toBe('FY2025 10-K')
+    expect(parsed?.macro?.[0]?.id).toBe('us-10y-yield')
+    expect(parsed?.events?.[0]?.label).toBe('Gross Domestic Product')
+  })
+})

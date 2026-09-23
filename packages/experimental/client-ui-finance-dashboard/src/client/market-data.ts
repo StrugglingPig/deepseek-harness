@@ -8,6 +8,8 @@ import type {
   DashboardMarketResponse,
   DashboardQuote,
   DashboardResearch,
+  DashboardMacroEntry,
+  DashboardEvent,
 } from '@deepseek-ai/dsh-experimental-finance-research/shared'
 
 export type {
@@ -17,6 +19,8 @@ export type {
   DashboardMarketResponse,
   DashboardQuote,
   DashboardResearch,
+  DashboardMacroEntry,
+  DashboardEvent,
 }
 
 /** One normalized value in an indicator series. */
@@ -155,7 +159,19 @@ export function parseDashboardMarket(payload: unknown): DashboardMarketResponse 
   if (!isDashboardAsset(asset) || !isDashboardInterval(interval) || symbol === undefined || name === undefined
     || source === undefined || asOf === undefined || bars.length === 0 || price === undefined
     || changePercent === undefined || volume === undefined || currency === undefined) return undefined
-  return { asset, symbol, name, interval, source, asOf, bars, quote: { price, changePercent, volume, currency } }
+  return {
+    asset,
+    symbol,
+    name,
+    interval,
+    source,
+    asOf,
+    bars,
+    quote: { price, changePercent, volume, currency },
+    ...value?.research === undefined ? {} : { research: value.research as DashboardResearch },
+    ...value?.macro === undefined ? {} : { macro: value.macro as readonly DashboardMacroEntry[] },
+    ...value?.events === undefined ? {} : { events: value.events as readonly DashboardEvent[] },
+  }
 }
 
 /**

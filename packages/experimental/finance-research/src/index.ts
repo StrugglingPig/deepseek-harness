@@ -37,7 +37,7 @@ import {
   cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromFundamentals,
   equityMetricsFromValuation, usComparableMetrics, usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
 } from './asset-context.ts'
-import { dashboardResearchLoader, registerFinanceDashboardRoutes } from './dashboard.ts'
+import { dashboardResearchLoader, loadDashboardEvents, loadDashboardMacroStrip, registerFinanceDashboardRoutes } from './dashboard.ts'
 import { AkshareMacroLoader } from './macro-akshare.ts'
 import { CftcMacroLoader, EiaMacroLoader, FredMacroLoader, ImfMacroLoader, WorldBankMacroLoader } from './macro-http.ts'
 import { SettingsFinanceMacroDataProvider } from './macro.ts'
@@ -240,6 +240,11 @@ export interface Config {
   /** Terminal-value share above which the report marks its ceiling breached, in percent. */
   readonly valuationTerminalValueCeilingPercent?: number
 }
+
+/** Macro series the dashboard strip quotes, in the order it prints them. */
+const DASHBOARD_MACRO_INDICATORS = ['us-10y-yield', 'us-fed-funds-rate', 'us-cpi', 'us-unemployment-rate']
+/** Upcoming releases the dashboard calendar keeps. */
+const DASHBOARD_EVENT_LIMIT = 5
 
 /** Settings namespace owned by the finance research plugin. */
 export const FINANCE_SETTINGS_NS = 'finance-research'
@@ -1435,6 +1440,8 @@ export function apply(ctx: Context, config: Config): void {
     market: provider,
     stock: () => stockProvider,
     research: dashboardResearchLoader(provider, valuationParameters, VALUATION_VALIDATION),
+    macro: () => loadDashboardMacroStrip(macroProvider, DASHBOARD_MACRO_INDICATORS),
+    events: signal => loadDashboardEvents(provider, DASHBOARD_EVENT_LIMIT, signal),
     enabledStock: provider => provider === 'akshare'
       ? currentSettings.enableAkshare
       : currentSettings.enableIfind,

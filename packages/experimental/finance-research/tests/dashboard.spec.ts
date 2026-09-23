@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { FinanceDataError } from '../src/error.ts'
 import {
   dashboardResearchLoader,
+  loadDashboardEvents,
+  loadDashboardMacroStrip,
   loadDashboardMarket,
   parseDashboardRequest,
   registerFinanceDashboardRoutes,
@@ -202,6 +204,80 @@ describe('finance dashboard market route', () => {
       .toEqual({ asset: 'stock', symbol: '600519', interval: '1w', limit: 50, provider: 'ifind' })
     expect(() => parseDashboardRequest(new URL('http://localhost/api?asset=bad'))).toThrow(FinanceDataError)
     expect(() => parseDashboardRequest(new URL('http://localhost/api?asset=stock'))).toThrow(FinanceDataError)
+  })
+
+  it('quotes the macro strip and drops the series an upstream cannot serve', async () => {
+    const series = (id: string, value: number) => ({
+      indicator: id,
+      name: id,
+      nameZh: id,
+      category: 'market' as const,
+      country: 'us' as const,
+      unit: '%',
+      frequency: 'daily' as const,
+      timing: 'coincident' as const,
+      reading: 'test',
+      affectedAssets: [],
+      source: 'fred' as const,
+      observations: [{ date: '2026-09-22', value }],
+      latest: { date: '2026-09-22', value },
+      previous: undefined,
+      retrievedAt: '2026-09-23T00:00:00.000Z',
+    })
+    const macro = await loadDashboardMacroStrip({
+      id: 'macro',
+      load: async (query) => {
+        if (query.indicator.id === 'us-cpi') throw new FinanceDataError('fred down', 'PROVIDER_FAILED')
+        return series(query.indicator.id, 4.25)
+      },
+    }, ['us-10y-yield', 'us-cpi', 'not-a-series'])
+    expect(macro).toEqual([
+      { id: 'us-10y-yield', value: 4.25, unit: '%', date: '2026-09-22', source: 'fred' },
+    ])
+  })
+
+  it('reads the upcoming release calendar and keeps malformed rows out', async () => {
+    const events = await loadDashboardEvents({
+      request: vi.fn(async () => marketResponse({
+        release_dates: [
+          { date: '2026-09-24', release_name: 'Gross Domestic Product' },
+          { date: '2026-09-25' },
+          { release_name: 'Employment Situation' },
+        ],
+      })),
+    }, 5)
+    expect(events).toEqual([{ date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' }])
+
+    // A key FRED will not serve leaves the calendar empty instead of failing the panel.
+    const unavailable = await loadDashboardEvents({
+      request: vi.fn(async () => { throw new FinanceDataError('no key', 'PROVIDER_UNAUTHORIZED') }),
+    }, 5)
+    expect(unavailable).toEqual([])
+    const empty = await loadDashboardEvents({ request: vi.fn(async () => marketResponse({})) }, 5)
+    expect(empty).toEqual([])
+  })
+
+  it('attaches the strips to the answer and survives a failing strip read', async () => {
+    const withStrips = await loadDashboardMarket(
+      parseDashboardRequest(new URL('http://localhost/api?asset=crypto&symbol=btc&interval=1h')),
+      deps({
+        macro: async () => [{ id: 'us-10y-yield', value: 4.25, unit: '%', date: '2026-09-22', source: 'fred' }],
+        events: async () => [{ date: '2026-09-24', label: 'Gross Domestic Product', source: 'fred' }],
+      }),
+    )
+    expect(withStrips.macro).toHaveLength(1)
+    expect(withStrips.events).toHaveLength(1)
+
+    const failing = await loadDashboardMarket(
+      parseDashboardRequest(new URL('http://localhost/api?asset=crypto&symbol=btc&interval=1h')),
+      deps({
+        macro: async () => { throw new FinanceDataError('fred down', 'PROVIDER_FAILED') },
+        events: async () => { throw new FinanceDataError('fred down', 'PROVIDER_FAILED') },
+      }),
+    )
+    expect(failing.macro).toBeUndefined()
+    expect(failing.events).toBeUndefined()
+    expect(failing.bars.length).toBeGreaterThan(0)
   })
 
   it('normalizes Binance crypto bars and quote', async () => {

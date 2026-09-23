@@ -15,6 +15,8 @@ import {
   type DashboardInterval,
   type DashboardQuote,
   type DashboardResearch,
+  type DashboardMacroEntry,
+  type DashboardEvent,
 } from './market-data.ts'
 
 const DEFAULT_LIMIT = 240
@@ -33,6 +35,10 @@ export interface FinanceDashboardState {
   readonly asOf: string | undefined
   /** Research summary the Host attached to a US equity snapshot. */
   readonly research: DashboardResearch | undefined
+  /** Macro strip the Host attached to the snapshot. */
+  readonly macro: readonly DashboardMacroEntry[] | undefined
+  /** Upcoming events the Host attached to the snapshot. */
+  readonly events: readonly DashboardEvent[] | undefined
   readonly streamStatus: 'disconnected' | 'connecting' | 'live' | 'error'
   readonly error: string | undefined
 }
@@ -168,6 +174,8 @@ export class FinanceDashboardController {
       source: undefined,
       asOf: undefined,
       research: undefined,
+      macro: undefined,
+      events: undefined,
       streamStatus: 'disconnected',
       error: undefined,
     })
@@ -227,6 +235,8 @@ export class FinanceDashboardController {
         source: parsed.source,
         asOf: parsed.asOf,
         research: parsed.research,
+        macro: parsed.macro,
+        events: parsed.events,
         error: undefined,
       })
     } catch (error) {

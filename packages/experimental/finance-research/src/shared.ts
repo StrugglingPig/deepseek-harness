@@ -50,6 +50,24 @@ export interface DashboardResearch {
 }
 
 /** One normalized dashboard answer: the bars, the quote, and any research summary beside them. */
+/** One macro reading the dashboard strip prints. */
+export interface DashboardMacroEntry {
+  /** Catalog indicator id, which the client maps to its own label. */
+  readonly id: string
+  readonly value: number
+  readonly unit: string
+  /** Period the value describes, as published upstream. */
+  readonly date: string
+  readonly source: string
+}
+
+/** One upcoming event the dashboard calendar prints. */
+export interface DashboardEvent {
+  readonly date: string
+  readonly label: string
+  readonly source: string
+}
+
 export interface DashboardMarketResponse {
   readonly asset: DashboardAsset
   readonly symbol: string
@@ -61,6 +79,10 @@ export interface DashboardMarketResponse {
   readonly quote: DashboardQuote
   /** Research summary for instruments the hosted model can read, absent otherwise. */
   readonly research?: DashboardResearch
+  /** Macro strip the panel prints above the chart. */
+  readonly macro?: readonly DashboardMacroEntry[]
+  /** Upcoming event calendar the panel prints beside the macro strip. */
+  readonly events?: readonly DashboardEvent[]
 }
 
 /**
