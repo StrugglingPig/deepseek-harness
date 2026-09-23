@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AssetMetric } from '../src/asset-context.ts'
 import type { MacroSeries } from '../src/macro.ts'
 import {
-  VALUATION_PARAMETERS, buildCashFlowValue, buildCostOfCapital, buildEarningsQuality, buildRatios,
+  VALUATION_PARAMETERS, buildCashFlowValue, buildCostOfCapital, buildEarningsQuality, buildRatios, buildValueBands,
   buildValuation, buildValuationInputs, buildVerdict,
   type CashFlowValue, type ValuationInputs, type ValuationParameters,
 } from '../src/valuation.ts'
@@ -263,6 +263,19 @@ describe('cash-flow value', () => {
     const inputs = without('revenueGrowthPercent')
     const value = buildCashFlowValue(inputs, VALUATION_PARAMETERS, costOf(inputs))
     expect(value?.scenarios.map(scenario => scenario.startingGrowthPercent)).toEqual([-5, 0, 5])
+  })
+
+  it('reads the value bands the football field draws', () => {
+    const value = buildCashFlowValue(INPUT, VALUATION_PARAMETERS, costOf(INPUT)) as CashFlowValue
+    const bands = new Map(buildValueBands(value).map(band => [band.id, band]))
+    expect([...bands.keys()]).toEqual(['dcf', 'epv', 'sensitivity'])
+    expect(bands.get('dcf')).toEqual({ id: 'dcf', low: value.lowValuePerShare, high: value.highValuePerShare })
+    // The no-growth value is a point, and the discount-rate band spans the ±1 point grid.
+    expect(bands.get('epv')?.low).toBe(value.earningsPowerValuePerShare)
+    expect(bands.get('epv')?.high).toBe(value.earningsPowerValuePerShare)
+    const sensitivity = value.sensitivity.flatMap(entry => entry.valuePerShare === undefined ? [] : [entry.valuePerShare])
+    expect(bands.get('sensitivity')?.low).toBe(Math.min(...sensitivity))
+    expect(bands.get('sensitivity')?.high).toBe(Math.max(...sensitivity))
   })
 
   it('flags a terminal-value share above the configured ceiling', () => {

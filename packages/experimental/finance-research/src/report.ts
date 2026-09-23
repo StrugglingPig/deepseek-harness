@@ -10,8 +10,8 @@ import type { MacroCategory } from './macro-catalog.ts'
 import type { MacroSeries } from './macro.ts'
 import { buildEarningsForecast, type EarningsForecast, type EarningsForecastInput } from './forecast.ts'
 import {
-  buildValuation, buildValuationInputs, VALUATION_PARAMETERS,
-  type ValuationAnalysis, type ValuationParameters, type ValuationScenario,
+  buildValuation, buildValuationInputs, buildValueBands, VALUATION_PARAMETERS,
+  type CashFlowValue, type ValuationAnalysis, type ValuationBand, type ValuationParameters, type ValuationScenario,
 } from './valuation.ts'
 import type {
   FinanceMarketDataProvider,
@@ -238,17 +238,149 @@ function valuationRangeText(copy: ReportCopy, valuation: ValuationAnalysis): str
   })
 }
 
-/** One line the investment view states about the model valuation. */
-function valuationLine(context: SectionContext): readonly string[] {
+/** Width of one text bar in the Markdown football field. */
+const FIELD_BAR_WIDTH = 20
+
+/**
+ * Read the label of one value band.
+ * @param copy - Report copy carrying the method names.
+ * @param id - Band identifier.
+ * @returns The locale label.
+ */
+function bandLabel(copy: ReportCopy, id: ValuationBand['id']): string {
+  switch (id) {
+    case 'dcf':
+      return copy.valuation.methods.dcf
+    case 'epv':
+      return copy.valuation.methods.epv
+    case 'sensitivity':
+      return copy.valuation.labels.bandSensitivity
+  }
+}
+
+/**
+ * Draw one value band as a text bar with the current price marked.
+ * @param band - Value band to draw.
+ * @param low - Lowest value on the shared scale.
+ * @param high - Highest value on the shared scale.
+ * @param price - Latest quoted price, marked on the same scale.
+ * @returns The bar, using `█` for the band, `│` for the price, and `·` for the rest.
+ */
+function fieldBar(band: ValuationBand, low: number, high: number, price: number): string {
+  const span = Math.max(high - low, Number.EPSILON)
+  const indexOf = (amount: number): number =>
+    Math.min(FIELD_BAR_WIDTH - 1, Math.max(0, Math.round((amount - low) / span * (FIELD_BAR_WIDTH - 1))))
+  const start = indexOf(band.low)
+  const end = indexOf(band.high)
+  const marker = indexOf(price)
+  return Array.from({ length: FIELD_BAR_WIDTH }, (_unused, index) => {
+    if (index === marker) return '│'
+    if (index >= start && index <= end) return '█'
+    return '·'
+  }).join('')
+}
+
+/**
+ * Render the value range across methods as a text football field.
+ * @param copy - Report copy carrying the labels.
+ * @param value - Scenario values the model produced.
+ * @param price - Latest quoted price.
+ * @returns The table rows, one per method.
+ */
+function footballFieldRows(
+  copy: ReportCopy,
+  value: CashFlowValue,
+  price: number,
+): readonly (readonly string[])[] {
+  const bands = buildValueBands(value)
+  const low = Math.min(...bands.map(band => band.low), price)
+  const high = Math.max(...bands.map(band => band.high), price)
+  return bands.map(band => [
+    bandLabel(copy, band.id),
+    number(band.low, 2),
+    number(band.high, 2),
+    fieldBar(band, low, high, price),
+  ])
+}
+
+/** One sourced figure the tearsheet prints. */
+interface TearSheetRow {
+  readonly label: string
+  readonly value: string
+  readonly source: string
+  readonly asOf: string
+}
+
+/**
+ * Build the tearsheet of sourced figures the first screen carries.
+ * @param copy - Report copy carrying the metric labels.
+ * @param context - Section context carrying the valuation inputs and the snapshot.
+ * @returns The rows, in the order the report reads them.
+ */
+function tearsheetRows(copy: ReportCopy, context: SectionContext): readonly TearSheetRow[] {
+  const valuation = context.valuation as ValuationAnalysis
+  const inputs = valuation.inputs
+  const currency = context.snapshot.instrument.currency
+  const metric = (label: string, amount: number | undefined): TearSheetRow | undefined =>
+    amount === undefined
+      ? undefined
+      : { label, value: money(amount, currency), source: 'finnhub', asOf: inputs.reportedPeriod }
+  const rows: readonly (TearSheetRow | undefined)[] = [
+    {
+      label: copy.labels.price,
+      value: money(context.price, currency),
+      source: context.snapshot.source.provider,
+      asOf: context.snapshot.asOf,
+    },
+    metric(copy.metrics.marketCap, inputs.marketCap),
+    metric(copy.metrics.revenue, inputs.revenue),
+    metric(copy.metrics.grossProfit, inputs.grossProfit),
+    metric(copy.metrics.operatingIncome, inputs.operatingIncome),
+    metric(copy.metrics.netIncome, inputs.netIncome),
+    metric(copy.metrics.operatingCashFlow, inputs.operatingCashFlow),
+    metric(copy.metrics.freeCashFlow, inputs.freeCashFlow),
+    metric(copy.metrics.totalAssets, inputs.totalAssets),
+    metric(copy.metrics.totalDebt, inputs.totalDebt),
+    metric(copy.metrics.cash, inputs.cash),
+    inputs.riskFreePercent === undefined ? undefined : {
+      label: copy.valuation.costComponents.riskFree,
+      value: percent(inputs.riskFreePercent),
+      source: inputs.riskFreeSource as string,
+      asOf: inputs.riskFreeAsOf as string,
+    },
+  ]
+  return rows.flatMap(row => row === undefined ? [] : [row])
+}
+
+/**
+ * Render the verdict box the first screen carries: what to do, how sure the model is, and where the
+ * price sits inside its reference range.
+ * @param context - Section context carrying the valuation read and the technical composite.
+ * @returns The table as Markdown source, or no rows when no valuation ran.
+ */
+function valuationTable(context: SectionContext): readonly string[] {
   const valuation = context.valuation
   if (valuation === undefined) return []
   const copy = context.copy
   const labels = copy.valuation.labels
-  const action = copy.valuation.actions[valuation.verdict.action]
-  const range = valuationRangeText(copy, valuation) ?? labels.notObtained
-  const grade = valuation.quality.grade
+  const composites = context.analysis.composite
+  const range = valuationRangeText(copy, valuation)
+  const weighted = valuation.value?.weightedValuePerShare
+  const currency = context.snapshot.instrument.currency
   return [
-    `- ${labels.verdictRange}${range} · ${action}${grade === undefined ? '' : ` · ${labels.credibility}${grade}`}`,
+    '',
+    table(
+      [copy.columns.item, copy.columns.value],
+      [
+        [labels.verdictRange, range === undefined ? labels.notObtained : `${range} ${currency}`],
+        ...weighted === undefined ? [] : [[labels.verdictWeighted, money(weighted, currency)]],
+        ...weighted === undefined ? [] : [[labels.verdictUpsideRange, percent((weighted / context.price - 1) * 100)]],
+        [labels.verdictAction, copy.valuation.actions[valuation.verdict.action]],
+        [labels.credibility, valuation.quality.grade ?? labels.notObtained],
+        [labels.verdictTradingDirection, word(copy.directions, composites.direction)],
+        [trimLabel(copy.labels.viewConfidence), `${String(composites.confidence)}%`],
+      ],
+    ),
   ]
 }
 
@@ -357,6 +489,21 @@ function valuationSection(context: SectionContext): ResearchReportSection {
         ],
       ),
       '',
+      `**${labels.footballField}**`,
+      table(
+        [copy.columns.method, copy.columns.low, copy.columns.high, copy.columns.range],
+        footballFieldRows(copy, value, context.price),
+      ),
+      '',
+      `**${labels.assumptions}**`,
+      table(
+        [copy.columns.item, copy.columns.value, copy.columns.source],
+        // The table names each assumption by its config field, so a reader can change it in the panel.
+        Object.entries(valuation.parameters).map(([name, amount]) => [
+          `valuation${name.charAt(0).toUpperCase()}${name.slice(1)}`, number(amount as number, 2), 'assumption',
+        ]),
+      ),
+      '',
       `**${labels.ratiosTitle}**`,
       table(
         [copy.columns.name, copy.columns.value],
@@ -402,6 +549,12 @@ function valuationSection(context: SectionContext): ResearchReportSection {
       `**${labels.terminalTitle}**`,
       `- ${terminal}`,
       `- ${value.terminalValueCeilingBreached ? labels.terminalBreached : labels.terminalWithin}`,
+      '',
+      `**${labels.tearsheet}**`,
+      table(
+        [copy.columns.item, copy.columns.value, copy.columns.source, copy.columns.date],
+        tearsheetRows(copy, context).map(row => [row.label, row.value, row.source, row.asOf]),
+      ),
       ...earningsPath,
       '',
       `- ${labels.modelNotice}`,
@@ -560,7 +713,7 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
           `**${stance}**`,
           '',
           `- ${copy.labels.compositeScore}${number(composite.score)} · ${copy.labels.viewConfidence}${String(composite.confidence)}%`,
-          ...valuationLine(context),
+          ...valuationTable(context),
           '',
           `**${copy.labels.viewReasons}**`,
           `- ${formatCopy(copy.templates.viewBreadth, {
@@ -896,6 +1049,77 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
   }
 }
 
+/**
+ * Render the verdict box the first screen carries.
+ * @param copy - Report copy carrying the labels and the action words.
+ * @param snapshot - Loaded market snapshot.
+ * @param analysis - Indicator analysis carrying the trading direction and its confidence.
+ * @param valuation - Valuation read, when one ran.
+ * @returns The verdict box, or an empty block when no valuation ran.
+ */
+function verdictBoxHtml(
+  copy: ReportCopy,
+  snapshot: MarketSnapshot,
+  analysis: IndicatorAnalysis,
+  valuation: ValuationAnalysis | undefined,
+): string {
+  if (valuation === undefined) return ''
+  const labels = copy.valuation.labels
+  const currency = snapshot.instrument.currency
+  const range = valuationRangeText(copy, valuation)
+  const weighted = valuation.value?.weightedValuePerShare
+  const entries: readonly (readonly [string, string])[] = [
+    [labels.verdictAction, copy.valuation.actions[valuation.verdict.action]],
+    [labels.credibility, valuation.quality.grade ?? labels.notObtained],
+    [labels.verdictRange, range === undefined ? labels.notObtained : `${range} ${currency}`],
+    [labels.verdictWeighted, weighted === undefined ? labels.notObtained : money(weighted, currency)],
+    [labels.verdictUpsideRange, valuation.value === undefined
+      ? labels.notObtained
+      : `${percent((valuation.value.lowValuePerShare / snapshot.quote.price - 1) * 100)} ~ ${
+        percent((valuation.value.highValuePerShare / snapshot.quote.price - 1) * 100)}`],
+    [labels.verdictTradingDirection, word(copy.directions, analysis.composite.direction)],
+    [trimLabel(copy.labels.viewConfidence), `${String(analysis.composite.confidence)}%`],
+  ]
+  return `<section class="verdict"><h2>${escapeHtml(copy.sections.investmentView)}</h2><dl>${
+    entries.map(([label, value]) =>
+      `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')
+  }</dl></section>`
+}
+
+/**
+ * Render the value range across methods as bars scaled to one axis.
+ * @param copy - Report copy carrying the labels.
+ * @param snapshot - Loaded market snapshot, whose price is marked on the axis.
+ * @param valuation - Valuation read, when one ran.
+ * @returns The football field, or an empty block when no valuation ran.
+ */
+function footballFieldHtml(
+  copy: ReportCopy,
+  snapshot: MarketSnapshot,
+  valuation: ValuationAnalysis | undefined,
+): string {
+  const value = valuation?.value
+  if (value === undefined) return ''
+  const bands = buildValueBands(value)
+  const price = snapshot.quote.price
+  const low = Math.min(...bands.map(band => band.low), price)
+  const high = Math.max(...bands.map(band => band.high), price)
+  const span = Math.max(high - low, Number.EPSILON)
+  const offset = (amount: number): number => (amount - low) / span * 100
+  const rows = bands.map((band) => {
+    const left = offset(band.low)
+    const width = Math.max(offset(band.high) - left, 0.5)
+    return `<div class="football-row"><span>${escapeHtml(bandLabel(copy, band.id))}</span>`
+      + `<div class="football-track"><div class="football-band" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></div></div>`
+      + `<span>${escapeHtml(`${number(band.low, 2)} – ${number(band.high, 2)} ${snapshot.instrument.currency}`)}</span></div>`
+  }).join('')
+  return `<section class="football"><h3>${escapeHtml(copy.valuation.labels.footballField)}</h3>${rows}`
+    + '<div class="football-track">'
+    + `<div class="football-price-line" style="left:${offset(price).toFixed(2)}%"></div>`
+    + `<span class="football-price-label" style="left:${offset(price).toFixed(2)}%">`
+    + `${escapeHtml(`${copy.valuation.labels.verdictPrice} ${number(price, 2)}`)}</span></div></section>`
+}
+
 /** Prediction-market facts, rendered between synthesis and the category blocks. */
 function predictionSection(snapshot: MarketSnapshot, copy: ReportCopy): ResearchReportSection[] {
   if (snapshot.prediction === undefined) return []
@@ -1064,6 +1288,8 @@ function reportHtml(
 ): string {
   const rangeCard = valuation === undefined ? undefined : valuationRangeText(copy, valuation)
   const gradeCard = valuation?.quality.grade
+  const verdictBox = verdictBoxHtml(copy, snapshot, analysis, valuation)
+  const footballField = footballFieldHtml(copy, snapshot, valuation)
   const data = safeJson({
     symbol: snapshot.instrument.symbol,
     name: snapshot.instrument.name,
@@ -1110,6 +1336,16 @@ h1{margin:6px 0;font-size:34px;line-height:1.15}.meta{color:var(--muted)}.pill{b
 .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0}.card{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card)}.card.accent{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 6%,var(--card))}
 .card span{display:block;color:var(--muted);font-size:12px}.card strong{display:block;margin-top:5px;font-size:20px}
 .chart-card{border:1px solid var(--border);border-radius:16px;padding:12px;background:var(--card);margin:18px 0}.chart-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.verdict{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:16px;padding:14px 16px;background:color-mix(in srgb,var(--accent) 6%,var(--card));margin:18px 0}
+.verdict h2{margin:0 0 10px;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.verdict dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 18px;margin:0}
+.verdict dt{color:var(--muted);font-size:12px}.verdict dd{margin:2px 0 0;font-size:16px;font-weight:600}
+.football{margin:18px 0}.football h3{margin:0 0 8px;font-size:14px;color:var(--muted)}
+.football-row{display:grid;grid-template-columns:150px 1fr 190px;gap:10px;align-items:center;margin:6px 0;font-size:13px}
+.football-track{position:relative;height:14px;border-radius:7px;background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.football-band{position:absolute;top:0;height:14px;border-radius:7px;background:color-mix(in srgb,var(--accent) 70%,transparent)}
+.football-price-line{position:absolute;top:-4px;height:22px;border-left:2px solid var(--accent)}
+.football-price-label{position:absolute;top:-19px;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
 button{border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:transparent;color:inherit;cursor:pointer}button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
 canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-events:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
 .layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;margin-top:20px}.nav{display:flex;flex-direction:column;gap:7px;position:sticky;top:18px;align-self:start}.nav button{text-align:left}
@@ -1129,6 +1365,8 @@ canvas{display:block;width:100%;height:340px}.tooltip{position:fixed;pointer-eve
 <body data-report-type="${escapeHtml(type.id)}">
 <main>
   <div class="hero"><div><div class="eyebrow">${escapeHtml(copy.html.eyebrow)} · ${escapeHtml(typeName)}</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(meta)}</div></div><div class="pill">${escapeHtml(pill)}</div></div>
+  ${verdictBox}
+  ${footballField}
   <div class="cards">
     <div class="card"><span>${escapeHtml(copy.html.cardPrice)}</span><strong>${String(snapshot.quote.price)}</strong></div>
     <div class="card"><span>${escapeHtml(copy.html.cardChange)}</span><strong class="${snapshot.quote.changePercent >= 0 ? 'positive' : 'negative'}">${snapshot.quote.changePercent.toFixed(2)}%</strong></div>

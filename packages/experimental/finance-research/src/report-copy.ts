@@ -22,6 +22,7 @@ export type ReportColumnKey =
   | 'name' | 'value' | 'source' | 'region' | 'date' | 'timing' | 'direction'
   | 'confidence' | 'status' | 'scenario' | 'price' | 'relative' | 'item' | 'method'
   | 'signal' | 'weight' | 'note' | 'company' | 'year' | 'revenue' | 'revenueGrowth' | 'netIncome' | 'eps'
+  | 'low' | 'high' | 'range'
 
 /** Line labels owned by the report writer. */
 export type ReportLabelKey =
@@ -58,6 +59,7 @@ export type ValuationLabelKey =
   | 'modelGrowth' | 'expectationsGap' | 'credibility' | 'atBound' | 'methodsTitle' | 'costTitle'
   | 'sensitivityTitle' | 'terminalTitle' | 'ratiosTitle' | 'qualityTitle' | 'earningsPathTitle'
   | 'notObtained' | 'modelNotice' | 'shareCountNotice' | 'suppressedNotice' | 'noGradeNotice'
+  | 'verdictAction' | 'verdictTradingDirection' | 'footballField' | 'assumptions' | 'tearsheet' | 'bandSensitivity'
   | 'terminalBreached' | 'terminalWithin' | 'missingInputs'
 
 /** Locale copy the model valuation section renders. */
@@ -357,6 +359,9 @@ const EN: ReportCopy = {
     revenueGrowth: 'Revenue growth',
     netIncome: 'Net income',
     eps: 'EPS',
+    low: 'Low',
+    high: 'High',
+    range: 'Range',
   },
   metrics: {
     eps: 'Diluted EPS',
@@ -526,6 +531,12 @@ const EN: ReportCopy = {
       qualityTitle: 'Earnings-quality signals',
       earningsPathTitle: 'Projected path',
       notObtained: 'Not obtained',
+      verdictAction: 'Action',
+      verdictTradingDirection: 'One-to-three-month direction',
+      footballField: 'Value range across methods',
+      assumptions: 'Model assumptions and sources',
+      tearsheet: 'Sourced figures',
+      bandSensitivity: 'Cost-of-capital range',
       modelNotice: 'This is a model reference range, not a target price or fair value, and the model has not passed an out-of-sample backtest.',
       shareCountNotice: 'The paths hold the reported share count, so a buyback does not add to the per-share value.',
       suppressedNotice: 'A D credibility grade suppresses the valuation, so this report states no range.',
@@ -940,6 +951,9 @@ const ZH: ReportCopy = {
     revenueGrowth: '营收同比',
     netIncome: '净利润',
     eps: '每股收益',
+    low: '下限',
+    high: '上限',
+    range: '区间',
   },
   metrics: {
     eps: '摊薄每股收益',
@@ -1123,6 +1137,12 @@ const ZH: ReportCopy = {
       qualityTitle: '盈利质量信号',
       earningsPathTitle: '预测路径',
       notObtained: '未获取到',
+      verdictAction: '动作',
+      verdictTradingDirection: '1–3 个月方向',
+      footballField: '各方法价值区间',
+      assumptions: '模型假设与来源',
+      tearsheet: '关键数据与来源',
+      bandSensitivity: '资本成本区间',
       modelNotice: '以上是模型参考价值区间，不是目标价或公允价值，且本模型尚未通过样本外回测。',
       shareCountNotice: '模型按已披露股本数测算，回购带来的每股增厚未计入。',
       suppressedNotice: '可信度等级为 D，本次不输出估值区间。',

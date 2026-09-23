@@ -219,6 +219,29 @@ export interface ValuationVerdict {
   readonly suppressed: boolean
 }
 
+/** One method's value band on the football-field range. */
+export interface ValuationBand {
+  readonly id: 'dcf' | 'epv' | 'sensitivity'
+  readonly low: number
+  readonly high: number
+}
+
+/**
+ * Read the value bands the report renders side by side.
+ * @param value - Scenario values the model produced.
+ * @returns One band per method: the scenario range, the no-growth value, and the discount-rate range.
+ */
+export function buildValueBands(value: CashFlowValue): readonly ValuationBand[] {
+  // The base scenario always prices, so the zero discount-rate step always carries a value.
+  const sensitivities = value.sensitivity.flatMap(entry =>
+    entry.valuePerShare === undefined ? [] : [entry.valuePerShare])
+  return [
+    { id: 'dcf', low: value.lowValuePerShare, high: value.highValuePerShare },
+    { id: 'epv', low: value.earningsPowerValuePerShare, high: value.earningsPowerValuePerShare },
+    { id: 'sensitivity', low: Math.min(...sensitivities), high: Math.max(...sensitivities) },
+  ]
+}
+
 /** One report's complete valuation read. */
 export interface ValuationAnalysis {
   /** Parameters the model ran with, so the report can print every assumption it made. */
