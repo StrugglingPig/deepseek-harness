@@ -5,7 +5,16 @@
 **可增持 — 结构支持继续加仓**
 
 - 综合评分：0.50 · 置信度：50%
-- 模型参考价值区间（熊市–牛市）108.88 – 147.57 · 减持 · 可信度等级B
+
+| 项目 | 数值 |
+| --- | --- |
+| 模型参考价值区间（熊市–牛市） | 108.88 – 147.57 USD |
+| 概率加权参考价值 | 127.73 USD |
+| 对应上行空间区间 | -62.40% |
+| 动作 | 减持 |
+| 可信度等级 | B |
+| 1–3 个月方向 | 看涨 |
+| 置信度 | 50% |
 
 **支撑该结论的证据**
 - 4/5 个加权信号指向看涨
@@ -102,6 +111,33 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 | 零增长盈利能力价值 | 74.21 USD |  |  | 按当前盈利水平、以资本成本资本化，不含增长 |
 | 反向 DCF | 60.00% 已到搜索边界 |  |  | 用同一模型反解当前价格隐含的起始增速 |
 
+**各方法价值区间**
+| 方法 | 下限 | 上限 | 区间 |
+| --- | --- | --- | --- |
+| FCFF 现金流折现 | 108.88 | 147.57 | ··████·············│ |
+| 零增长盈利能力价值 | 74.21 | 74.21 | █··················│ |
+| 资本成本区间 | 111.26 | 148.30 | ···███·············│ |
+
+**模型假设与来源**
+| 项目 | 数值 | 来源 |
+| --- | --- | --- |
+| valuationExplicitYears | 3.00 | assumption |
+| valuationFadeYears | 4.00 | assumption |
+| valuationTerminalGrowthPercent | 2.50 | assumption |
+| valuationEquityRiskPremiumPercent | 4.50 | assumption |
+| valuationRiskFreeFallbackPercent | 4.00 | assumption |
+| valuationCreditSpreadPercent | 1.20 | assumption |
+| valuationTaxRateFallbackPercent | 21.00 | assumption |
+| valuationBearGrowthShiftPercent | -5.00 | assumption |
+| valuationBullGrowthShiftPercent | 5.00 | assumption |
+| valuationBearMarginShiftPercent | -2.00 | assumption |
+| valuationBullMarginShiftPercent | 2.00 | assumption |
+| valuationBearProbability | 0.25 | assumption |
+| valuationBullProbability | 0.25 | assumption |
+| valuationAccumulateUpsidePercent | 15.00 | assumption |
+| valuationReduceUpsidePercent | -10.00 | assumption |
+| valuationTerminalValueCeilingPercent | 75.00 | assumption |
+
 **财务比率**
 | 指标 | 数值 |
 | --- | --- |
@@ -147,6 +183,22 @@ Apple Inc. (AAPL) 呈看涨。4 个信号与综合方向一致。
 **终值检查**
 - 终值占企业价值 62.35%，隐含退出倍数 14.0x，上限为 75.00%。
 - 终值占比在上限以内。
+
+**关键数据与来源**
+| 项目 | 数值 | 来源 | 日期 |
+| --- | --- | --- | --- |
+| 价格： | 339.75 USD | yahoo-finance | 2026-09-21T13:30:00.000Z |
+| 市值 | 4,958,372,709,528.58 USD | finnhub | FY2025 10-K |
+| 营业收入 | 416,161,000,000.00 USD | finnhub | FY2025 10-K |
+| 毛利润 | 195,201,000,000.00 USD | finnhub | FY2025 10-K |
+| 营业利润 | 133,050,000,000.00 USD | finnhub | FY2025 10-K |
+| 净利润 | 112,010,000,000.00 USD | finnhub | FY2025 10-K |
+| 经营活动现金流 | 111,482,000,000.00 USD | finnhub | FY2025 10-K |
+| 自由现金流 | 98,767,000,000.00 USD | finnhub | FY2025 10-K |
+| 总资产 | 359,241,000,000.00 USD | finnhub | FY2025 10-K |
+| 有息负债 | 98,657,000,000.00 USD | finnhub | FY2025 10-K |
+| 现金及现金等价物 | 35,934,000,000.00 USD | finnhub | FY2025 10-K |
+| 无风险利率 | 4.96% | fred | 2026-09-21 |
 
 **预测路径**
 | 年度 | 营业收入 | 营收同比 | 净利润 | 每股收益 |
