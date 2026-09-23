@@ -356,7 +356,19 @@ describe('HTTP finance market data provider', () => {
           ]), { status: 200 })
         }
         if (path.endsWith('/stock/financials-reported')) {
-          return new Response(JSON.stringify({ data: [{ year: 2025, quarter: 0, form: '10-K' }] }), { status: 200 })
+          return new Response(JSON.stringify({ data: [{
+            year: 2025,
+            quarter: 0,
+            form: '10-K',
+            report: {
+              ic: [{ concept: 'us-gaap_Revenues', value: 416_161_000_000 }],
+              bs: [{ concept: 'us-gaap_Assets', value: 359_241_000_000 }],
+              cf: [
+                { concept: 'us-gaap_NetCashProvidedByUsedInOperatingActivities', value: 111_482_000_000 },
+                { concept: 'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment', value: 12_715_000_000 },
+              ],
+            },
+          }] }), { status: 200 })
         }
         return new Response(JSON.stringify({
           name: 'Apple Inc', ticker: 'AAPL', exchange: 'NASDAQ', finnhubIndustry: 'Technology', marketCapitalization: 3_000_000,
@@ -379,6 +391,8 @@ describe('HTTP finance market data provider', () => {
         epsSurprise: 3.7, insiderNetShares: -1_200, insiderSentiment: 22.1,
         analystBuy: 34, analystHold: 15, analystSell: 4,
         insiderBoughtShares: 4_000, insiderSoldShares: 1_439,
+        revenue: 416_161_000_000, totalAssets: 359_241_000_000,
+        operatingCashFlow: 111_482_000_000, capex: 12_715_000_000, freeCashFlow: 98_767_000_000,
       },
     })
     expect(requested.some(path => path.endsWith('/stock/profile2'))).toBe(true)

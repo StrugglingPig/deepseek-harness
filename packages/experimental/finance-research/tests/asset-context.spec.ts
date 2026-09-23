@@ -280,6 +280,49 @@ describe('US equity context', () => {
     expect(usMetricsFromFundamentals(undefined)).toEqual([])
   })
 
+  it('carries the reported statement lines with the period the filing covers', () => {
+    const metrics = usMetricsFromFundamentals({
+      symbol: 'AAPL',
+      reportedFinancials: 'FY2025 10-K',
+      indicators: {
+        revenue: 416_161_000_000,
+        grossProfit: 195_201_000_000,
+        operatingIncome: 133_050_000_000,
+        netIncome: 112_010_000_000,
+        totalAssets: 359_241_000_000,
+        currentAssets: 147_957_000_000,
+        liabilities: 285_508_000_000,
+        equity: 73_733_000_000,
+        totalDebt: 98_657_000_000,
+        cash: 35_934_000_000,
+        operatingCashFlow: 111_482_000_000,
+        capex: 12_715_000_000,
+        freeCashFlow: 98_767_000_000,
+        depreciation: 11_698_000_000,
+        stockBasedCompensation: 12_863_000_000,
+        dividendsPaid: 15_421_000_000,
+        buybacks: 90_711_000_000,
+      },
+    })
+    const byKey = new Map<string, (typeof metrics)[number]>(metrics.map(metric => [metric.key, metric]))
+    expect(metrics.filter(metric => metric.asOf === 'FY2025 10-K').map(metric => metric.key)).toEqual([
+      'revenue', 'grossProfit', 'operatingIncome', 'netIncome', 'totalAssets', 'currentAssets',
+      'liabilities', 'equity', 'totalDebt', 'cash', 'operatingCashFlow', 'capex', 'freeCashFlow',
+      'depreciation', 'stockBasedCompensation', 'dividendsPaid', 'buybacks',
+    ])
+    expect(byKey.get('revenue')).toMatchObject({ group: 'growth', value: 416_161_000_000 })
+    expect(byKey.get('grossProfit')).toMatchObject({ group: 'profitability', unit: 'USD' })
+    expect(byKey.get('operatingIncome')).toMatchObject({ group: 'profitability' })
+    expect(byKey.get('netIncome')).toMatchObject({ group: 'profitability', asOf: 'FY2025 10-K' })
+    expect(byKey.get('totalAssets')).toMatchObject({ group: 'balance', unit: 'USD' })
+    expect(byKey.get('totalDebt')).toMatchObject({ group: 'balance', value: 98_657_000_000 })
+    expect(byKey.get('operatingCashFlow')).toMatchObject({ group: 'cash', unit: 'USD' })
+    expect(byKey.get('freeCashFlow')).toMatchObject({ group: 'cash', asOf: 'FY2025 10-K' })
+    // A payload without the filing label still reports the lines, without a period.
+    expect(usMetricsFromFundamentals({ symbol: 'AAPL', indicators: { totalAssets: 1 } }))
+      .toEqual([{ group: 'balance', key: 'totalAssets', value: 1, unit: 'USD', asOf: '', source: 'finnhub' }])
+  })
+
   it('maps the free-tier extras into catalyst, growth, and insider metrics', () => {
     const metrics = usMetricsFromFundamentals({
       symbol: 'AAPL',

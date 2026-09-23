@@ -25,6 +25,10 @@ export const REPORT_METRIC_KEYS = [
   'githubReleases1y', 'insiderBoughtShares', 'insiderNetShares', 'insiderSentiment', 'insiderSoldShares',
   'latestFilingDate', 'latestFilingForm', 'netIncome', 'newsHeadlines', 'nextEarnings',
   'reportedFinancials', 'revenue',
+  // Reported statement lines the financial-quality block quotes.
+  'buybacks', 'capex', 'cash', 'currentAssets', 'depreciation', 'dividendsPaid', 'equity',
+  'freeCashFlow', 'grossProfit', 'liabilities', 'operatingCashFlow', 'operatingIncome',
+  'stockBasedCompensation', 'totalAssets', 'totalDebt',
 ] as const
 
 /** One metric key a report knows how to label. */
@@ -338,15 +342,37 @@ const US_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string]
   ['psRatio', 'valuation', ''],
   ['dividendYield', 'valuation', '%'],
   ['epsTtm', 'profitability', 'USD'],
-  ['netIncome', 'profitability', 'USD'],
   ['netMargin', 'profitability', '%'],
   ['operatingMargin', 'profitability', '%'],
   ['roa', 'profitability', '%'],
   ['roe', 'profitability', '%'],
-  ['revenue', 'growth', 'USD'],
   ['revenueGrowth', 'growth', '%'],
   ['epsGrowth', 'growth', '%'],
   ['beta', 'market', ''],
+]
+
+/**
+ * Reported statement lines Finnhub files, with the dimension and unit each belongs to.
+ * Revenue sits in the growth dimension so the earnings-review block quotes it beside the growth rates.
+ */
+const US_STATEMENT_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, string])[] = [
+  ['revenue', 'growth', 'USD'],
+  ['grossProfit', 'profitability', 'USD'],
+  ['operatingIncome', 'profitability', 'USD'],
+  ['netIncome', 'profitability', 'USD'],
+  ['totalAssets', 'balance', 'USD'],
+  ['currentAssets', 'balance', 'USD'],
+  ['liabilities', 'balance', 'USD'],
+  ['equity', 'balance', 'USD'],
+  ['totalDebt', 'balance', 'USD'],
+  ['cash', 'balance', 'USD'],
+  ['operatingCashFlow', 'cash', 'USD'],
+  ['capex', 'cash', 'USD'],
+  ['freeCashFlow', 'cash', 'USD'],
+  ['depreciation', 'cash', 'USD'],
+  ['stockBasedCompensation', 'cash', 'USD'],
+  ['dividendsPaid', 'cash', 'USD'],
+  ['buybacks', 'cash', 'USD'],
 ]
 
 /**
@@ -360,6 +386,12 @@ export function usMetricsFromFundamentals(fundamentals: FinanceUsFundamentals | 
     const value = fundamentals.indicators[key]
     return value === undefined ? [] : [{ group, key, value, unit, asOf: '', source: 'finnhub' }]
   })
+  // A statement line carries the period it was filed for, so no reader reads it as a current-market figure.
+  const reportedPeriod = fundamentals.reportedFinancials ?? ''
+  for (const [key, group, unit] of US_STATEMENT_METRICS) {
+    const value = fundamentals.indicators[key]
+    if (value !== undefined) metrics.push({ group, key, value, unit, asOf: reportedPeriod, source: 'finnhub' })
+  }
   if (fundamentals.industry !== undefined) {
     metrics.push({
       group: 'industry', key: 'industry', value: 0, text: fundamentals.industry, unit: '', asOf: '', source: 'finnhub',

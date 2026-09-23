@@ -198,6 +198,30 @@ describe('finance research report', () => {
     expect(sectionOf(report, 'Earnings Forecast And Target Price')).toContain('reported revenue and EPS')
   })
 
+  it('quotes the reported statements with the period they cover', async () => {
+    const metrics: readonly AssetMetric[] = [
+      { group: 'profitability', key: 'grossProfit', value: 195_201_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'profitability', key: 'netIncome', value: 112_010_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalAssets', value: 359_241_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'balance', key: 'totalDebt', value: 98_657_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'operatingCashFlow', value: 111_482_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+      { group: 'cash', key: 'freeCashFlow', value: 98_767_000_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+    ]
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      metrics,
+    )
+    const quality = sectionOf(report, 'Financial Quality')
+    expect(quality).toContain('| Gross profit | 195.2B USD（FY2025 10-K） | finnhub |')
+    expect(quality).toContain('| Total assets | 359.24B USD（FY2025 10-K） | finnhub |')
+    expect(quality).toContain('| Interest-bearing debt | 98.66B USD（FY2025 10-K） | finnhub |')
+    expect(quality).toContain('| Free cash flow | 98.77B USD（FY2025 10-K） | finnhub |')
+  })
+
   it('renders the comparable-company table when peer figures loaded', async () => {
     const metrics: readonly AssetMetric[] = [
       { group: 'competition', key: 'peRatio', value: 32.5, unit: '', asOf: '', source: 'finnhub', subject: 'AAPL' },

@@ -245,14 +245,14 @@ const BASE_ORIGINS: Readonly<Record<string, keyof ResolvedOptions>> = {
  * Fold the numeric Finnhub extras into the reported-figure record.
  * @param base - Figures the profile and metric answers already published.
  * @param extras - Normalized free-tier extras; text fields are ignored here.
- * @returns The reported figures with every numeric extra merged in.
+ * @returns The reported figures with every numeric extra and reported statement line merged in.
  */
 function withNumericExtras(base: Readonly<Record<string, number>>, extras: FinnhubExtras): Record<string, number> {
   const merged: Record<string, number> = { ...base }
   for (const [key, value] of Object.entries(extras)) {
     if (typeof value === 'number') merged[key] = value
   }
-  return merged
+  return { ...merged, ...extras.reportedLines }
 }
 
 function queryValue(value: FinanceJsonValue): string {

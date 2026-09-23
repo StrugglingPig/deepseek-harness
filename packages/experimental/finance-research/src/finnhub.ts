@@ -233,6 +233,54 @@ const REVENUE_CONCEPTS: readonly string[] = [
 /** Net-income concepts a reported income statement may file, most specific first. */
 const NET_INCOME_CONCEPTS: readonly string[] = ['us-gaap_NetIncomeLoss', 'us-gaap_ProfitLoss']
 
+/** One reported line: the metric it fills, its statement section, and the concepts to try. */
+interface ReportedLineSpec {
+  readonly key: string
+  readonly bucket: string
+  readonly concepts: readonly string[]
+}
+
+/**
+ * Lines the financial-quality block quotes, all published by the same free statements endpoint.
+ * A concept list holds the alternatives filers use, most specific first.
+ */
+const REPORTED_LINES: readonly ReportedLineSpec[] = [
+  { key: 'revenue', bucket: 'ic', concepts: REVENUE_CONCEPTS },
+  { key: 'grossProfit', bucket: 'ic', concepts: ['us-gaap_GrossProfit'] },
+  { key: 'operatingIncome', bucket: 'ic', concepts: ['us-gaap_OperatingIncomeLoss'] },
+  { key: 'netIncome', bucket: 'ic', concepts: NET_INCOME_CONCEPTS },
+  { key: 'totalAssets', bucket: 'bs', concepts: ['us-gaap_Assets'] },
+  { key: 'currentAssets', bucket: 'bs', concepts: ['us-gaap_AssetsCurrent'] },
+  { key: 'liabilities', bucket: 'bs', concepts: ['us-gaap_Liabilities'] },
+  { key: 'equity', bucket: 'bs', concepts: [
+    'us-gaap_StockholdersEquity',
+    'us-gaap_StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
+  ] },
+  { key: 'cash', bucket: 'bs', concepts: [
+    'us-gaap_CashAndCashEquivalentsAtCarryingValue',
+    'us-gaap_CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents',
+  ] },
+  { key: 'operatingCashFlow', bucket: 'cf', concepts: ['us-gaap_NetCashProvidedByUsedInOperatingActivities'] },
+  { key: 'capex', bucket: 'cf', concepts: [
+    'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment',
+    'us-gaap_PaymentsToAcquireProductiveAssets',
+  ] },
+  { key: 'dividendsPaid', bucket: 'cf', concepts: ['us-gaap_PaymentsOfDividends', 'us-gaap_PaymentsOfDividendsCommonStock'] },
+  { key: 'buybacks', bucket: 'cf', concepts: ['us-gaap_PaymentsForRepurchaseOfCommonStock'] },
+  { key: 'stockBasedCompensation', bucket: 'cf', concepts: ['us-gaap_ShareBasedCompensation'] },
+  { key: 'depreciation', bucket: 'cf', concepts: [
+    'us-gaap_DepreciationDepletionAndAmortization',
+    'us-gaap_DepreciationAmortizationAndAccretionNet',
+  ] },
+]
+
+/** Debt components a reported balance sheet may carry; each component resolves on its own concept list. */
+const DEBT_COMPONENTS: readonly (readonly string[])[] = [
+  ['us-gaap_LongTermDebtCurrent'],
+  ['us-gaap_CommercialPaper'],
+  ['us-gaap_LongTermDebtNoncurrent', 'us-gaap_LongTermDebt'],
+]
+
 /**
  * Read one reported figure out of a statement bucket by concept.
  * @param statement - Reported statement record.
@@ -253,18 +301,41 @@ function reportedFigure(statement: unknown, bucket: string, concepts: readonly s
   return undefined
 }
 
-/** Period label and reported totals of the newest statements. */
+/**
+ * Read every reported line the financial-quality block quotes out of the three statements.
+ * @param statement - Reported statement record carrying the `ic`, `bs`, and `cf` sections.
+ * @returns The reported values keyed by metric name; a filing that omits a line leaves the key out.
+ */
+function reportedLines(statement: unknown): Readonly<Record<string, number>> {
+  const lines: Record<string, number> = {}
+  for (const { key, bucket, concepts } of REPORTED_LINES) {
+    const value = reportedFigure(statement, bucket, concepts)
+    if (value !== undefined) lines[key] = value
+  }
+  // Debt has no single concept, so the components are whatever the balance sheet filed.
+  const components = DEBT_COMPONENTS.flatMap((concepts) => {
+    const value = reportedFigure(statement, 'bs', concepts)
+    return value === undefined ? [] : [value]
+  })
+  if (components.length > 0) lines.totalDebt = components.reduce((sum, value) => sum + value, 0)
+  const operatingCashFlow = lines.operatingCashFlow
+  const capex = lines.capex
+  if (operatingCashFlow !== undefined && capex !== undefined) lines.freeCashFlow = operatingCashFlow - capex
+  return lines
+}
+
+/** Period label and reported figures of the newest statements. */
 export interface FinnhubReportedFinancials {
   /** Label such as `FY2025 10-K`. */
   readonly label: string
-  readonly revenue?: number
-  readonly netIncome?: number
+  /** Reported figures keyed by metric name. */
+  readonly lines: Readonly<Record<string, number>>
 }
 
 /**
- * Read the period label and the income-statement totals of the newest reported statements.
+ * Read the period label and the reported lines of the newest reported statements.
  * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
- * @returns The label with whatever totals the statement published, or undefined when no period was published.
+ * @returns The label with whatever lines the statement published, or undefined when no period was published.
  */
 export function latestReportedFinancials(payload: unknown): FinnhubReportedFinancials | undefined {
   const rows = record(payload)?.data
@@ -276,14 +347,7 @@ export function latestReportedFinancials(payload: unknown): FinnhubReportedFinan
     if (year === undefined || form === undefined) continue
     const quarter = finite(entry?.quarter)
     const period = quarter === undefined || quarter === 0 ? `FY${year}` : `Q${quarter} ${year}`
-    const statement = record(entry)?.report
-    const revenue = reportedFigure(statement, 'ic', REVENUE_CONCEPTS)
-    const netIncome = reportedFigure(statement, 'ic', NET_INCOME_CONCEPTS)
-    return {
-      label: `${period} ${form}`,
-      ...revenue === undefined ? {} : { revenue },
-      ...netIncome === undefined ? {} : { netIncome },
-    }
+    return { label: `${period} ${form}`, lines: reportedLines(record(entry)?.report) }
   }
   return undefined
 }
@@ -304,8 +368,8 @@ export interface FinnhubExtras {
   readonly latestFilingForm?: string
   readonly latestFilingDate?: string
   readonly reportedFinancials?: string
-  readonly revenue?: number
-  readonly netIncome?: number
+  /** Reported statement lines keyed by metric name, carrying the period `reportedFinancials` names. */
+  readonly reportedLines?: Readonly<Record<string, number>>
 }
 
 /**
@@ -349,8 +413,6 @@ export function normalizeFinnhubExtras(
     ...trades.sold === undefined ? {} : { insiderSoldShares: trades.sold },
     ...filing.form === undefined ? {} : { latestFilingForm: filing.form },
     ...filing.date === undefined ? {} : { latestFilingDate: filing.date },
-    ...reported === undefined ? {} : { reportedFinancials: reported.label },
-    ...reported?.revenue === undefined ? {} : { revenue: reported.revenue },
-    ...reported?.netIncome === undefined ? {} : { netIncome: reported.netIncome },
+    ...reported === undefined ? {} : { reportedFinancials: reported.label, reportedLines: reported.lines },
   }
 }

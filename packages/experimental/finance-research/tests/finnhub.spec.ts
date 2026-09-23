@@ -94,10 +94,17 @@ describe('Finnhub free-tier extras', () => {
         year: 2025,
         quarter: 0,
         form: '10-K',
-        report: { ic: [
-          { concept: 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', value: 416_161_000_000 },
-          { concept: 'us-gaap_NetIncomeLoss', value: 112_010_000_000 },
-        ] },
+        report: {
+          ic: [
+            { concept: 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', value: 416_161_000_000 },
+            { concept: 'us-gaap_NetIncomeLoss', value: 112_010_000_000 },
+          ],
+          bs: [{ concept: 'us-gaap_Assets', value: 359_241_000_000 }],
+          cf: [
+            { concept: 'us-gaap_NetCashProvidedByUsedInOperatingActivities', value: 111_482_000_000 },
+            { concept: 'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment', value: 12_715_000_000 },
+          ],
+        },
       }] },
     }, today)
     expect(extras).toEqual({
@@ -110,8 +117,14 @@ describe('Finnhub free-tier extras', () => {
       latestFilingForm: '10-Q',
       latestFilingDate: '2026-08-01',
       reportedFinancials: 'FY2025 10-K',
-      revenue: 416_161_000_000,
-      netIncome: 112_010_000_000,
+      reportedLines: {
+        revenue: 416_161_000_000,
+        netIncome: 112_010_000_000,
+        totalAssets: 359_241_000_000,
+        operatingCashFlow: 111_482_000_000,
+        capex: 12_715_000_000,
+        freeCashFlow: 98_767_000_000,
+      },
     })
   })
 
@@ -142,22 +155,113 @@ describe('Finnhub free-tier extras', () => {
     expect(latestMaterialFiling([{ form: '10-K' }, 7])).toEqual({})
     expect(latestMaterialFiling({})).toEqual({})
 
-    expect(latestReportedFinancials({ data: [{ year: 2026, quarter: 3, form: '10-Q' }] })).toEqual({ label: 'Q3 2026 10-Q' })
+    expect(latestReportedFinancials({ data: [{ year: 2026, quarter: 3, form: '10-Q' }] }))
+      .toEqual({ label: 'Q3 2026 10-Q', lines: {} })
     // The newest period wins even when an older filing is the one with statements.
     expect(latestReportedFinancials({ data: [{ quarter: 3, form: '10-Q' }, { year: 2025, form: '10-K' }] }))
-      .toEqual({ label: 'FY2025 10-K' })
+      .toEqual({ label: 'FY2025 10-K', lines: {} })
     // Reported totals come out of the income statement by concept.
     expect(latestReportedFinancials({ data: [{ year: 2025, quarter: 0, form: '10-K', report: { ic: [
       { concept: 'us-gaap_Revenues', value: 416_161_000_000 },
       { concept: 'us-gaap_NetIncomeLoss', value: 112_010_000_000 },
-    ] } }] })).toEqual({ label: 'FY2025 10-K', revenue: 416_161_000_000, netIncome: 112_010_000_000 })
+    ] } }] })).toEqual({
+      label: 'FY2025 10-K',
+      lines: { revenue: 416_161_000_000, netIncome: 112_010_000_000 },
+    })
     // A statement that omits the concepts contributes the label alone.
     expect(latestReportedFinancials({ data: [{ year: 2025, quarter: 0, form: '10-K', report: { ic: [{}] } }] }))
-      .toEqual({ label: 'FY2025 10-K' })
+      .toEqual({ label: 'FY2025 10-K', lines: {} })
     expect(latestReportedFinancials({ data: [{ year: 2025, quarter: 0, form: '10-K', report: 'nope' }] }))
-      .toEqual({ label: 'FY2025 10-K' })
+      .toEqual({ label: 'FY2025 10-K', lines: {} })
     expect(latestReportedFinancials({ data: [] })).toBeUndefined()
     expect(latestReportedFinancials({})).toBeUndefined()
+  })
+
+  it('reads the three statements the newest filing published', () => {
+    const reported = latestReportedFinancials({ data: [{
+      year: 2025,
+      quarter: 0,
+      form: '10-K',
+      report: {
+        ic: [
+          { concept: 'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax', value: 416_161_000_000 },
+          { concept: 'us-gaap_GrossProfit', value: 195_201_000_000 },
+          { concept: 'us-gaap_OperatingIncomeLoss', value: 133_050_000_000 },
+          { concept: 'us-gaap_NetIncomeLoss', value: 112_010_000_000 },
+        ],
+        bs: [
+          { concept: 'us-gaap_Assets', value: 359_241_000_000 },
+          { concept: 'us-gaap_AssetsCurrent', value: 147_957_000_000 },
+          { concept: 'us-gaap_Liabilities', value: 285_508_000_000 },
+          { concept: 'us-gaap_StockholdersEquity', value: 73_733_000_000 },
+          { concept: 'us-gaap_CashAndCashEquivalentsAtCarryingValue', value: 35_934_000_000 },
+          { concept: 'us-gaap_CommercialPaper', value: 7_979_000_000 },
+          { concept: 'us-gaap_LongTermDebtCurrent', value: 12_350_000_000 },
+          { concept: 'us-gaap_LongTermDebtNoncurrent', value: 78_328_000_000 },
+        ],
+        cf: [
+          { concept: 'us-gaap_NetCashProvidedByUsedInOperatingActivities', value: 111_482_000_000 },
+          { concept: 'us-gaap_PaymentsToAcquirePropertyPlantAndEquipment', value: 12_715_000_000 },
+          { concept: 'us-gaap_PaymentsOfDividends', value: 15_421_000_000 },
+          { concept: 'us-gaap_PaymentsForRepurchaseOfCommonStock', value: 90_711_000_000 },
+          { concept: 'us-gaap_ShareBasedCompensation', value: 12_863_000_000 },
+          { concept: 'us-gaap_DepreciationDepletionAndAmortization', value: 11_698_000_000 },
+        ],
+      },
+    }] })
+    expect(reported?.lines).toEqual({
+      revenue: 416_161_000_000,
+      grossProfit: 195_201_000_000,
+      operatingIncome: 133_050_000_000,
+      netIncome: 112_010_000_000,
+      totalAssets: 359_241_000_000,
+      currentAssets: 147_957_000_000,
+      liabilities: 285_508_000_000,
+      equity: 73_733_000_000,
+      cash: 35_934_000_000,
+      totalDebt: 98_657_000_000,
+      operatingCashFlow: 111_482_000_000,
+      capex: 12_715_000_000,
+      freeCashFlow: 98_767_000_000,
+      depreciation: 11_698_000_000,
+      stockBasedCompensation: 12_863_000_000,
+      dividendsPaid: 15_421_000_000,
+      buybacks: 90_711_000_000,
+    })
+  })
+
+  it('falls back to the concept each filer uses and drops the lines a filing omitted', () => {
+    const reported = latestReportedFinancials({ data: [{
+      year: 2024,
+      quarter: 0,
+      form: '10-K',
+      report: {
+        ic: [
+          { concept: 'us-gaap_RevenueFromContractWithCustomerIncludingAssessedTax', value: 1 },
+          { concept: 'us-gaap_ProfitLoss', value: 2 },
+        ],
+        bs: [
+          { concept: 'us-gaap_StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest', value: 3 },
+          { concept: 'us-gaap_CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents', value: 4 },
+          { concept: 'us-gaap_LongTermDebt', value: 5 },
+        ],
+        cf: [
+          { concept: 'us-gaap_PaymentsToAcquireProductiveAssets', value: 6 },
+          { concept: 'us-gaap_PaymentsOfDividendsCommonStock', value: 7 },
+          { concept: 'us-gaap_DepreciationAmortizationAndAccretionNet', value: 8 },
+        ],
+      },
+    }] })
+    expect(reported?.lines).toEqual({
+      revenue: 1,
+      netIncome: 2,
+      equity: 3,
+      cash: 4,
+      totalDebt: 5,
+      capex: 6,
+      dividendsPaid: 7,
+      depreciation: 8,
+    })
   })
 
   it('reads the headlines, the earnings calendar, the surprise, and insider sentiment', () => {
