@@ -17,6 +17,11 @@ const MIN_GROWTH_PERCENT = -20
 const MAX_GROWTH_PERCENT = 60
 /** Share of the gap to the terminal rate that survives each following year. */
 const FADE_FACTOR = 0.6
+/** Explicit years the path extends to when the configured window leaves too much value in the terminal. */
+const MAX_EXPLICIT_YEARS = 15
+/** Growth the reverse DCF searches, wider than the scenario clamp so a rich price reports a number. */
+const MIN_IMPLIED_GROWTH_PERCENT = -50
+const MAX_IMPLIED_GROWTH_PERCENT = 150
 /** Beta band the published figure is clamped to before it reaches the cost of equity. */
 const MIN_BETA = 0.4
 const MAX_BETA = 2.5
@@ -118,6 +123,8 @@ export interface ValuationInputs {
   readonly revenueGrowthPercent?: number
   /** Compound annual revenue growth across the annual filings, in percent. */
   readonly revenueCagrPercent?: number
+  /** Where the assumed growth sits in the company's own reported growth history, in percent. */
+  readonly revenueGrowthPercentile?: number
   /** Published five-year beta. */
   readonly beta?: number
   /** Market capitalisation in the reporting currency. */
@@ -366,6 +373,9 @@ export function buildValuationInputs(
     ...metricOf(metrics, 'revenueCagr') === undefined
       ? {}
       : { revenueCagrPercent: metricOf(metrics, 'revenueCagr') as number },
+    ...metricOf(metrics, 'revenueGrowthPercentile') === undefined
+      ? {}
+      : { revenueGrowthPercentile: metricOf(metrics, 'revenueGrowthPercentile') as number },
     ...metricOf(metrics, 'beta') === undefined ? {} : { beta: metricOf(metrics, 'beta') as number },
     ...metricOf(metrics, 'marketCap') === undefined ? {} : { marketCap: metricOf(metrics, 'marketCap') as number },
     ...metricOf(metrics, 'epsTtm') === undefined ? {} : { epsTtm: metricOf(metrics, 'epsTtm') as number },
@@ -671,10 +681,16 @@ export function buildCashFlowValue(
     ['base', 1 - parameters.bearProbability - parameters.bullProbability, reportedGrowth, 0],
     ['bull', parameters.bullProbability, reportedGrowth + parameters.bullGrowthShiftPercent, parameters.bullMarginShiftPercent],
   ]
+  // A window that leaves most of the value in the terminal is extended once, up to the cap, so the
+  // explicit forecast carries the growth the statement history actually shows.
+  const opening = scenarioValue(basis, cost.waccPercent, reportedGrowth, basis.marginPercent)
+  const window = opening !== undefined && opening.terminalValueSharePercent > parameters.terminalValueCeilingPercent
+    ? { ...basis, explicitYears: MAX_EXPLICIT_YEARS }
+    : basis
   const computed: { readonly scenario: ValuationScenario; readonly terminal: ScenarioValue }[] = []
   for (const [id, probability, growth, marginShift] of paths) {
-    const marginPercent = basis.marginPercent + marginShift
-    const value = scenarioValue(basis, cost.waccPercent, growth, marginPercent)
+    const marginPercent = window.marginPercent + marginShift
+    const value = scenarioValue(window, cost.waccPercent, growth, marginPercent)
     if (value === undefined) return undefined
     computed.push({
       scenario: { id, probability, startingGrowthPercent: growth, marginPercent, valuePerShare: value.valuePerShare },
@@ -686,7 +702,7 @@ export function buildCashFlowValue(
   // A path whose value cannot cover its net debt carries nothing a reader could act on.
   if (values.some(value => value <= 0)) return undefined
   const base = computed.find(entry => entry.scenario.id === 'base') as { readonly terminal: ScenarioValue }
-  const implied = solveImpliedGrowth(basis, cost.waccPercent, inputs.price)
+  const implied = solveImpliedGrowth(window, cost.waccPercent, inputs.price)
   return {
     scenarios,
     weightedValuePerShare: scenarios.reduce(
@@ -695,15 +711,15 @@ export function buildCashFlowValue(
     ),
     lowValuePerShare: Math.min(...values),
     highValuePerShare: Math.max(...values),
-    earningsPowerValuePerShare: (basis.operatingIncome * basis.afterTax / (cost.waccPercent / 100) - basis.netDebt)
-      / basis.shares,
+    earningsPowerValuePerShare: (window.operatingIncome * window.afterTax / (cost.waccPercent / 100) - window.netDebt)
+      / window.shares,
     impliedGrowthPercent: implied.percent,
     impliedGrowthAtBound: implied.atBound,
     terminalValueSharePercent: base.terminal.terminalValueSharePercent,
     impliedExitMultiple: base.terminal.impliedExitMultiple,
     terminalValueCeilingBreached: base.terminal.terminalValueSharePercent > parameters.terminalValueCeilingPercent,
     sensitivity: [-SENSITIVITY_STEP_PERCENT, 0, SENSITIVITY_STEP_PERCENT].map((step) => {
-      const value = scenarioValue(basis, cost.waccPercent + step, reportedGrowth, basis.marginPercent)
+      const value = scenarioValue(window, cost.waccPercent + step, reportedGrowth, window.marginPercent)
       return {
         waccPercent: cost.waccPercent + step,
         ...value === undefined ? {} : { valuePerShare: value.valuePerShare },
@@ -726,12 +742,12 @@ function solveImpliedGrowth(
 ): { readonly percent: number; readonly atBound: boolean } {
   const at = (growth: number): number =>
     (scenarioValue(basis, waccPercent, growth, basis.marginPercent) as ScenarioValue).valuePerShare
-  const lowValue = at(MIN_GROWTH_PERCENT)
-  const highValue = at(MAX_GROWTH_PERCENT)
-  if (price <= lowValue) return { percent: MIN_GROWTH_PERCENT, atBound: true }
-  if (price >= highValue) return { percent: MAX_GROWTH_PERCENT, atBound: true }
-  let low = MIN_GROWTH_PERCENT
-  let high = MAX_GROWTH_PERCENT
+  const lowValue = at(MIN_IMPLIED_GROWTH_PERCENT)
+  const highValue = at(MAX_IMPLIED_GROWTH_PERCENT)
+  if (price <= lowValue) return { percent: MIN_IMPLIED_GROWTH_PERCENT, atBound: true }
+  if (price >= highValue) return { percent: MAX_IMPLIED_GROWTH_PERCENT, atBound: true }
+  let low = MIN_IMPLIED_GROWTH_PERCENT
+  let high = MAX_IMPLIED_GROWTH_PERCENT
   for (let step = 0; step < 60; step += 1) {
     const middle = (low + high) / 2
     if (at(middle) < price) low = middle

@@ -279,6 +279,16 @@ describe('cash-flow value', () => {
     expect(bands.get('sensitivity')?.high).toBe(Math.max(...sensitivity))
   })
 
+  it('extends the explicit window when the configured one leaves too much in the terminal', () => {
+    const growth = { ...INPUT, revenueCagrPercent: 20 }
+    const roomy = buildCashFlowValue(growth, VALUATION_PARAMETERS, costOf(growth))
+    // A ceiling the configured window cannot meet extends the explicit forecast to the cap, which
+    // carries more of a growing company's value in explicit years.
+    const tight = buildCashFlowValue(growth, { ...VALUATION_PARAMETERS, terminalValueCeilingPercent: 1 }, costOf(growth))
+    expect(tight?.weightedValuePerShare).toBeGreaterThan(roomy?.weightedValuePerShare as number)
+    expect(tight?.terminalValueCeilingBreached).toBe(true)
+  })
+
   it('flags a terminal-value share above the configured ceiling', () => {
     const value = buildCashFlowValue(INPUT, { ...VALUATION_PARAMETERS, terminalValueCeilingPercent: 20 }, costOf(INPUT))
     expect(value?.terminalValueCeilingBreached).toBe(true)
@@ -288,14 +298,16 @@ describe('cash-flow value', () => {
     const cheapInputs = { ...INPUT, price: 1, marketCap: 1 }
     const cheap = buildCashFlowValue(cheapInputs, VALUATION_PARAMETERS, costOf(cheapInputs))
     expect(cheap?.impliedGrowthAtBound).toBe(true)
-    expect(cheap?.impliedGrowthPercent).toBe(-20)
+    // The reverse solve searches a wider bracket than the scenario clamp, so a bound hit means the
+    // price really sits outside the searched range rather than at the scenario cap.
+    expect(cheap?.impliedGrowthPercent).toBe(-50)
     const rich = buildCashFlowValue(
       { ...INPUT, price: 1_000_000, marketCap: 1_000_000 },
       VALUATION_PARAMETERS,
       costOf({ ...INPUT, price: 1_000_000, marketCap: 1_000_000 }),
     )
     expect(rich?.impliedGrowthAtBound).toBe(true)
-    expect(rich?.impliedGrowthPercent).toBe(60)
+    expect(rich?.impliedGrowthPercent).toBe(150)
   })
 
   it('declines the value when the inputs or the path cannot support one', () => {
@@ -382,6 +394,10 @@ describe('complete valuation read', () => {
 
   it('starts the path from the multi-year reported base rate', () => {
     const metrics = metricsFor({ revenue: 1_331, revenueGrowth: 30, revenueCagr: 10, operatingIncome: 200, marketCap: 10_000 })
+    const withPercentile = metricsFor({
+      revenue: 1_331, revenueCagr: 10, revenueGrowthPercentile: 88, operatingIncome: 200, marketCap: 10_000,
+    })
+    expect(buildValuationInputs(withPercentile, [], 100).revenueGrowthPercentile).toBe(88)
     const inputs = buildValuationInputs(metrics, [], 100)
     expect(inputs.revenueGrowthPercent).toBe(30)
     expect(inputs.revenueCagrPercent).toBe(10)

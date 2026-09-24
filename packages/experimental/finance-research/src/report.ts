@@ -252,6 +252,9 @@ function valuationRangeText(copy: ReportCopy, valuation: ValuationAnalysis): str
   })
 }
 
+/** Percentile above which the assumed growth needs a stated structural reason. */
+const BASE_RATE_HIGH_PERCENTILE = 90
+
 /** Width of one text bar in the Markdown football field. */
 const FIELD_BAR_WIDTH = 20
 
@@ -507,6 +510,9 @@ function valuationSection(context: SectionContext): ResearchReportSection {
           [labels.impliedGrowth, impliedGrowth],
           [labels.modelGrowth, modelGrowth],
           [labels.expectationsGap, gap],
+          ...valuation.inputs.revenueGrowthPercentile === undefined ? [] : [[
+            labels.baseRate, percent(valuation.inputs.revenueGrowthPercentile),
+          ]],
         ],
       ),
       '',
@@ -608,6 +614,9 @@ function valuationSection(context: SectionContext): ResearchReportSection {
       '',
       `- ${notice}`,
       `- ${labels.shareCountNotice}`,
+      ...(valuation.inputs.revenueGrowthPercentile ?? 0) >= BASE_RATE_HIGH_PERCENTILE
+        ? [`- ${labels.baseRateHigh}`]
+        : [],
       ...valuation.quality.grade === undefined ? [`- ${labels.noGradeNotice}`] : [],
     ].join('\n'),
   }

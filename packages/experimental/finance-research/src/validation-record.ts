@@ -10,17 +10,17 @@ import type { ValuationValidation } from './backtest.ts'
 
 /** Latest recorded backtest; the no-evidence record until one has run. */
 export const VALUATION_VALIDATION: ValuationValidation = {
-  'asOf': '2026-09-23',
+  'asOf': '2026-09-24',
   'symbols': 12,
   'horizonMonths': 12,
   'summary': {
     'samples': 63,
     'horizonMonths': 12,
-    'modelMaePercent': 58.0925,
+    'modelMaePercent': 58.3524,
     'controlMaePercent': 19.2468,
     'modelHitRate': 0.2063,
-    'modelBiasPercent': 3.4658,
-    'dmStatistic': 3.6134,
-    'dmPValue': 0.000302,
-  },
+    'modelBiasPercent': 3.8116,
+    'dmStatistic': 3.5571,
+    'dmPValue': 0.000375
+  }
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   insiderTradeTotals, latestAnalystConsensus, latestEpsSurprise, latestInsiderSentiment,
-  latestMaterialFiling, latestReportedFinancials, nextEarningsDate, reportedFinancialsHistory, reportedRevenueCagr,
+  latestMaterialFiling, latestReportedFinancials, nextEarningsDate, reportedFinancialsHistory,
+  reportedGrowthPercentile, reportedRevenueCagr,
   normalizeFinnhubExtras, normalizeFinnhubFundamentals,
 } from '../src/finnhub.ts'
 
@@ -298,6 +299,17 @@ describe('Finnhub free-tier extras', () => {
     }))
     const extras = normalizeFinnhubExtras({ reported: { data: annual } }, today)
     expect(extras.revenueCagr).toBeCloseTo(10, 6)
+    // Two of the three reported steps (10% and 4.76%) sit at or below the 10% base rate.
+    expect(extras.revenueGrowthPercentile).toBeCloseTo(66.666_666, 4)
+    expect(reportedGrowthPercentile({ data: annual }, 100)).toBe(100)
+    expect(reportedGrowthPercentile({ data: annual.slice(0, 2) }, 10)).toBeUndefined()
+    // A base the history cannot divide by carries no percentile.
+    expect(reportedGrowthPercentile({ data: [
+      { year: 2024, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 100 }] } },
+      { year: 2023, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 0 }] } },
+      { year: 2022, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 0 }] } },
+      { year: 2021, quarter: 0, form: '10-K', report: { ic: [{ concept: 'us-gaap_Revenues', value: 0 }] } },
+    ] }, 10)).toBeUndefined()
     // A shorter history leaves the base rate out rather than guessing one.
     expect(normalizeFinnhubExtras({ reported: { data: annual.slice(0, 2) } }, today).revenueCagr).toBeUndefined()
   })

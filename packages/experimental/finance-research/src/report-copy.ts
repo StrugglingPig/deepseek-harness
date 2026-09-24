@@ -60,6 +60,7 @@ export type ValuationLabelKey =
   | 'sensitivityTitle' | 'terminalTitle' | 'ratiosTitle' | 'qualityTitle' | 'earningsPathTitle'
   | 'notObtained' | 'modelNotice' | 'shareCountNotice' | 'suppressedNotice' | 'noGradeNotice'
   | 'verdictAction' | 'verdictTradingDirection' | 'targetRange' | 'targetNotice' | 'failedNotice'
+  | 'baseRate' | 'baseRateHigh'
   | 'footballField' | 'assumptions' | 'assumptionNote' | 'assumptionDefault' | 'assumptionAdjusted'
   | 'tearsheet' | 'bandSensitivity'
   | 'terminalBreached' | 'terminalWithin' | 'missingInputs'
@@ -375,6 +376,7 @@ const EN: ReportCopy = {
     operatingMargin: 'Operating margin',
     revenueGrowth: 'Revenue growth (YoY)',
     revenueCagr: 'Revenue CAGR (3y reported)',
+    revenueGrowthPercentile: 'Base rate against own reported growth',
     profitGrowth: 'Net profit growth (YoY)',
     debtRatio: 'Debt-to-asset ratio',
     currentRatio: 'Current ratio',
@@ -539,6 +541,8 @@ const EN: ReportCopy = {
       verdictAction: 'Action',
       targetRange: 'Target price range (bear–bull)',
       targetNotice: 'This target price comes from a model that passed the recorded out-of-sample backtest over {samples} symbol-dates on {asOf}.',
+      baseRate: 'Assumption against the reported growth history',
+      baseRateHigh: 'The assumed growth sits in the top decile of this company own reported growth, so it needs a stated structural reason.',
       failedNotice: 'The recorded out-of-sample backtest over {samples} symbol-dates on {asOf} did not beat the unchanged-price control ({modelMae} against {controlMae} mean absolute error), so this stays a model reference value rather than a target price.',
       verdictTradingDirection: 'One-to-three-month direction',
       footballField: 'Value range across methods',
@@ -976,6 +980,7 @@ const ZH: ReportCopy = {
     operatingMargin: '营业利润率',
     revenueGrowth: '营业收入同比',
     revenueCagr: '营业收入复合增速（近 3 年年报）',
+    revenueGrowthPercentile: '基率在自身历史增速中的位置',
     profitGrowth: '净利润同比',
     debtRatio: '资产负债率',
     currentRatio: '流动比率',
@@ -1154,6 +1159,8 @@ const ZH: ReportCopy = {
       verdictAction: '动作',
       targetRange: '目标价区间（熊市–牛市）',
       targetNotice: '本目标价来自已通过样本外回测的模型：{samples} 个“标的×日期”样本，回测日期 {asOf}。',
+      baseRate: '假设相对自身历史增速的位置',
+      baseRateHigh: '假设增速位于公司自身历史增速的前 10%，需要给出结构性理由。',
       failedNotice: '已记录的样本外回测（{samples} 个“标的×日期”样本，回测日期 {asOf}）没有跑赢“价格不变”控制组（平均绝对误差 {modelMae} 对 {controlMae}），因此本数值仍是模型参考价值，而不是目标价。',
       verdictTradingDirection: '1–3 个月方向',
       footballField: '各方法价值区间',

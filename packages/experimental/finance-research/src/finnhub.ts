@@ -401,6 +401,26 @@ export function reportedRevenueCagr(payload: unknown, years: number): number | u
 }
 
 /**
+ * Place one growth figure inside the company's own reported growth history.
+ * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
+ * @param growthPercent - Growth figure to place, in percent.
+ * @returns The share of reported annual growth rates at or below that figure, in percent.
+ */
+export function reportedGrowthPercentile(payload: unknown, growthPercent: number): number | undefined {
+  const annual = reportedFinancialsHistory(payload)
+    .filter(period => period.form === '10-K' && period.lines.revenue !== undefined)
+    .map(period => period.lines.revenue as number)
+  if (annual.length < 4) return undefined
+  const growth = annual.slice(0, -1).flatMap((value, index) => {
+    const previous = annual[index + 1] as number
+    return previous <= 0 ? [] : [(value / previous - 1) * 100]
+  })
+  if (growth.length === 0) return undefined
+  const atOrBelow = growth.filter(rate => rate <= growthPercent).length
+  return atOrBelow / growth.length * 100
+}
+
+/**
  * Read the period label and the reported lines of the newest reported statements.
  * @param payload - `/stock/financials-reported` payload, or undefined when that call failed.
  * @returns The label with whatever lines the statement published, or undefined when no period was published.
@@ -430,6 +450,8 @@ export interface FinnhubExtras {
   readonly reportedLines?: Readonly<Record<string, number>>
   /** Compound annual revenue growth across the annual filings, in percent. */
   readonly revenueCagr?: number
+  /** Where that base rate sits in the company's own reported growth history, in percent. */
+  readonly revenueGrowthPercentile?: number
 }
 
 /**
@@ -461,6 +483,8 @@ export function normalizeFinnhubExtras(
   const reported = latestReportedFinancials(payloads.reported)
   // The base rate the growth assumption has to beat, read from the same filing history.
   const cagr = reportedRevenueCagr(payloads.reported, 3)
+  // The base-rate percentile the report prints beside the assumption it justifies.
+  const percentile = cagr === undefined ? undefined : reportedGrowthPercentile(payloads.reported, cagr)
   return {
     ...headlines.length === 0 ? {} : { headlines },
     ...nextEarnings === undefined ? {} : { nextEarnings },
@@ -477,5 +501,6 @@ export function normalizeFinnhubExtras(
     ...filing.date === undefined ? {} : { latestFilingDate: filing.date },
     ...reported === undefined ? {} : { reportedFinancials: reported.label, reportedLines: reported.lines },
     ...cagr === undefined ? {} : { revenueCagr: cagr },
+    ...percentile === undefined ? {} : { revenueGrowthPercentile: percentile },
   }
 }
