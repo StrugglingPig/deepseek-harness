@@ -368,6 +368,19 @@ def ifind_local_name(symbol: str, bd) -> str:
     return bare_symbol(symbol)
 
 
+def http_error_message(error: urllib.error.HTTPError) -> str:
+    """Read the upstream message a failed HTTP call carried, so the caller sees the reason."""
+    try:
+        body = error.read().decode("utf-8", "replace")
+        parsed = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return ""
+    if not isinstance(parsed, dict):
+        return ""
+    message = parsed.get("errmsg") or parsed.get("error")
+    return f": {message}" if isinstance(message, str) and message else ""
+
+
 def ifind_http_request(endpoint: str, payload: dict, access_token: str) -> dict:
     base_url = os.environ.get("IFIND_BASE_URL", "https://quantapi.51ifind.com").rstrip("/")
     request = urllib.request.Request(
@@ -384,7 +397,7 @@ def ifind_http_request(endpoint: str, payload: dict, access_token: str) -> dict:
         with urllib.request.urlopen(request, timeout=IFIND_HTTP_TIMEOUT_SECONDS) as response:
             body = response.read()
     except urllib.error.HTTPError as error:
-        raise RuntimeError(f"IFIND_HTTP_FAILED: HTTP {error.code}") from error
+        raise RuntimeError(f"IFIND_HTTP_FAILED: HTTP {error.code}{http_error_message(error)}") from error
     except urllib.error.URLError as error:
         raise RuntimeError(f"IFIND_NETWORK_FAILED: {error.reason}") from error
     try:
@@ -431,7 +444,7 @@ def ifind_http_access_token() -> str:
         with urllib.request.urlopen(request, timeout=IFIND_HTTP_TIMEOUT_SECONDS) as response:
             body = response.read()
     except urllib.error.HTTPError as error:
-        raise RuntimeError(f"IFIND_AUTH_FAILED: HTTP {error.code}") from error
+        raise RuntimeError(f"IFIND_AUTH_FAILED: HTTP {error.code}{http_error_message(error)}") from error
     except urllib.error.URLError as error:
         raise RuntimeError(f"IFIND_NETWORK_FAILED: {error.reason}") from error
     try:
@@ -968,7 +981,9 @@ def main() -> None:
                 "data": {
                     "python": sys.version.split()[0],
                     "akshare": importlib.util.find_spec("akshare") is not None,
-                    "ifind": importlib.util.find_spec("iFinDPy") is not None,
+                    # The HTTP transport needs only a refresh token; the local transport needs the SDK.
+                    "ifind": importlib.util.find_spec("iFinDPy") is not None
+                    or bool(os.environ.get("IFIND_REFRESH_TOKEN", "").strip()),
                 },
             })
         elif action == "stock_history" and provider == "akshare":
