@@ -738,23 +738,290 @@ def ifind_quotes(request: dict) -> dict:
     raise RuntimeError(f"INVALID_STOCK_TRANSPORT: unsupported iFinD transport {transport}")
 
 
-# The announcement query reads one published report type; 901 is what the web console's
-# "全部" option selects, so no per-category enumeration is needed here.
-IFIND_ANNOUNCEMENT_TYPE = "901"
-IFIND_ANNOUNCEMENT_FIELDS = "reportDate:Y,thscode:Y,secName:Y,ctime:Y,reportTitle:Y,pdfURL:Y,seq:Y"
-IFIND_ANNOUNCEMENT_WINDOW_DAYS = 180
-IFIND_ANNOUNCEMENT_LIMIT = 5
+# Intraday series. The snapshot returns every published tick, the high-frequency
+# series returns fixed-interval bars, and both land on the same bar record.
+IFIND_SNAPSHOT_INDICATORS = "tradeDate,tradeTime,latest,preClose,open,high,low,vol,amt"
+IFIND_MINUTE_INDICATORS = "open,high,low,close,volume,amount"
+IFIND_MINUTE_INTERVALS = ("1", "5", "15", "30", "60")
+IFIND_INTRADAY_LIMIT = 480
+IFIND_SERIES_WINDOW_DAYS = 365
+IFIND_SERIES_LIMIT = 400
+IFIND_DATA_POOL_LIMIT = 200
+IFIND_MARKET_OPEN = "09:30:00"
+
+# iFinD states its intraday times in the exchange's own clock.
+IFIND_MARKET_OFFSET = "+08:00"
 
 
-def ifind_announcements_http(request: dict) -> dict:
-    """Read the published announcement list for one symbol through the iFinD HTTP report query."""
+def ifind_market_timestamp(value):
+    """Read one iFinD market time as the Shanghai instant it states."""
+    text = str(value).strip().replace(" ", "T")
+    if text == "":
+        return None
+    if not re.search(r"(Z|[+-]\d{2}:?\d{2})$", text):
+        text = f"{text}{IFIND_MARKET_OFFSET}"
+    return iso_timestamp(text)
+
+
+def ifind_moment(value, fallback_day: date, fallback_clock: str) -> str:
+    """Read one request bound, filling a bare date from the window's own clock."""
+    text = str(value).strip() if value else ""
+    if text == "":
+        return f"{fallback_day.isoformat()} {fallback_clock}"
+    if len(text) == 10:
+        return f"{text} {fallback_clock}"
+    return text
+
+
+def ifind_intraday_http(request: dict) -> dict:
+    """Read one symbol's intraday series, either every tick or fixed-interval bars."""
     symbol = normalize_symbol(request["symbol"])
+    granularity = str(request.get("granularity") or "tick")
+    if granularity != "tick" and granularity not in IFIND_MINUTE_INTERVALS:
+        raise RuntimeError(f"INVALID_STOCK_GRANULARITY: iFinD publishes no {granularity} intraday interval")
+    today = date.today()
+    start = ifind_moment(request.get("startDate"), today, IFIND_MARKET_OPEN)
+    end = ifind_moment(request.get("endDate"), today, datetime.now().strftime("%H:%M:%S"))
+    access_token = ifind_http_access_token()
+    if granularity == "tick":
+        response = ifind_http_request("snap_shot", {
+            "codes": symbol,
+            "indicators": IFIND_SNAPSHOT_INDICATORS,
+            "starttime": start,
+            "endtime": end,
+        }, access_token)
+        points = []
+        for row in ifind_tables(response):
+            timestamp = ifind_market_timestamp(f"{row.get('tradeDate') or ''} {row.get('tradeTime') or ''}".strip())
+            close = number(row.get("latest"))
+            if timestamp is None or close is None:
+                continue
+            points.append({
+                "timestamp": timestamp,
+                "open": number(row.get("open")),
+                "high": number(row.get("high")),
+                "low": number(row.get("low")),
+                "close": close,
+                "previousClose": number(row.get("preClose")),
+                "volume": number(row.get("vol")),
+                "amount": number(row.get("amt")),
+            })
+    else:
+        response = ifind_http_request("high_frequency", {
+            "codes": symbol,
+            "indicators": IFIND_MINUTE_INDICATORS,
+            "functionpara": {"Interval": granularity},
+            "starttime": start,
+            "endtime": end,
+        }, access_token)
+        points = []
+        for row in ifind_tables(response):
+            timestamp = ifind_market_timestamp(row.get("time"))
+            close = number(row.get("close"))
+            if timestamp is None or close is None:
+                continue
+            points.append({
+                "timestamp": timestamp,
+                "open": number(row.get("open")),
+                "high": number(row.get("high")),
+                "low": number(row.get("low")),
+                "close": close,
+                "volume": number(row.get("volume")),
+                "amount": number(row.get("amount")),
+            })
+    if not points:
+        raise RuntimeError("IFIND_EMPTY_RESPONSE: iFinD returned no intraday points")
+    points.sort(key=lambda item: item["timestamp"])
+    return {
+        "symbol": bare_symbol(symbol),
+        "granularity": granularity,
+        "points": points[-IFIND_INTRADAY_LIMIT:],
+    }
+
+
+def ifind_series_http(request: dict) -> dict:
+    """Read one published indicator's history for one symbol."""
+    symbol = normalize_symbol(request["symbol"])
+    indicator = str(request.get("indicator") or "").strip()
+    if indicator == "":
+        raise RuntimeError("INVALID_STOCK_REQUEST: iFinD series needs an indicator id")
     end = normalize_date(request.get("endDate") or date.today().isoformat())
-    default_start = date.today() - timedelta(days=IFIND_ANNOUNCEMENT_WINDOW_DAYS)
+    default_start = date.today() - timedelta(days=IFIND_SERIES_WINDOW_DAYS)
     start = normalize_date(request.get("startDate") or default_start.isoformat())
     payload = {
         "codes": symbol,
-        "functionpara": {"reportType": IFIND_ANNOUNCEMENT_TYPE},
+        "startdate": start,
+        "enddate": end,
+        "indipara": [{"indicator": indicator, "indiparams": [str(request.get("parameter") or "")]}],
+    }
+    response = ifind_http_request("date_sequence", payload, ifind_http_access_token())
+    observations = []
+    for table in response.get("tables") or []:
+        if not isinstance(table, dict):
+            continue
+        times = table.get("time") or []
+        values = (table.get("table") or {}).get(indicator) or []
+        for index, moment in enumerate(times):
+            value = number(values[index]) if index < len(values) else None
+            observed = normalize_macro_date(moment)
+            if value is None or observed is None:
+                continue
+            observations.append({"date": observed, "value": value})
+    if not observations:
+        raise RuntimeError(f"IFIND_EMPTY_RESPONSE: iFinD returned no {indicator} series")
+    observations.sort(key=lambda item: item["date"])
+    return {
+        "symbol": bare_symbol(symbol),
+        "indicator": indicator,
+        "observations": observations[-IFIND_SERIES_LIMIT:],
+    }
+
+
+def ifind_data_pool_http(request: dict) -> dict:
+    """Read one published thematic report, which the console's 专题报表 page names."""
+    report = str(request.get("report") or "").strip()
+    fields = request.get("fields")
+    if report == "" or not isinstance(fields, list) or not fields:
+        raise RuntimeError("INVALID_STOCK_REQUEST: iFinD data pool needs a report name and its output fields")
+    parameters = request.get("parameters")
+    functionpara = {
+        str(key): str(value)
+        for key, value in (parameters.items() if isinstance(parameters, dict) else [])
+    }
+    payload = {
+        "reportname": report,
+        "functionpara": functionpara,
+        "outputpara": ",".join(str(field) for field in fields),
+    }
+    response = ifind_http_request("data_pool", payload, ifind_http_access_token())
+    rows = ifind_tables(response)
+    if not rows:
+        raise RuntimeError(f"IFIND_EMPTY_RESPONSE: iFinD data pool report {report} returned no rows")
+    return {"report": report, "rows": rows[:IFIND_DATA_POOL_LIMIT], "truncated": len(rows) > IFIND_DATA_POOL_LIMIT}
+
+
+def ifind_intraday(request: dict) -> dict:
+    transport = request.get("transport")
+    if transport == "http":
+        return ifind_intraday_http(request)
+    raise RuntimeError(f"INVALID_STOCK_TRANSPORT: iFinD intraday requires the HTTP transport, not {transport}")
+
+
+def ifind_series(request: dict) -> dict:
+    transport = request.get("transport")
+    if transport == "http":
+        return ifind_series_http(request)
+    raise RuntimeError(f"INVALID_STOCK_TRANSPORT: iFinD series requires the HTTP transport, not {transport}")
+
+
+def ifind_data_pool(request: dict) -> dict:
+    transport = request.get("transport")
+    if transport == "http":
+        return ifind_data_pool_http(request)
+    raise RuntimeError(f"INVALID_STOCK_TRANSPORT: iFinD data pool requires the HTTP transport, not {transport}")
+
+
+# The published ratio table. Each id is the console's own indicator, the parameter
+# code is its 最新一期(MRQ) option, and the newest reported period comes from a
+# separate indicator that reads a date rather than a period code.
+IFIND_FUNDAMENTAL_PERIOD_CODE = "8"
+IFIND_FUNDAMENTAL_FIELDS = (
+    ("eps", "ths_basic_eps_stock"),
+    ("bookValuePerShare", "ths_nav_ps_stock"),
+    ("roe", "ths_roe_ttm_stock"),
+    ("netMargin", "ths_sales_nir_ttm_stock"),
+    ("operatingMargin", "ths_op_to_revenue_stock"),
+    ("revenueGrowth", "ths_operating_revenue_yoy_stock"),
+    ("profitGrowth", "ths_np_yoy_stock"),
+    ("debtRatio", "ths_asset_liab_ratio_stock"),
+    ("currentRatio", "ths_current_ratio_stock"),
+)
+IFIND_OPERATING_CASH_FLOW_INDICATOR = "ths_ncf_from_oa_stock"
+IFIND_NET_INCOME_INDICATOR = "ths_np_stock"
+IFIND_REPORT_PERIOD_INDICATOR = "ths_regular_report_latest_rp_stock"
+
+
+def ifind_fundamentals_http(request: dict) -> dict:
+    """Read the published ratio table for one symbol through the iFinD HTTP basic-data query."""
+    symbol = normalize_symbol(request["symbol"])
+    fields = [indicator for _, indicator in IFIND_FUNDAMENTAL_FIELDS]
+    indicators = [
+        *fields,
+        IFIND_OPERATING_CASH_FLOW_INDICATOR,
+        IFIND_NET_INCOME_INDICATOR,
+    ]
+    payload = {
+        "codes": symbol,
+        "indipara": [
+            {"indicator": IFIND_REPORT_PERIOD_INDICATOR, "indiparams": [date.today().isoformat()]},
+            *({"indicator": indicator, "indiparams": [IFIND_FUNDAMENTAL_PERIOD_CODE]} for indicator in indicators),
+        ],
+    }
+    response = ifind_http_request("basic_data_service", payload, ifind_http_access_token())
+    rows = ifind_tables(response)
+    if not rows:
+        raise RuntimeError("IFIND_EMPTY_RESPONSE: iFinD returned no fundamentals")
+    row = rows[0]
+    metrics = {}
+    for key, indicator in IFIND_FUNDAMENTAL_FIELDS:
+        value = number(row.get(indicator))
+        if value is not None:
+            metrics[key] = value
+    operating_cash_flow = number(row.get(IFIND_OPERATING_CASH_FLOW_INDICATOR))
+    net_income = number(row.get(IFIND_NET_INCOME_INDICATOR))
+    if operating_cash_flow is not None and net_income not in (None, 0):
+        metrics["cashConversion"] = round(operating_cash_flow / net_income * 100, 4)
+    if not metrics:
+        raise RuntimeError("IFIND_EMPTY_RESPONSE: iFinD returned no usable fundamentals")
+    period = normalize_macro_date(row.get(IFIND_REPORT_PERIOD_INDICATOR))
+    if period is None:
+        raise RuntimeError("IFIND_EMPTY_RESPONSE: iFinD did not report which period the figures describe")
+    return {"symbol": bare_symbol(symbol), "periods": [{"period": period, "metrics": metrics}]}
+
+
+def ifind_fundamentals(request: dict) -> dict:
+    transport = request.get("transport")
+    if transport == "http":
+        return ifind_fundamentals_http(request)
+    raise RuntimeError(f"INVALID_STOCK_TRANSPORT: iFinD fundamentals require the HTTP transport, not {transport}")
+
+
+# The announcement query reads one published report type; 901 is what the web console's
+# "全部" option selects, so no per-category enumeration is needed here.
+IFIND_ANNOUNCEMENT_TYPE = "901"
+IFIND_ANNOUNCEMENT_FIELDS = "reportDate:Y,thscode:Y,secName:Y,ctime:Y,reportTitle:Y,announcementLanguage:Y,seq:Y,pdfURL:Y"
+IFIND_ANNOUNCEMENT_WINDOW_DAYS = 180
+IFIND_ANNOUNCEMENT_LIMIT = 5
+# A whole-market day carries over a thousand filings, so the market mode caps its answer.
+IFIND_ANNOUNCEMENT_MARKET_LIMIT = 200
+IFIND_ANNOUNCEMENT_MARKET_MODES = ("allAStock", "allBond", "allFund", "allHKStock")
+
+
+def ifind_announcement_types(request: dict) -> str:
+    """Read the published announcement categories, defaulting to the whole tree."""
+    types = request.get("reportTypes")
+    if isinstance(types, list) and types:
+        return ",".join(str(entry).strip() for entry in types if str(entry).strip())
+    return IFIND_ANNOUNCEMENT_TYPE
+
+
+def ifind_announcements_http(request: dict) -> dict:
+    """Read published announcements for one symbol, or for one whole market."""
+    mode = str(request.get("mode") or "").strip()
+    if mode != "" and mode not in IFIND_ANNOUNCEMENT_MARKET_MODES:
+        raise RuntimeError(f"INVALID_STOCK_REQUEST: iFinD publishes no {mode} announcement market")
+    symbol = "" if mode != "" else str(request.get("symbol") or "").strip()
+    if mode == "" and symbol == "":
+        raise RuntimeError("INVALID_STOCK_REQUEST: iFinD announcements need a symbol or a market mode")
+    end = normalize_date(request.get("endDate") or date.today().isoformat())
+    default_start = date.today() - timedelta(days=IFIND_ANNOUNCEMENT_WINDOW_DAYS)
+    start = normalize_date(request.get("startDate") or default_start.isoformat())
+    functionpara = {"reportType": ifind_announcement_types(request)}
+    if mode != "":
+        functionpara["mode"] = mode
+    payload = {
+        "codes": "" if mode != "" else normalize_symbol(symbol),
+        "functionpara": functionpara,
         "beginrDate": start,
         "endrDate": end,
         "outputpara": IFIND_ANNOUNCEMENT_FIELDS,
@@ -768,15 +1035,24 @@ def ifind_announcements_http(request: dict) -> dict:
         if title is None or announced is None:
             continue
         announcements.append({
+            "symbol": bare_symbol(row.get("thscode") or symbol),
+            "name": text_value(row.get("secName")),
             "title": title,
             "announcedAt": announced,
             "publishedAt": iso_timestamp(row.get("ctime")),
+            "language": text_value(row.get("announcementLanguage")),
             "url": text_value(row.get("pdfURL")),
         })
     if not announcements:
         raise RuntimeError("IFIND_EMPTY_RESPONSE: iFinD returned no announcements")
     announcements.sort(key=lambda item: item["announcedAt"], reverse=True)
-    return {"symbol": bare_symbol(symbol), "announcements": announcements[:IFIND_ANNOUNCEMENT_LIMIT]}
+    limit = IFIND_ANNOUNCEMENT_MARKET_LIMIT if mode != "" else IFIND_ANNOUNCEMENT_LIMIT
+    return {
+        "symbol": bare_symbol(symbol) if symbol else "",
+        "mode": mode,
+        "announcements": announcements[:limit],
+        "truncated": len(announcements) > limit,
+    }
 
 
 def ifind_announcements(request: dict) -> dict:
@@ -1044,10 +1320,18 @@ def main() -> None:
             emit({"ok": True, "data": ifind_quotes(request)})
         elif action == "stock_valuation" and provider == "akshare":
             emit({"ok": True, "data": ak_valuation(request)})
+        elif action == "stock_intraday" and provider == "ifind":
+            emit({"ok": True, "data": ifind_intraday(request)})
+        elif action == "stock_series" and provider == "ifind":
+            emit({"ok": True, "data": ifind_series(request)})
+        elif action == "data_pool" and provider == "ifind":
+            emit({"ok": True, "data": ifind_data_pool(request)})
         elif action == "stock_announcements" and provider == "ifind":
             emit({"ok": True, "data": ifind_announcements(request)})
         elif action == "stock_fundamentals" and provider == "akshare":
             emit({"ok": True, "data": ak_fundamentals(request)})
+        elif action == "stock_fundamentals" and provider == "ifind":
+            emit({"ok": True, "data": ifind_fundamentals(request)})
         elif action == "macro_series":
             emit({"ok": True, "data": ak_macro(request)})
         else:

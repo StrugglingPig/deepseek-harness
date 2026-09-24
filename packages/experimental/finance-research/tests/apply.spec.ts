@@ -259,6 +259,21 @@ describe('finance apply', () => {
       if (stdin.includes('macro_series')) {
         return { function: 'macro_china_pmi', observations: [{ date: '2026-01', value: 50.5 }] }
       }
+      if (stdin.includes('stock_announcements')) {
+        return {
+          symbol: '600519',
+          truncated: false,
+          announcements: [{
+            symbol: '600519',
+            name: '贵州茅台',
+            title: '贵州茅台：贵州茅台2026年半年度报告',
+            announcedAt: '2026-08-15T00:00:00.000Z',
+            publishedAt: '2026-08-14T20:41:43.000Z',
+            language: 'zh',
+            url: 'http://ft.10jqka.com.cn/report',
+          }],
+        }
+      }
       if (stdin.includes('stock_fundamentals')) {
         return stdin.includes('000001')
           ? { symbol: '000001', periods: 'not-an-array' }

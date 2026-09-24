@@ -180,6 +180,20 @@ describe('stock provider selection', () => {
     expect(seen).toEqual(['ifind', 'ifind'])
   })
 
+  it('falls back to iFinD for the ratio table and sends its configured transport', async () => {
+    const requests: { provider: string; transport?: string }[] = []
+    const provider = new SubprocessFinanceStockDataProvider(bridge(async (request) => {
+      const call = request as { provider: 'akshare' | 'ifind'; transport?: string }
+      requests.push({ provider: call.provider, ...call.transport === undefined ? {} : { transport: call.transport } })
+      // AKShare is down; the iFinD ratio table still answers.
+      if (call.provider === 'akshare') throw new Error('akshare fundamentals down')
+      return { symbol: '600519', periods: [{ period: '2026-06-30', metrics: { roe: 36.81 } }] }
+    }), { ifindTransport: () => 'http' })
+    await expect(provider.loadStockFundamentals({ provider: 'auto', symbols: ['600519'] }))
+      .resolves.toEqual([{ symbol: '600519', periods: [{ period: '2026-06-30', metrics: { roe: 36.81 } }] }])
+    expect(requests).toEqual([{ provider: 'akshare' }, { provider: 'ifind', transport: 'http' }])
+  })
+
   it('resolves auto to the only provider that publishes fundamentals', async () => {
     const seen: string[] = []
     const provider = new SubprocessFinanceStockDataProvider(bridge(async (request) => {

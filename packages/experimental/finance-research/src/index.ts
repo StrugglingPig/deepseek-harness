@@ -1421,7 +1421,8 @@ export function apply(ctx: Context, config: Config): void {
         // Valuation and industry data are optional for the same reason.
       }
       try {
-        metrics.push(...equityMetricsFromAnnouncements(await fundamentalsSource.loadStockAnnouncements(query)))
+        const feed = await fundamentalsSource.loadStockAnnouncements({ symbol: request.symbol })
+        metrics.push(...equityMetricsFromAnnouncements(feed.announcements))
       } catch {
         // Announcements are optional for the same reason as valuation and industry data.
       }

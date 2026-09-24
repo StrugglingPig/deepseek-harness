@@ -260,6 +260,35 @@ export interface FinanceStockHistoryRequest {
   readonly adjust?: 'none' | 'qfq' | 'hfq'
 }
 
+/** Intraday granularities iFinD publishes, plus every published tick. */
+export type FinanceStockIntradayGranularity = 'tick' | '1' | '5' | '15' | '30' | '60'
+
+/** One mainland stock intraday request. */
+export interface FinanceStockIntradayRequest {
+  /** Six-digit A-share symbol, with or without exchange suffix. */
+  readonly symbol: string
+  /** Published granularity; `tick` reads every update the exchange published. */
+  readonly granularity: FinanceStockIntradayGranularity
+  /** Inclusive ISO date or `YYYY-MM-DD HH:MM:SS` start of the window. */
+  readonly startDate?: string
+  /** Inclusive ISO date or `YYYY-MM-DD HH:MM:SS` end of the window. */
+  readonly endDate?: string
+}
+
+/** One published indicator history request. */
+export interface FinanceStockSeriesRequest {
+  /** Six-digit A-share symbol, with or without exchange suffix. */
+  readonly symbol: string
+  /** Published indicator id, such as `ths_pe_ttm_stock`. */
+  readonly indicator: string
+  /** Indicator parameter the vendor publishes, when that indicator takes one. */
+  readonly parameter?: string
+  /** Inclusive ISO start date. */
+  readonly startDate?: string
+  /** Inclusive ISO end date. */
+  readonly endDate?: string
+}
+
 /** One mainland stock real-time quote request. */
 export interface FinanceStockQuoteRequest {
   /** Data provider, or `auto` to try every enabled upstream. */
@@ -301,17 +330,76 @@ export interface FinanceStockValuation {
   }
 }
 
+/** One intraday point in a mainland stock's published series. */
+export interface FinanceStockIntradayPoint {
+  readonly timestamp: string
+  readonly open?: number
+  readonly high?: number
+  readonly low?: number
+  readonly close: number
+  readonly previousClose?: number
+  readonly volume?: number
+  readonly amount?: number
+}
+
+/** One mainland stock's intraday series. */
+export interface FinanceStockIntraday {
+  readonly symbol: string
+  readonly granularity: FinanceStockIntradayGranularity
+  readonly points: readonly FinanceStockIntradayPoint[]
+}
+
+/** One mainland stock's published indicator history. */
+export interface FinanceStockSeries {
+  readonly symbol: string
+  readonly indicator: string
+  readonly observations: readonly {
+    readonly date: string
+    readonly value: number
+  }[]
+}
+
+/** Whole-market announcement scopes the vendor publishes. */
+export type FinanceAnnouncementMarketMode = 'allAStock' | 'allBond' | 'allFund' | 'allHKStock'
+
+/** One announcement query: one symbol, or one whole market. */
+export interface FinanceStockAnnouncementRequest {
+  /** Six-digit A-share symbol, with or without exchange suffix. */
+  readonly symbol?: string
+  /** Whole-market scope, used instead of a symbol. */
+  readonly mode?: FinanceAnnouncementMarketMode
+  /** Published announcement categories; omitted reads every category. */
+  readonly reportTypes?: readonly string[]
+  /** Inclusive ISO start date. */
+  readonly startDate?: string
+  /** Inclusive ISO end date. */
+  readonly endDate?: string
+}
+
 /** One company announcement published for a mainland stock. */
 export interface FinanceStockAnnouncement {
   readonly symbol: string
+  /** Issuer short name, as the announcement feed states it. */
+  readonly name?: string
   /** Announcement title exactly as the issuer filed it. */
   readonly title: string
   /** Announcement date the issuer states, as an ISO 8601 instant. */
   readonly announcedAt: string
   /** Publication timestamp of the source document, when the upstream publishes one. */
   readonly publishedAt?: string
+  /** Language the source document is written in, when the upstream publishes one. */
+  readonly language?: string
   /** Link to the source document, when the upstream publishes one. */
   readonly url?: string
+}
+
+/** One announcement list, covering one symbol or one whole market. */
+export interface FinanceStockAnnouncementFeed {
+  readonly symbol: string
+  readonly mode?: FinanceAnnouncementMarketMode
+  readonly announcements: readonly FinanceStockAnnouncement[]
+  /** Whether the upstream published more filings than the bridge returned. */
+  readonly truncated: boolean
 }
 
 /** One Finnhub US equity lookup. */
@@ -396,7 +484,11 @@ export interface FinanceStockDataProvider {
   /** Load reported valuation multiples and the industry baseline when available. */
   loadStockValuation?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockValuation[]>
   /** Load published company announcements when the upstream publishes them. */
-  loadStockAnnouncements?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockAnnouncement[]>
+  loadStockAnnouncements?(request: FinanceStockAnnouncementRequest, signal?: AbortSignal): Promise<FinanceStockAnnouncementFeed>
+  /** Load one symbol's intraday series when the upstream publishes one. */
+  loadStockIntraday?(request: FinanceStockIntradayRequest, signal?: AbortSignal): Promise<FinanceStockIntraday>
+  /** Load one published indicator's history when the upstream publishes one. */
+  loadStockSeries?(request: FinanceStockSeriesRequest, signal?: AbortSignal): Promise<FinanceStockSeries>
 }
 
 /** Replacing this provider changes the data source without changing the tools. */

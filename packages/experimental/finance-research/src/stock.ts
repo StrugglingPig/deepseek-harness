@@ -18,8 +18,15 @@ import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, STOCK_INPUT_
 import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
 import type { ReportLanguage } from './report-language.ts'
 import type {
-  FinanceStockAnnouncement,
+  FinanceAnnouncementMarketMode,
+  FinanceStockAnnouncementFeed,
+  FinanceStockAnnouncementRequest,
   FinanceStockDataProvider,
+  FinanceStockIntraday,
+  FinanceStockIntradayPoint,
+  FinanceStockIntradayRequest,
+  FinanceStockSeries,
+  FinanceStockSeriesRequest,
   FinanceStockProviderSelector,
   FinanceStockFundamentals,
   FinanceStockValuation,
@@ -57,15 +64,65 @@ const stockFundamentalsSchema = zod.object({
     metrics: zod.record(zod.string(), zod.number()),
   })),
 })
-const stockAnnouncementsSchema = zod.object({
+const stockIntradaySchema = zod.object({
   symbol: zod.string(),
-  announcements: zod.array(zod.object({
-    title: zod.string(),
-    announcedAt: zod.string(),
-    publishedAt: zod.string().nullable(),
-    url: zod.string().nullable(),
+  granularity: zod.string(),
+  points: zod.array(zod.object({
+    timestamp: zod.string(),
+    open: zod.number().nullish(),
+    high: zod.number().nullish(),
+    low: zod.number().nullish(),
+    close: zod.number(),
+    previousClose: zod.number().nullish(),
+    volume: zod.number().nullish(),
+    amount: zod.number().nullish(),
   })),
 })
+const stockSeriesSchema = zod.object({
+  symbol: zod.string(),
+  indicator: zod.string(),
+  observations: zod.array(zod.object({
+    date: zod.string(),
+    value: zod.number(),
+  })),
+})
+const stockAnnouncementsSchema = zod.object({
+  symbol: zod.string(),
+  mode: zod.string().nullish(),
+  truncated: zod.boolean(),
+  announcements: zod.array(zod.object({
+    symbol: zod.string(),
+    name: zod.string().nullish(),
+    title: zod.string(),
+    announcedAt: zod.string(),
+    publishedAt: zod.string().nullish(),
+    language: zod.string().nullish(),
+    url: zod.string().nullish(),
+  })),
+})
+/** One intraday point, dropping the figures the upstream did not publish. */
+function intradayPoint(point: {
+  readonly timestamp: string
+  readonly close: number
+  readonly open?: number | null | undefined
+  readonly high?: number | null | undefined
+  readonly low?: number | null | undefined
+  readonly previousClose?: number | null | undefined
+  readonly volume?: number | null | undefined
+  readonly amount?: number | null | undefined
+}): FinanceStockIntradayPoint {
+  return {
+    timestamp: point.timestamp,
+    close: point.close,
+    ...point.open === null || point.open === undefined ? {} : { open: point.open },
+    ...point.high === null || point.high === undefined ? {} : { high: point.high },
+    ...point.low === null || point.low === undefined ? {} : { low: point.low },
+    ...point.previousClose === null || point.previousClose === undefined ? {} : { previousClose: point.previousClose },
+    ...point.volume === null || point.volume === undefined ? {} : { volume: point.volume },
+    ...point.amount === null || point.amount === undefined ? {} : { amount: point.amount },
+  }
+}
+
 const stockValuationSchema = zod.object({
   symbol: zod.string(),
   name: zod.string().optional(),
@@ -111,7 +168,15 @@ const bridgeFailureSchema = zod.object({
 
 /** One request sent to the bundled Python stock bridge. */
 export interface FinanceStockBridgeRequest {
-  readonly action: 'stock_history' | 'stock_quote' | 'stock_fundamentals' | 'stock_valuation' | 'stock_announcements'
+  readonly action:
+    | 'stock_history' | 'stock_quote' | 'stock_fundamentals' | 'stock_valuation' | 'stock_announcements'
+    | 'stock_intraday' | 'stock_series'
+  /** Intraday granularity, sent only for `stock_intraday`. */
+  readonly granularity?: string
+  /** Published indicator id, sent only for `stock_series`. */
+  readonly indicator?: string
+  /** Indicator parameter the vendor publishes, sent only for `stock_series`. */
+  readonly parameter?: string
   readonly provider: 'akshare' | 'ifind'
   readonly symbol?: string
   readonly symbols?: readonly string[]
@@ -357,12 +422,29 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
   async loadStockSnapshot(request: FinanceStockHistoryRequest, signal?: AbortSignal): Promise<FinanceStockSnapshot> {
     const symbol = request.symbol.trim().toUpperCase()
     if (symbol.length === 0) throw new FinanceDataError('stock symbol must be a non-empty string', 'INVALID_SYMBOL')
-    const providers = this.attempts(request.provider)
+    return await this.firstServing(request.provider, symbol, provider => this.loadSnapshotFrom(provider, request, symbol, signal), signal)
+  }
+
+  /**
+   * Answer from the first provider that serves the request.
+   * @param selector - One provider, or `auto` for the enabled providers in order.
+   * @param symbol - Symbol being served, named in the aggregate failure.
+   * @param load - One provider attempt.
+   * @param signal - optional caller cancellation.
+   * @returns The first successful answer.
+   */
+  private async firstServing<T>(
+    selector: FinanceStockProviderSelector,
+    symbol: string,
+    load: (provider: 'akshare' | 'ifind') => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const providers = this.attempts(selector)
     const failures: string[] = []
     const errors: unknown[] = []
     for (const provider of providers) {
       try {
-        return await this.loadSnapshotFrom(provider, request, symbol, signal)
+        return await load(provider)
       } catch (error: unknown) {
         if (signal?.aborted === true) throw new FinanceDataError('stock request aborted', 'ABORTED')
         failures.push(`${provider}: ${error instanceof Error ? error.message : String(error)}`)
@@ -504,48 +586,117 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
     request: FinanceStockQuoteRequest,
     signal?: AbortSignal,
   ): Promise<readonly FinanceStockFundamentals[]> {
-    // Only the AKShare bridge publishes these tables, so `auto` resolves to it.
-    const provider = request.provider === 'ifind' ? 'ifind' : 'akshare'
-    this.assertEnabled(provider)
     const symbol = request.symbols[0]?.trim().toUpperCase()
     if (symbol === undefined || symbol.length === 0) return []
-    const data = stockFundamentalsSchema.parse(await this.bridge.run({
-      action: 'stock_fundamentals',
-      provider,
-      symbol: symbol.replace(/[^0-9]/g, ''),
-    }, signal))
-    return [{ symbol: data.symbol, periods: data.periods }]
+    // Both bridges publish a ratio table, so one source being down still leaves the report a source.
+    return await this.firstServing(request.provider, symbol, async (provider) => {
+      const data = stockFundamentalsSchema.parse(await this.bridge.run({
+        action: 'stock_fundamentals',
+        provider,
+        ...provider === 'ifind' ? { transport: this.ifindTransport() } : {},
+        symbol: symbol.replace(/[^0-9]/g, ''),
+      }, signal))
+      return [{ symbol: data.symbol, periods: data.periods }]
+    }, signal)
   }
 
   /**
-   * Load published company announcements for one mainland symbol, newest first.
-   * @param request - Provider and symbols; only the first symbol is read.
+   * Load one mainland symbol's intraday series from the iFinD HTTP transport.
+   * @param request - Symbol, granularity, and window.
    * @param signal - optional caller cancellation.
-   * @returns The normalized announcement list; empty when the caller asked for a provider that
-   * publishes no announcement table.
+   * @returns The normalized intraday series.
+   */
+  async loadStockIntraday(
+    request: FinanceStockIntradayRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceStockIntraday> {
+    this.assertEnabled('ifind')
+    const symbol = request.symbol.trim().toUpperCase()
+    if (symbol.length === 0) throw new FinanceDataError('stock symbol must be a non-empty string', 'INVALID_SYMBOL')
+    const data = stockIntradaySchema.parse(await this.bridge.run({
+      action: 'stock_intraday',
+      provider: 'ifind',
+      transport: this.ifindTransport(),
+      symbol: symbol.replace(/[^0-9]/g, ''),
+      granularity: request.granularity,
+      ...request.startDate === undefined ? {} : { startDate: request.startDate },
+      ...request.endDate === undefined ? {} : { endDate: request.endDate },
+    }, signal))
+    return {
+      symbol: data.symbol,
+      granularity: request.granularity,
+      points: data.points.map(intradayPoint),
+    }
+  }
+
+  /**
+   * Load one published indicator's history for a mainland symbol.
+   * @param request - Symbol, indicator id, parameter, and window.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized published history.
+   */
+  async loadStockSeries(
+    request: FinanceStockSeriesRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceStockSeries> {
+    this.assertEnabled('ifind')
+    const symbol = request.symbol.trim().toUpperCase()
+    if (symbol.length === 0) throw new FinanceDataError('stock symbol must be a non-empty string', 'INVALID_SYMBOL')
+    const data = stockSeriesSchema.parse(await this.bridge.run({
+      action: 'stock_series',
+      provider: 'ifind',
+      transport: this.ifindTransport(),
+      symbol: symbol.replace(/[^0-9]/g, ''),
+      indicator: request.indicator,
+      ...request.parameter === undefined ? {} : { parameter: request.parameter },
+      ...request.startDate === undefined ? {} : { startDate: request.startDate },
+      ...request.endDate === undefined ? {} : { endDate: request.endDate },
+    }, signal))
+    return { symbol: data.symbol, indicator: data.indicator, observations: data.observations }
+  }
+
+  /**
+   * Load published company announcements for one symbol or one whole market, newest first.
+   * @param request - Symbol or market scope, categories, and window.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized announcement feed.
    */
   async loadStockAnnouncements(
-    request: FinanceStockQuoteRequest,
+    request: FinanceStockAnnouncementRequest,
     signal?: AbortSignal,
-  ): Promise<readonly FinanceStockAnnouncement[]> {
-    // Only the iFinD bridge publishes this table, so `auto` resolves to it.
-    if (request.provider === 'akshare') return []
-    const symbol = request.symbols[0]?.trim().toUpperCase()
-    if (symbol === undefined || symbol.length === 0) return []
+  ): Promise<FinanceStockAnnouncementFeed> {
+    // Only the iFinD bridge publishes this table.
     this.assertEnabled('ifind')
+    const mode = request.mode
+    const symbol = mode === undefined ? (request.symbol ?? '').trim().toUpperCase() : ''
+    if (mode === undefined && symbol.length === 0) {
+      throw new FinanceDataError('an announcement query needs a symbol or a market mode', 'INVALID_SYMBOL')
+    }
     const data = stockAnnouncementsSchema.parse(await this.bridge.run({
       action: 'stock_announcements',
       provider: 'ifind',
       transport: this.ifindTransport(),
-      symbol: symbol.replace(/[^0-9]/g, ''),
+      ...mode === undefined ? { symbol: symbol.replace(/[^0-9]/g, '') } : { mode },
+      ...request.reportTypes === undefined ? {} : { reportTypes: request.reportTypes },
+      ...request.startDate === undefined ? {} : { startDate: request.startDate },
+      ...request.endDate === undefined ? {} : { endDate: request.endDate },
     }, signal))
-    return data.announcements.map(item => ({
+    return {
       symbol: data.symbol,
-      title: item.title,
-      announcedAt: item.announcedAt,
-      ...item.publishedAt === null ? {} : { publishedAt: item.publishedAt },
-      ...item.url === null ? {} : { url: item.url },
-    }))
+      ...data.mode === null || data.mode === undefined || data.mode === '' ? {} : {
+        mode: data.mode as FinanceAnnouncementMarketMode,
+      },
+      truncated: data.truncated,
+      announcements: data.announcements.map(item => ({
+        symbol: item.symbol,
+        title: item.title,
+        announcedAt: item.announcedAt,
+        ...item.name === null || item.name === undefined ? {} : { name: item.name },
+        ...item.publishedAt === null || item.publishedAt === undefined ? {} : { publishedAt: item.publishedAt },
+        ...item.language === null || item.language === undefined ? {} : { language: item.language },
+        ...item.url === null || item.url === undefined ? {} : { url: item.url },
+      })),
+    }
   }
 }
 
@@ -672,6 +823,203 @@ export function registerStockTools(
           ...quote.previousClose === undefined ? {} : { previous_close: quote.previousClose },
           ...quote.volume === undefined ? {} : { volume: quote.volume },
           ...quote.amount === undefined ? {} : { amount: quote.amount },
+        })),
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_stock_intraday',
+    description: 'Read mainland A-share intraday prices through Tonghuashun iFinD, either every published tick or fixed-interval bars.',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
+      granularity: {
+        type: 'string',
+        required: true,
+        enum: ['tick', '1', '5', '15', '30', '60'],
+        description: 'Every published tick, or the bar interval in minutes.',
+      },
+      start_date: { type: 'string', description: 'Inclusive ISO date or `YYYY-MM-DD HH:MM:SS` window start.' },
+      end_date: { type: 'string', description: 'Inclusive ISO date or `YYYY-MM-DD HH:MM:SS` window end.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          symbol: { type: 'string', required: true },
+          granularity: { type: 'string', required: true },
+          points: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                timestamp: { type: 'string', required: true },
+                open: { type: 'number' },
+                high: { type: 'number' },
+                low: { type: 'number' },
+                close: { type: 'number', required: true },
+                previous_close: { type: 'number' },
+                volume: { type: 'number' },
+                amount: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args, exec) {
+      if (provider.loadStockIntraday === undefined) {
+        throw new FinanceDataError('the configured stock provider publishes no intraday series', 'STOCK_PROVIDER_UNSUPPORTED')
+      }
+      const intraday = await provider.loadStockIntraday({
+        symbol: args.symbol,
+        granularity: args.granularity,
+        ...args.start_date === undefined ? {} : { startDate: args.start_date },
+        ...args.end_date === undefined ? {} : { endDate: args.end_date },
+      }, exec.signal)
+      return {
+        symbol: intraday.symbol,
+        granularity: intraday.granularity,
+        points: intraday.points.map(point => ({
+          timestamp: point.timestamp,
+          close: point.close,
+          ...point.open === undefined ? {} : { open: point.open },
+          ...point.high === undefined ? {} : { high: point.high },
+          ...point.low === undefined ? {} : { low: point.low },
+          ...point.previousClose === undefined ? {} : { previous_close: point.previousClose },
+          ...point.volume === undefined ? {} : { volume: point.volume },
+          ...point.amount === undefined ? {} : { amount: point.amount },
+        })),
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_stock_series',
+    description: 'Read one published Tonghuashun iFinD indicator history for a mainland A-share, such as ths_pe_ttm_stock or ths_np_ttm_stock.',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Six-digit A-share symbol.' },
+      indicator: { type: 'string', required: true, description: 'Published iFinD indicator id.' },
+      parameter: { type: 'string', description: 'Indicator parameter, when that indicator publishes one.' },
+      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
+      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          symbol: { type: 'string', required: true },
+          indicator: { type: 'string', required: true },
+          observations: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                date: { type: 'string', required: true },
+                value: { type: 'number', required: true },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args, exec) {
+      if (provider.loadStockSeries === undefined) {
+        throw new FinanceDataError('the configured stock provider publishes no indicator history', 'STOCK_PROVIDER_UNSUPPORTED')
+      }
+      const series = await provider.loadStockSeries({
+        symbol: args.symbol,
+        indicator: args.indicator,
+        ...args.parameter === undefined ? {} : { parameter: args.parameter },
+        ...args.start_date === undefined ? {} : { startDate: args.start_date },
+        ...args.end_date === undefined ? {} : { endDate: args.end_date },
+      }, exec.signal)
+      return {
+        symbol: series.symbol,
+        indicator: series.indicator,
+        observations: series.observations.map(item => ({ date: item.date, value: item.value })),
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_stock_announcements',
+    description: 'Read mainland company announcements through Tonghuashun iFinD, for one A-share symbol or for a whole market.',
+    parameters: {
+      symbol: { type: 'string', description: 'Six-digit A-share symbol; omit it to read a whole market.' },
+      mode: {
+        type: 'string',
+        enum: ['allAStock', 'allBond', 'allFund', 'allHKStock'],
+        description: 'Whole-market scope, used instead of a symbol.',
+      },
+      report_types: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Published announcement categories; omitted reads every category.',
+      },
+      start_date: { type: 'string', description: 'Inclusive ISO start date.' },
+      end_date: { type: 'string', description: 'Inclusive ISO end date.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          symbol: { type: 'string', required: true },
+          mode: { type: 'string' },
+          truncated: { type: 'boolean', required: true },
+          announcements: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                symbol: { type: 'string', required: true },
+                name: { type: 'string' },
+                title: { type: 'string', required: true },
+                announced_at: { type: 'string', required: true },
+                published_at: { type: 'string' },
+                language: { type: 'string' },
+                url: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args, exec) {
+      if (provider.loadStockAnnouncements === undefined) {
+        throw new FinanceDataError('the configured stock provider publishes no announcements', 'STOCK_PROVIDER_UNSUPPORTED')
+      }
+      const feed = await provider.loadStockAnnouncements({
+        ...args.symbol === undefined ? {} : { symbol: args.symbol },
+        ...args.mode === undefined ? {} : { mode: args.mode },
+        ...args.report_types === undefined ? {} : { reportTypes: args.report_types },
+        ...args.start_date === undefined ? {} : { startDate: args.start_date },
+        ...args.end_date === undefined ? {} : { endDate: args.end_date },
+      }, exec.signal)
+      return {
+        symbol: feed.symbol,
+        truncated: feed.truncated,
+        ...feed.mode === undefined ? {} : { mode: feed.mode },
+        announcements: feed.announcements.map(item => ({
+          symbol: item.symbol,
+          title: item.title,
+          announced_at: item.announcedAt,
+          ...item.name === undefined ? {} : { name: item.name },
+          ...item.publishedAt === undefined ? {} : { published_at: item.publishedAt },
+          ...item.language === undefined ? {} : { language: item.language },
+          ...item.url === undefined ? {} : { url: item.url },
         })),
       }
     },
