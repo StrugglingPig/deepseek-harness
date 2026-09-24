@@ -7,6 +7,7 @@ import type {
   IndicatorValues,
   MarketBar,
   MarketSnapshot,
+  TdSetup,
 } from './types.ts'
 
 function assertPositive(value: number, name: string): void {
@@ -119,6 +120,16 @@ export function latestMacd(
 }
 
 /**
+ * True range of one bar against the prior close.
+ * @param bar - Current bar.
+ * @param previousClose - Close of the bar before it.
+ * @returns The larger of the bar span and its gaps from the prior close.
+ */
+function trueRange(bar: MarketBar, previousClose: number): number {
+  return Math.max(bar.high - bar.low, Math.abs(bar.high - previousClose), Math.abs(bar.low - previousClose))
+}
+
+/**
  * Latest average true range over normalized OHLCV bars.
  * @param bars - Normalized OHLCV bars, oldest first.
  * @param period - Positive ATR lookback.
@@ -127,17 +138,8 @@ export function latestMacd(
 export function latestAtr(bars: readonly MarketBar[], period: number): number | undefined {
   assertPositive(period, 'period')
   if (bars.length < period + 1) return undefined
-  const ranges: number[] = []
-  for (let index = bars.length - period; index < bars.length; index += 1) {
-    const current = bars[index] as MarketBar
-    const previous = bars[index - 1] as MarketBar
-    ranges.push(Math.max(
-      current.high - current.low,
-      Math.abs(current.high - previous.close),
-      Math.abs(current.low - previous.close),
-    ))
-  }
-  return average(ranges)
+  const start = bars.length - period
+  return average(bars.slice(start).map((bar, offset) => trueRange(bar, (bars[start + offset - 1] as MarketBar).close)))
 }
 
 /**
@@ -196,14 +198,248 @@ export function latestObv(bars: readonly MarketBar[]): number {
 }
 
 /**
- * Map a faster-versus-slower comparison to a signal direction.
- * @param faster - Faster moving average.
- * @param slower - Slower moving average.
- * @returns Bullish, bearish, or neutral direction.
+ * Latest KDJ stochastic values, smoothed through the recursive K and D averages.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param period - Positive lookback for the raw stochastic value.
+ * @param kSmooth - Positive smoothing length for K.
+ * @param dSmooth - Positive smoothing length for D.
+ * @returns The latest K, D, and J values, or undefined when the window is incomplete.
  */
-export function trendDirection(faster: number, slower: number): IndicatorDirection {
-  if (faster > slower) return 'bullish'
-  if (faster < slower) return 'bearish'
+export function latestKdj(
+  bars: readonly MarketBar[],
+  period = 9,
+  kSmooth = 3,
+  dSmooth = 3,
+): { k: number; d: number; j: number } | undefined {
+  assertPositive(period, 'period')
+  assertPositive(kSmooth, 'kSmooth')
+  assertPositive(dSmooth, 'dSmooth')
+  if (bars.length < period) return undefined
+  let k = 50
+  let d = 50
+  for (let index = period - 1; index < bars.length; index += 1) {
+    const window = bars.slice(index + 1 - period, index + 1)
+    const highest = Math.max(...window.map(bar => bar.high))
+    const lowest = Math.min(...window.map(bar => bar.low))
+    const range = highest - lowest
+    const close = (bars[index] as MarketBar).close
+    const rsv = range === 0 ? 50 : (close - lowest) / range * 100
+    k += (rsv - k) / kSmooth
+    d += (k - d) / dSmooth
+  }
+  return { k, d, j: 3 * k - 2 * d }
+}
+
+/**
+ * Latest TD Sequential setup count. A buy count advances while a close sits below the close
+ * `lookback` bars earlier; a sell count advances on the mirror comparison. Each bar belongs to
+ * at most one side, and a count restarts whenever its comparison breaks.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param lookback - Positive comparison distance; four bars in the published setup.
+ * @returns The running side and count, or undefined when no comparison chain is active.
+ */
+export function latestTdSequential(
+  bars: readonly MarketBar[],
+  lookback = 4,
+): { side: 'buy' | 'sell'; count: number } | undefined {
+  assertPositive(lookback, 'lookback')
+  let buy = 0
+  let sell = 0
+  for (let index = lookback; index < bars.length; index += 1) {
+    const close = (bars[index] as MarketBar).close
+    const reference = (bars[index - lookback] as MarketBar).close
+    if (close < reference) {
+      buy += 1
+      sell = 0
+    } else if (close > reference) {
+      sell += 1
+      buy = 0
+    } else {
+      buy = 0
+      sell = 0
+    }
+  }
+  if (buy > 0) return { side: 'buy', count: buy }
+  if (sell > 0) return { side: 'sell', count: sell }
+  return undefined
+}
+
+/**
+ * Latest volume-weighted average price, accumulated over the loaded window.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @returns The latest volume-weighted average of typical prices, the latest typical price when
+ * no bar traded volume, or undefined for an empty series.
+ */
+export function latestVwap(bars: readonly MarketBar[]): number | undefined {
+  const last = bars.at(-1)
+  if (last === undefined) return undefined
+  let weighted = 0
+  let volume = 0
+  for (const bar of bars) {
+    weighted += (bar.high + bar.low + bar.close) / 3 * bar.volume
+    volume += bar.volume
+  }
+  return volume === 0 ? (last.high + last.low + last.close) / 3 : weighted / volume
+}
+
+/**
+ * Latest commodity channel index.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param period - Positive lookback length.
+ * @returns The latest CCI, zero when the window has no typical-price deviation, or undefined when the window is incomplete.
+ */
+export function latestCci(bars: readonly MarketBar[], period = 14): number | undefined {
+  assertPositive(period, 'period')
+  if (bars.length < period) return undefined
+  const typical = bars.slice(-period).map(bar => (bar.high + bar.low + bar.close) / 3)
+  const middle = average(typical)
+  const deviation = average(typical.map(value => Math.abs(value - middle)))
+  const latest = typical.at(-1) as number
+  return deviation === 0 ? 0 : (latest - middle) / (0.015 * deviation)
+}
+
+/**
+ * Latest Williams %R on the inverted 0-100 scale used by mainland charts.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param period - Positive lookback length.
+ * @returns The latest reading, 50 when the window has no range, or undefined when the window is incomplete.
+ */
+export function latestWr(bars: readonly MarketBar[], period = 14): number | undefined {
+  assertPositive(period, 'period')
+  if (bars.length < period) return undefined
+  const window = bars.slice(-period)
+  const highest = Math.max(...window.map(bar => bar.high))
+  const lowest = Math.min(...window.map(bar => bar.low))
+  const range = highest - lowest
+  if (range === 0) return 50
+  return (highest - (bars.at(-1) as MarketBar).close) / range * 100
+}
+
+/**
+ * Latest BIAS, the close's percentage deviation from its moving average.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param period - Positive moving-average length.
+ * @returns The latest deviation percentage, zero when the average price is zero, or undefined when the window is incomplete.
+ */
+export function latestBias(bars: readonly MarketBar[], period = 6): number | undefined {
+  assertPositive(period, 'period')
+  if (bars.length < period) return undefined
+  const middle = average(bars.slice(-period).map(bar => bar.close))
+  const close = (bars.at(-1) as MarketBar).close
+  return middle === 0 ? 0 : (close - middle) / middle * 100
+}
+
+/**
+ * Latest parabolic stop-and-reverse value.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param step - Positive acceleration-factor increment.
+ * @param maxStep - Positive acceleration-factor ceiling.
+ * @returns The latest SAR, or undefined for an empty series.
+ */
+export function latestSar(bars: readonly MarketBar[], step = 0.02, maxStep = 0.2): number | undefined {
+  assertPositive(step, 'step')
+  assertPositive(maxStep, 'maxStep')
+  const first = bars[0]
+  if (first === undefined) return undefined
+  let rising = true
+  let extreme = first.high
+  let acceleration = step
+  let value = first.low
+  for (let index = 1; index < bars.length; index += 1) {
+    const bar = bars[index] as MarketBar
+    const previous = bars[index - 1] as MarketBar
+    const prior = bars[index - 2] ?? previous
+    value += acceleration * (extreme - value)
+    if (rising) {
+      // The stop may not enter the prior two bars' range; the reversal test
+      // compares the current low against that clamped stop.
+      value = Math.min(value, previous.low, prior.low)
+      if (bar.low < value) {
+        rising = false
+        value = extreme
+        extreme = bar.low
+        acceleration = step
+      } else if (bar.high > extreme) {
+        extreme = bar.high
+        acceleration = Math.min(maxStep, acceleration + step)
+      }
+    } else {
+      value = Math.max(value, previous.high, prior.high)
+      if (bar.high > value) {
+        rising = true
+        value = extreme
+        extreme = bar.high
+        acceleration = step
+      } else if (bar.low < extreme) {
+        extreme = bar.low
+        acceleration = Math.min(maxStep, acceleration + step)
+      }
+    }
+  }
+  return value
+}
+
+/**
+ * Wilder smoothing; the first value is the mean of the opening window.
+ * @param values - Input series, oldest first; the series must cover at least `period` values.
+ * @param period - Positive smoothing length.
+ * @returns One smoothed value per input from index `period - 1` onwards.
+ */
+function wilderSeries(values: readonly number[], period: number): number[] {
+  const smoothed = [average(values.slice(0, period))]
+  for (let index = period; index < values.length; index += 1) {
+    const previous = smoothed[smoothed.length - 1] as number
+    smoothed.push((previous * (period - 1) + (values[index] as number)) / period)
+  }
+  return smoothed
+}
+
+/**
+ * Latest directional movement index values.
+ * @param bars - Normalized OHLCV bars, oldest first.
+ * @param period - Positive Wilder smoothing length.
+ * @returns The latest +DI, -DI, and ADX, or undefined when the bars cannot carry both the directional window and its average.
+ */
+export function latestDmi(
+  bars: readonly MarketBar[],
+  period = 14,
+): { plusDi: number; minusDi: number; adx: number } | undefined {
+  assertPositive(period, 'period')
+  if (bars.length < period * 2) return undefined
+  const plusMovement: number[] = []
+  const minusMovement: number[] = []
+  const ranges: number[] = []
+  for (let index = 1; index < bars.length; index += 1) {
+    const bar = bars[index] as MarketBar
+    const previous = bars[index - 1] as MarketBar
+    const up = bar.high - previous.high
+    const down = previous.low - bar.low
+    plusMovement.push(up > down && up > 0 ? up : 0)
+    minusMovement.push(down > up && down > 0 ? down : 0)
+    ranges.push(trueRange(bar, previous.close))
+  }
+  const smoothedRange = wilderSeries(ranges, period)
+  const smoothedPlus = wilderSeries(plusMovement, period)
+  const smoothedMinus = wilderSeries(minusMovement, period)
+  const directional = smoothedRange.map((range, offset) => {
+    const plus = range === 0 ? 0 : (smoothedPlus[offset] as number) / range * 100
+    const minus = range === 0 ? 0 : (smoothedMinus[offset] as number) / range * 100
+    return { plus, minus, dx: plus + minus === 0 ? 0 : Math.abs(plus - minus) / (plus + minus) * 100 }
+  })
+  const smoothedDx = wilderSeries(directional.map(item => item.dx), period)
+  const latest = directional.at(-1) as { plus: number; minus: number; dx: number }
+  return { plusDi: latest.plus, minusDi: latest.minus, adx: smoothedDx.at(-1) as number }
+}
+
+/**
+ * Map a leading value against the level it is compared with to a signal direction.
+ * @param leading - Value read as bullish while it stays above `lagging`.
+ * @param lagging - Level the leading value is compared with.
+ * @returns Bullish when `leading` is above `lagging`, bearish when below, and neutral when equal.
+ */
+export function trendDirection(leading: number, lagging: number): IndicatorDirection {
+  if (leading > lagging) return 'bullish'
+  if (leading < lagging) return 'bearish'
   return 'neutral'
 }
 
@@ -255,6 +491,48 @@ export function volumeDirection(obv: number, obvAverage: number): IndicatorDirec
 }
 
 /**
+ * Map an active TD Sequential setup to a signal direction.
+ * @param side - Counted setup side.
+ * @returns Bullish for a buy setup and bearish for a sell setup.
+ */
+export function setupDirection(side: 'buy' | 'sell'): IndicatorDirection {
+  return side === 'buy' ? 'bullish' : 'bearish'
+}
+
+/**
+ * Map the commodity channel index to a breakout signal direction.
+ * @param cci - Latest CCI value.
+ * @returns Bullish above the +100 band, bearish below the -100 band, and neutral inside.
+ */
+export function cciDirection(cci: number): IndicatorDirection {
+  if (cci >= 100) return 'bullish'
+  if (cci <= -100) return 'bearish'
+  return 'neutral'
+}
+
+/**
+ * Map Williams %R on the inverted 0-100 scale to a mean-reversion signal direction.
+ * @param wr - Latest Williams %R value.
+ * @returns Bullish in the oversold band, bearish in the overbought band, and neutral between.
+ */
+export function wrDirection(wr: number): IndicatorDirection {
+  if (wr >= 80) return 'bullish'
+  if (wr <= 20) return 'bearish'
+  return 'neutral'
+}
+
+/**
+ * Map BIAS to a mean-reversion signal direction.
+ * @param bias - Latest percentage deviation from the moving average.
+ * @returns Bearish above the average, bullish below it, and neutral on the average.
+ */
+export function biasDirection(bias: number): IndicatorDirection {
+  if (bias > 0) return 'bearish'
+  if (bias < 0) return 'bullish'
+  return 'neutral'
+}
+
+/**
  * Numeric contribution of one direction to the composite score.
  * @param direction - Indicator direction.
  * @returns `1` for bullish, `-1` for bearish, and `0` for neutral.
@@ -283,9 +561,14 @@ export function compositeDirection(score: number): IndicatorDirection {
  */
 export function buildIndicatorAnalysis(snapshot: MarketSnapshot): IndicatorAnalysis {
   if (snapshot.bars.length < 50) throw new Error('at least 50 bars are required')
-  const closes = snapshot.bars.map(bar => bar.close)
+  const bars = snapshot.bars
+  const price = snapshot.quote.price
+  const closes = bars.map(bar => bar.close)
   const macd = latestMacd(closes) as { macd: number; signal: number; histogram: number }
   const bollinger = latestBollinger(closes) as { middle: number; upper: number; lower: number }
+  const kdj = latestKdj(bars) as { k: number; d: number; j: number }
+  const dmi = latestDmi(bars) as { plusDi: number; minusDi: number; adx: number }
+  const tdSetup: TdSetup = latestTdSequential(bars) ?? { side: 'none', count: 0 }
   const indicators: IndicatorValues = {
     sma20: latestSma(closes, 20) as number,
     sma50: latestSma(closes, 50) as number,
@@ -295,12 +578,24 @@ export function buildIndicatorAnalysis(snapshot: MarketSnapshot): IndicatorAnaly
     macd: macd.macd,
     macdSignal: macd.signal,
     macdHistogram: macd.histogram,
-    atr14: latestAtr(snapshot.bars, 14) as number,
+    atr14: latestAtr(bars, 14) as number,
     bollingerMiddle: bollinger.middle,
     bollingerUpper: bollinger.upper,
     bollingerLower: bollinger.lower,
-    obv: latestObv(snapshot.bars),
-    obvSma20: latestSma(obvSeries(snapshot.bars), 20) as number,
+    obv: latestObv(bars),
+    obvSma20: latestSma(obvSeries(bars), 20) as number,
+    kdjK: kdj.k,
+    kdjD: kdj.d,
+    kdjJ: kdj.j,
+    tdSetup,
+    vwap: latestVwap(bars) as number,
+    cci14: latestCci(bars) as number,
+    dmiPlus: dmi.plusDi,
+    dmiMinus: dmi.minusDi,
+    dmiAdx: dmi.adx,
+    sar: latestSar(bars) as number,
+    wr14: latestWr(bars) as number,
+    bias6: latestBias(bars) as number,
   }
   const signals: IndicatorSignal[] = [
     {
@@ -326,7 +621,7 @@ export function buildIndicatorAnalysis(snapshot: MarketSnapshot): IndicatorAnaly
     },
     {
       name: 'mean-reversion',
-      direction: priceBandDirection(snapshot.quote.price, indicators.bollingerUpper, indicators.bollingerLower),
+      direction: priceBandDirection(price, indicators.bollingerUpper, indicators.bollingerLower),
       weight: 0.1,
       value: indicators.sma20,
       rationale: 'SMA 20 versus Bollinger Bands',
@@ -337,6 +632,62 @@ export function buildIndicatorAnalysis(snapshot: MarketSnapshot): IndicatorAnaly
       weight: 0.15,
       value: indicators.obv - indicators.obvSma20,
       rationale: 'OBV versus its 20-bar average',
+    },
+    {
+      name: 'kdj',
+      direction: trendDirection(indicators.kdjK, indicators.kdjD),
+      weight: 0.08,
+      value: indicators.kdjJ,
+      rationale: 'KDJ K versus D with the J reading',
+    },
+    {
+      name: 'td-sequential',
+      direction: tdSetup.side === 'none' ? 'neutral' : setupDirection(tdSetup.side),
+      weight: 0.06,
+      value: tdSetup.count,
+      rationale: `TD Sequential ${tdSetup.side} setup count`,
+    },
+    {
+      name: 'vwap',
+      direction: trendDirection(price, indicators.vwap),
+      weight: 0.12,
+      value: price - indicators.vwap,
+      rationale: 'Latest close versus VWAP',
+    },
+    {
+      name: 'cci',
+      direction: cciDirection(indicators.cci14),
+      weight: 0.08,
+      value: indicators.cci14,
+      rationale: 'CCI 14 breakout bands',
+    },
+    {
+      name: 'dmi',
+      direction: trendDirection(indicators.dmiPlus, indicators.dmiMinus),
+      weight: 0.12,
+      value: indicators.dmiPlus - indicators.dmiMinus,
+      rationale: 'DMI +DI versus -DI with ADX strength',
+    },
+    {
+      name: 'sar',
+      direction: trendDirection(price, indicators.sar),
+      weight: 0.12,
+      value: price - indicators.sar,
+      rationale: 'Close versus the parabolic stop',
+    },
+    {
+      name: 'williams-r',
+      direction: wrDirection(indicators.wr14),
+      weight: 0.06,
+      value: indicators.wr14,
+      rationale: 'Williams %R 14 mean-reversion bands',
+    },
+    {
+      name: 'bias',
+      direction: biasDirection(indicators.bias6),
+      weight: 0.06,
+      value: indicators.bias6,
+      rationale: 'BIAS 6 deviation from the moving average',
     },
   ]
   const totalWeight = signals.reduce((sum, signal) => sum + signal.weight, 0)
@@ -349,7 +700,7 @@ export function buildIndicatorAnalysis(snapshot: MarketSnapshot): IndicatorAnaly
     .filter(signal => signal.direction !== 'neutral' && signal.direction !== direction)
     .map(signal => signal.name)
   const confidence = Math.round(Math.min(100, Math.abs(score) * 100))
-  const atrPercent = (indicators.atr14 / snapshot.quote.price) * 100
+  const atrPercent = (indicators.atr14 / price) * 100
   return {
     symbol: snapshot.instrument.symbol,
     asOf: snapshot.asOf,

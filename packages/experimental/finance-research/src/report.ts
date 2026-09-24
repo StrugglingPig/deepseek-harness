@@ -1,8 +1,8 @@
 /** Structured Markdown and interactive HTML reports built from deterministic market analysis. */
 
-import { buildIndicatorAnalysis } from './indicators.ts'
+import { biasDirection, buildIndicatorAnalysis, cciDirection, setupDirection, trendDirection, wrDirection } from './indicators.ts'
 import { buildMethodologyAnalysis, type MethodologyAnalysis } from './methodology.ts'
-import { REPORT_COPY, formatCopy, type ReportBlockCopy, type ReportCategoryCopy, type ReportCopy } from './report-copy.ts'
+import { REPORT_COPY, formatCopy, type ReportBlockCopy, type ReportCategoryCopy, type ReportCopy, type ReportLabelKey } from './report-copy.ts'
 import type { ReportLanguage } from './report-language.ts'
 import { REPORT_TYPES, defaultReportType, reportTypeById, type ReportSectionId, type ReportTypeDefinition } from './report-types.ts'
 import type { AssetMetric, AssetMetricGroup, ReportMetricKey } from './asset-context.ts'
@@ -458,6 +458,15 @@ function valuationSection(context: SectionContext): ResearchReportSection {
   // The wording follows the recorded backtest evidence: target price only once it passed.
   const rangeLabel = valuation.label === 'target' ? labels.targetRange : labels.verdictRange
   const notice = valuationNotice(labels, valuation.label, valuation.validation)
+  const percentile = valuation.inputs.revenueGrowthPercentile
+  // One decision point, written as an assignment so the coverage reader sees both arms.
+  const baseRateRow: string[] = [labels.baseRate, labels.notObtained]
+  let baseRateNotice = `- ${labels.baseRateWithin}`
+  if (percentile !== undefined) {
+    const topDecile = percentile >= BASE_RATE_HIGH_PERCENTILE
+    baseRateRow[1] = topDecile ? `${percent(percentile)} · ${labels.baseRateHigh}` : percent(percentile)
+    baseRateNotice = topDecile ? `- ${labels.baseRateHigh}` : `- ${labels.baseRateWithin}`
+  }
   // The model emits every scenario it prices, so each lookup below resolves.
   const scenarioOf = (scenarioId: 'bear' | 'base' | 'bull'): ValuationScenario =>
     value.scenarios.find(entry => entry.id === scenarioId) as ValuationScenario
@@ -510,9 +519,7 @@ function valuationSection(context: SectionContext): ResearchReportSection {
           [labels.impliedGrowth, impliedGrowth],
           [labels.modelGrowth, modelGrowth],
           [labels.expectationsGap, gap],
-          ...valuation.inputs.revenueGrowthPercentile === undefined ? [] : [[
-            labels.baseRate, percent(valuation.inputs.revenueGrowthPercentile),
-          ]],
+          baseRateRow,
         ],
       ),
       '',
@@ -614,9 +621,7 @@ function valuationSection(context: SectionContext): ResearchReportSection {
       '',
       `- ${notice}`,
       `- ${labels.shareCountNotice}`,
-      ...(valuation.inputs.revenueGrowthPercentile ?? 0) >= BASE_RATE_HIGH_PERCENTILE
-        ? [`- ${labels.baseRateHigh}`]
-        : [],
+      baseRateNotice,
       ...valuation.quality.grade === undefined ? [`- ${labels.noGradeNotice}`] : [],
     ].join('\n'),
   }
@@ -888,6 +893,17 @@ function renderSection(id: ReportSectionId, context: SectionContext): ResearchRe
             ['Bollinger', `${number(values.bollingerLower)} / ${number(values.bollingerMiddle)} / ${number(values.bollingerUpper)}`, ''],
             ['EMA 12 / 26', `${number(values.ema12)} / ${number(values.ema26)}`, ''],
             ['OBV', `${compact(values.obv)} (${copy.labels.obvAverage}${compact(values.obvSma20)})`, ''],
+            [trimLabel(copy.labels.kdj), `${number(values.kdjK)} / ${number(values.kdjD)} / ${number(values.kdjJ)}`,
+              direction(trendDirection(values.kdjK, values.kdjD))],
+            [trimLabel(copy.labels.tdSequential), `${copy.labels[TD_SETUP_LABELS[values.tdSetup.side]]} ${values.tdSetup.count}`,
+              direction(values.tdSetup.side === 'none' ? 'neutral' : setupDirection(values.tdSetup.side))],
+            [trimLabel(copy.labels.vwap), number(values.vwap), direction(trendDirection(snapshot.quote.price, values.vwap))],
+            [`${trimLabel(copy.labels.cci)} 14`, number(values.cci14), direction(cciDirection(values.cci14))],
+            [`${trimLabel(copy.labels.dmi)} 14`, `${number(values.dmiPlus)} / ${number(values.dmiMinus)} / ${number(values.dmiAdx)}`,
+              direction(trendDirection(values.dmiPlus, values.dmiMinus))],
+            [trimLabel(copy.labels.sar), number(values.sar), direction(trendDirection(snapshot.quote.price, values.sar))],
+            [`${trimLabel(copy.labels.williamsR)} 14`, number(values.wr14), direction(wrDirection(values.wr14))],
+            [`${trimLabel(copy.labels.bias)} 6`, percent(values.bias6), direction(biasDirection(values.bias6))],
           ],
         ),
       }
@@ -1242,6 +1258,13 @@ function sectionsFor(
  */
 function trimLabel(label: string): string {
   return label.replace(/[:：]\s*$/u, '').trim()
+}
+
+/** Report label carrying the TD Sequential setup phrase for each counted side. */
+const TD_SETUP_LABELS: Readonly<Record<'buy' | 'sell' | 'none', ReportLabelKey>> = {
+  buy: 'tdBuySetup',
+  sell: 'tdSellSetup',
+  none: 'tdNoSetup',
 }
 
 /**

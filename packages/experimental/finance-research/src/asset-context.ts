@@ -69,6 +69,7 @@ const EQUITY_METRICS: readonly (readonly [ReportMetricKey, AssetMetricGroup, str
   ['operatingMargin', 'profitability', '%'],
   ['revenueGrowth', 'growth', '%'],
   ['revenueCagr', 'growth', '%'],
+  ['revenueGrowthPercentile', 'growth', '%'],
   ['profitGrowth', 'growth', '%'],
   ['debtRatio', 'balance', '%'],
   ['currentRatio', 'balance', ''],

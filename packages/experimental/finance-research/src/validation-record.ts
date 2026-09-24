@@ -21,6 +21,6 @@ export const VALUATION_VALIDATION: ValuationValidation = {
     'modelHitRate': 0.2063,
     'modelBiasPercent': 3.8116,
     'dmStatistic': 3.5571,
-    'dmPValue': 0.000375
-  }
+    'dmPValue': 0.000375,
+  },
 }

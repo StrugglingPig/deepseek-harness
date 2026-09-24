@@ -26,6 +26,14 @@ export const ANALYSIS_OUTPUT_PROPERTIES = {
       atr14: { type: 'number', required: true }, bollinger_middle: { type: 'number', required: true },
       bollinger_upper: { type: 'number', required: true }, bollinger_lower: { type: 'number', required: true },
       obv: { type: 'number', required: true }, obv_sma20: { type: 'number', required: true },
+      kdj_k: { type: 'number', required: true }, kdj_d: { type: 'number', required: true },
+      kdj_j: { type: 'number', required: true },
+      td_side: { type: 'string', required: true, enum: ['buy', 'sell', 'none'] },
+      td_count: { type: 'number', required: true },
+      vwap: { type: 'number', required: true }, cci14: { type: 'number', required: true },
+      dmi_plus: { type: 'number', required: true }, dmi_minus: { type: 'number', required: true },
+      dmi_adx: { type: 'number', required: true }, sar: { type: 'number', required: true },
+      wr14: { type: 'number', required: true }, bias6: { type: 'number', required: true },
     },
   },
   signals: {
@@ -145,6 +153,19 @@ export interface AnalysisToolValue {
     readonly bollinger_lower: number
     readonly obv: number
     readonly obv_sma20: number
+    readonly kdj_k: number
+    readonly kdj_d: number
+    readonly kdj_j: number
+    readonly td_side: 'buy' | 'sell' | 'none'
+    readonly td_count: number
+    readonly vwap: number
+    readonly cci14: number
+    readonly dmi_plus: number
+    readonly dmi_minus: number
+    readonly dmi_adx: number
+    readonly sar: number
+    readonly wr14: number
+    readonly bias6: number
   }
   readonly signals: {
     readonly name: string
@@ -220,6 +241,19 @@ export function analysisValue(snapshot: MarketSnapshot): AnalysisToolValue {
       bollinger_lower: analysis.indicators.bollingerLower,
       obv: analysis.indicators.obv,
       obv_sma20: analysis.indicators.obvSma20,
+      kdj_k: analysis.indicators.kdjK,
+      kdj_d: analysis.indicators.kdjD,
+      kdj_j: analysis.indicators.kdjJ,
+      td_side: analysis.indicators.tdSetup.side,
+      td_count: analysis.indicators.tdSetup.count,
+      vwap: analysis.indicators.vwap,
+      cci14: analysis.indicators.cci14,
+      dmi_plus: analysis.indicators.dmiPlus,
+      dmi_minus: analysis.indicators.dmiMinus,
+      dmi_adx: analysis.indicators.dmiAdx,
+      sar: analysis.indicators.sar,
+      wr14: analysis.indicators.wr14,
+      bias6: analysis.indicators.bias6,
     },
     signals: analysis.signals.map(signal => ({
       name: signal.name,

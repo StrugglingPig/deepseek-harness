@@ -215,6 +215,83 @@ describe('finance research report', () => {
     expect(report.html).toContain('<span>Reference range</span>')
   })
 
+  it('leaves the base-rate row out when the history published no percentile', async () => {
+    const report = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      [
+        { group: 'valuation', key: 'epsTtm', value: 7.5, unit: 'USD', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'profitability', key: 'netIncome', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'operatingCashFlow', value: 180, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'capex', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'depreciation', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'valuation', key: 'marketCap', value: 10_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      ],
+    )
+    const valuation = sectionOf(report, 'Model Valuation And Reference Range')
+    expect(valuation).toContain('| FCFF DCF |')
+    // Without a percentile the row prints as not obtained rather than disappearing.
+    expect(valuation).toContain('| Assumption against the reported growth history | Not obtained |')
+    expect(valuation).toContain('sits inside this company own reported growth range')
+
+    // A percentile below the top decile prints its position and the within-range note.
+    const within = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      [
+        { group: 'valuation', key: 'epsTtm', value: 7.5, unit: 'USD', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenueGrowthPercentile', value: 50, unit: '%', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'profitability', key: 'netIncome', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'operatingCashFlow', value: 180, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'capex', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'depreciation', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'valuation', key: 'marketCap', value: 10_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      ],
+    )
+    const withinSection = sectionOf(within, 'Model Valuation And Reference Range')
+    expect(withinSection).toContain('| Assumption against the reported growth history | 50.00% |')
+    expect(withinSection).toContain('sits inside this company own reported growth range')
+
+    // A percentile in the top decile adds the reason the assumption needs.
+    const top = await buildResearchReport(
+      fixtureProvider,
+      { symbol: 'AAPL', reportType: 'equity-deep-dive' },
+      undefined,
+      'en',
+      [],
+      [
+        { group: 'valuation', key: 'epsTtm', value: 7.5, unit: 'USD', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenueGrowth', value: 6, unit: '%', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenueGrowthPercentile', value: 95, unit: '%', asOf: '', source: 'finnhub' },
+        { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'profitability', key: 'operatingIncome', value: 200, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'profitability', key: 'netIncome', value: 150, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'operatingCashFlow', value: 180, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'capex', value: 20, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'cash', key: 'depreciation', value: 10, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'balance', key: 'totalAssets', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },
+        { group: 'valuation', key: 'marketCap', value: 10_000, unit: 'USD', asOf: '', source: 'finnhub' },
+      ],
+    )
+    const topSection = sectionOf(top, 'Model Valuation And Reference Range')
+    expect(topSection).toContain('| Assumption against the reported growth history | 95.00% · The assumed growth sits in the top decile')
+    expect(topSection).toContain('needs a stated structural reason')
+  })
+
   it('uses the loaded ten-year yield as the risk-free rate', async () => {
     const metrics: readonly AssetMetric[] = [
       { group: 'growth', key: 'revenue', value: 1_000, unit: 'USD', asOf: 'FY2025 10-K', source: 'finnhub' },

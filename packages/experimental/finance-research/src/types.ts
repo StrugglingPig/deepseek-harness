@@ -547,6 +547,26 @@ export interface IndicatorValues {
   readonly bollingerLower: number
   readonly obv: number
   readonly obvSma20: number
+  readonly kdjK: number
+  readonly kdjD: number
+  readonly kdjJ: number
+  readonly tdSetup: TdSetup
+  readonly vwap: number
+  readonly cci14: number
+  readonly dmiPlus: number
+  readonly dmiMinus: number
+  readonly dmiAdx: number
+  readonly sar: number
+  readonly wr14: number
+  readonly bias6: number
+}
+
+/** Latest TD Sequential setup state: which side counts and how far it has run. */
+export interface TdSetup {
+  /** Counted side while the setup stays intact, or `none` when no comparison chain is active. */
+  readonly side: 'buy' | 'sell' | 'none'
+  /** Bars counted so far on that side. */
+  readonly count: number
 }
 
 /** Deterministic multi-indicator analysis for one snapshot. */

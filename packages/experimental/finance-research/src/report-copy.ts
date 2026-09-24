@@ -36,6 +36,8 @@ export type ReportLabelKey =
   | 'viewReasons' | 'viewInvalidation' | 'viewGaps' | 'maStack' | 'rsiOverbought' | 'rsiOversold'
   | 'rsiNeutral' | 'macdBullish' | 'macdBearish'
   | 'riskBars' | 'gapCount' | 'obvAverage' | 'watchFor' | 'partialMissing' | 'metricSource' | 'projection'
+  | 'kdj' | 'tdSequential' | 'tdBuySetup' | 'tdSellSetup' | 'tdNoSetup' | 'vwap' | 'cci' | 'dmi'
+  | 'sar' | 'williamsR' | 'bias'
   | 'targetPrice' | 'upside' | 'fairMultiple' | 'trailingMultiple' | 'modelOwn' | 'modelAssumptions'
   | 'fairMultiplePeers' | 'fairMultipleIndustry' | 'fairMultipleOwn' | 'forecastMargin' | 'forecastLimits'
   | 'missingInventories' | 'missingCostCurve' | 'missingPositioning' | 'missingEventRecord'
@@ -60,7 +62,7 @@ export type ValuationLabelKey =
   | 'sensitivityTitle' | 'terminalTitle' | 'ratiosTitle' | 'qualityTitle' | 'earningsPathTitle'
   | 'notObtained' | 'modelNotice' | 'shareCountNotice' | 'suppressedNotice' | 'noGradeNotice'
   | 'verdictAction' | 'verdictTradingDirection' | 'targetRange' | 'targetNotice' | 'failedNotice'
-  | 'baseRate' | 'baseRateHigh'
+  | 'baseRate' | 'baseRateHigh' | 'baseRateWithin'
   | 'footballField' | 'assumptions' | 'assumptionNote' | 'assumptionDefault' | 'assumptionAdjusted'
   | 'tearsheet' | 'bandSensitivity'
   | 'terminalBreached' | 'terminalWithin' | 'missingInputs'
@@ -201,6 +203,17 @@ const EN: ReportCopy = {
     riskBars: 'size the position from the ATR stop below',
     gapCount: 'Missing inputs: ',
     obvAverage: '20-bar average ',
+    kdj: 'KDJ',
+    tdSequential: 'TD Sequential',
+    tdBuySetup: 'buy setup',
+    tdSellSetup: 'sell setup',
+    tdNoSetup: 'no active setup',
+    vwap: 'VWAP',
+    cci: 'CCI',
+    dmi: 'DMI',
+    sar: 'SAR',
+    williamsR: 'Williams %R',
+    bias: 'BIAS',
     watchFor: 'What to watch',
     metricSource: 'source ',
     projection: '(projection)',
@@ -543,6 +556,7 @@ const EN: ReportCopy = {
       targetNotice: 'This target price comes from a model that passed the recorded out-of-sample backtest over {samples} symbol-dates on {asOf}.',
       baseRate: 'Assumption against the reported growth history',
       baseRateHigh: 'The assumed growth sits in the top decile of this company own reported growth, so it needs a stated structural reason.',
+      baseRateWithin: 'The assumed growth sits inside this company own reported growth range.',
       failedNotice: 'The recorded out-of-sample backtest over {samples} symbol-dates on {asOf} did not beat the unchanged-price control ({modelMae} against {controlMae} mean absolute error), so this stays a model reference value rather than a target price.',
       verdictTradingDirection: 'One-to-three-month direction',
       footballField: 'Value range across methods',
@@ -655,6 +669,17 @@ const ZH: ReportCopy = {
     riskBars: '仓位应按下方 ATR 止损设定',
     gapCount: '缺少输入：',
     obvAverage: '20 根均值 ',
+    kdj: 'KDJ',
+    tdSequential: '神奇九转',
+    tdBuySetup: '买入计数',
+    tdSellSetup: '卖出计数',
+    tdNoSetup: '暂无进行中的计数',
+    vwap: 'VWAP',
+    cci: 'CCI',
+    dmi: 'DMI',
+    sar: 'SAR',
+    williamsR: '威廉指标 %R',
+    bias: '乖离率 BIAS',
     watchFor: '关注方向',
     metricSource: '来源 ',
     projection: '（预测）',
@@ -819,6 +844,14 @@ const ZH: ReportCopy = {
     macd: 'MACD',
     'mean-reversion': '均值回归',
     participation: '参与度',
+    kdj: 'KDJ',
+    'td-sequential': '神奇九转',
+    vwap: 'VWAP',
+    cci: 'CCI',
+    dmi: 'DMI',
+    sar: 'SAR',
+    'williams-r': '威廉指标',
+    bias: '乖离率',
   },
   directions: {
     bullish: '看涨',
@@ -1161,6 +1194,7 @@ const ZH: ReportCopy = {
       targetNotice: '本目标价来自已通过样本外回测的模型：{samples} 个“标的×日期”样本，回测日期 {asOf}。',
       baseRate: '假设相对自身历史增速的位置',
       baseRateHigh: '假设增速位于公司自身历史增速的前 10%，需要给出结构性理由。',
+      baseRateWithin: '假设增速落在公司自身历史增速区间内。',
       failedNotice: '已记录的样本外回测（{samples} 个“标的×日期”样本，回测日期 {asOf}）没有跑赢“价格不变”控制组（平均绝对误差 {modelMae} 对 {controlMae}），因此本数值仍是模型参考价值，而不是目标价。',
       verdictTradingDirection: '1–3 个月方向',
       footballField: '各方法价值区间',

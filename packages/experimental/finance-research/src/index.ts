@@ -57,9 +57,11 @@ import type {
 export type * from './types.ts'
 export { FixtureFinanceMarketDataProvider, classifyAsset, loadFixtureSnapshot } from './data.ts'
 export {
-  buildIndicatorAnalysis, compositeDirection, directionValue, latestAtr, latestBollinger,
-  latestEma, latestMacd, latestObv, latestRsi, latestSma, macdDirection, obvSeries,
-  priceBandDirection, rsiDirection, trendDirection, volumeDirection,
+  biasDirection, buildIndicatorAnalysis, cciDirection, compositeDirection, directionValue,
+  latestAtr, latestBias, latestBollinger, latestCci, latestDmi, latestEma, latestKdj, latestMacd,
+  latestObv, latestRsi, latestSar, latestSma, latestTdSequential, latestVwap, latestWr,
+  macdDirection, obvSeries, priceBandDirection, rsiDirection, setupDirection, trendDirection,
+  volumeDirection, wrDirection,
 } from './indicators.ts'
 export { buildResearchReport } from './report.ts'
 export { buildMethodologyAnalysis } from './methodology.ts'
