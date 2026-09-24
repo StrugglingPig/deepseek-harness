@@ -883,11 +883,13 @@ def ifind_data_pool_http(request: dict) -> dict:
     fields = request.get("fields")
     if report == "" or not isinstance(fields, list) or not fields:
         raise RuntimeError("INVALID_STOCK_REQUEST: iFinD data pool needs a report name and its output fields")
+    # The console expresses a report's filters as `key=value` entries, so the request keeps that form.
     parameters = request.get("parameters")
-    functionpara = {
-        str(key): str(value)
-        for key, value in (parameters.items() if isinstance(parameters, dict) else [])
-    }
+    functionpara = {}
+    for entry in parameters if isinstance(parameters, list) else []:
+        key, _, value = str(entry).partition("=")
+        if key.strip() != "":
+            functionpara[key.strip()] = value.strip()
     payload = {
         "reportname": report,
         "functionpara": functionpara,

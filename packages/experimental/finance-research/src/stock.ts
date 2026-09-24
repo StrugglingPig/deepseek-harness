@@ -21,6 +21,8 @@ import type {
   FinanceAnnouncementMarketMode,
   FinanceStockAnnouncementFeed,
   FinanceStockAnnouncementRequest,
+  FinanceStockDataPoolReport,
+  FinanceStockDataPoolRequest,
   FinanceStockDataProvider,
   FinanceStockIntraday,
   FinanceStockIntradayPoint,
@@ -77,6 +79,11 @@ const stockIntradaySchema = zod.object({
     volume: zod.number().nullish(),
     amount: zod.number().nullish(),
   })),
+})
+const stockDataPoolSchema = zod.object({
+  report: zod.string(),
+  truncated: zod.boolean(),
+  rows: zod.array(zod.record(zod.string(), zod.union([zod.string(), zod.number(), zod.null()]))),
 })
 const stockSeriesSchema = zod.object({
   symbol: zod.string(),
@@ -170,11 +177,15 @@ const bridgeFailureSchema = zod.object({
 export interface FinanceStockBridgeRequest {
   readonly action:
     | 'stock_history' | 'stock_quote' | 'stock_fundamentals' | 'stock_valuation' | 'stock_announcements'
-    | 'stock_intraday' | 'stock_series'
+    | 'stock_intraday' | 'stock_series' | 'data_pool'
   /** Intraday granularity, sent only for `stock_intraday`. */
   readonly granularity?: string
   /** Published indicator id, sent only for `stock_series`. */
   readonly indicator?: string
+  /** Vendor report name, sent only for `data_pool`. */
+  readonly report?: string
+  /** Report filters as `key=value` entries, sent only for `data_pool`. */
+  readonly fields?: readonly string[]
   /** Indicator parameter the vendor publishes, sent only for `stock_series`. */
   readonly parameter?: string
   readonly provider: 'akshare' | 'ifind'
@@ -656,6 +667,32 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
   }
 
   /**
+   * Load one published thematic report from the iFinD HTTP transport.
+   * @param request - Vendor report name, its filters, and the field codes to return.
+   * @param signal - optional caller cancellation.
+   * @returns The published rows, capped by the bridge.
+   */
+  async loadStockDataPool(
+    request: FinanceStockDataPoolRequest,
+    signal?: AbortSignal,
+  ): Promise<FinanceStockDataPoolReport> {
+    this.assertEnabled('ifind')
+    const report = request.report.trim()
+    if (report.length === 0 || request.fields.length === 0) {
+      throw new FinanceDataError('a thematic report needs a report name and its output fields', 'INVALID_STOCK_REQUEST')
+    }
+    const data = stockDataPoolSchema.parse(await this.bridge.run({
+      action: 'data_pool',
+      provider: 'ifind',
+      transport: this.ifindTransport(),
+      report,
+      fields: [...request.fields],
+      ...request.parameters === undefined ? {} : { parameters: request.parameters },
+    }, signal))
+    return { report: data.report, truncated: data.truncated, rows: data.rows }
+  }
+
+  /**
    * Load published company announcements for one symbol or one whole market, newest first.
    * @param request - Symbol or market scope, categories, and window.
    * @param signal - optional caller cancellation.
@@ -1021,6 +1058,51 @@ export function registerStockTools(
           ...item.language === undefined ? {} : { language: item.language },
           ...item.url === undefined ? {} : { url: item.url },
         })),
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'finance_stock_data_pool',
+    description: 'Read one Tonghuashun iFinD thematic report (专题报表). The report name and field codes come from the console; p03425 is the whole A-share universe with fields p03291_f001 to p03291_f004.',
+    parameters: {
+      report: { type: 'string', required: true, description: 'Vendor report name, such as p03425.' },
+      fields: { type: 'array', required: true, items: { type: 'string' }, description: 'Field codes the report returns.' },
+      parameters: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Report filters as `key=value` entries, such as `date=20260923`.',
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          report: { type: 'string', required: true },
+          truncated: { type: 'boolean', required: true },
+          rows: {
+            type: 'array',
+            required: true,
+            items: { type: 'json' },
+          },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args, exec) {
+      if (provider.loadStockDataPool === undefined) {
+        throw new FinanceDataError('the configured stock provider publishes no thematic reports', 'STOCK_PROVIDER_UNSUPPORTED')
+      }
+      const published = await provider.loadStockDataPool({
+        report: args.report,
+        fields: args.fields,
+        ...args.parameters === undefined ? {} : { parameters: args.parameters },
+      }, exec.signal)
+      return {
+        report: published.report,
+        truncated: published.truncated,
+        rows: published.rows.map(row => ({ ...row })),
       }
     },
   }))

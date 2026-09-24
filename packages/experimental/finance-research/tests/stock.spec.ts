@@ -257,6 +257,45 @@ describe('SubprocessFinanceStockDataProvider', () => {
     })
   })
 
+  it('reads a published thematic report through iFinD', async () => {
+    const requests: unknown[] = []
+    const provider = new SubprocessFinanceStockDataProvider({
+      async run(raw) {
+        requests.push(raw)
+        return {
+          report: 'p03425',
+          truncated: true,
+          rows: [{ thscode: null, p03291_f001: '2026/09/23', p03291_f002: '000001.SZ' }],
+        }
+      },
+    }, { ifindTransport: () => 'http' })
+
+    await expect(provider.loadStockDataPool({
+      report: 'p03425',
+      fields: ['p03291_f001', 'p03291_f002'],
+      parameters: ['date=20260923', 'blockname=001005010'],
+    })).resolves.toEqual({
+      report: 'p03425',
+      truncated: true,
+      rows: [{ thscode: null, p03291_f001: '2026/09/23', p03291_f002: '000001.SZ' }],
+    })
+    expect(requests[0]).toMatchObject({
+      action: 'data_pool',
+      provider: 'ifind',
+      transport: 'http',
+      report: 'p03425',
+      parameters: ['date=20260923', 'blockname=001005010'],
+    })
+
+    await expect(provider.loadStockDataPool({ report: ' ', fields: ['p03291_f001'] }))
+      .rejects.toMatchObject({ code: 'INVALID_STOCK_REQUEST' })
+    await expect(provider.loadStockDataPool({ report: 'p03425', fields: [] }))
+      .rejects.toMatchObject({ code: 'INVALID_STOCK_REQUEST' })
+    const disabled = new SubprocessFinanceStockDataProvider(bridge(), { enabled: () => false })
+    await expect(disabled.loadStockDataPool({ report: 'p03425', fields: ['p03291_f001'] }))
+      .rejects.toMatchObject({ code: 'STOCK_PROVIDER_DISABLED' })
+  })
+
   it('rejects an empty symbol and a disabled provider for intraday and series', async () => {
     const provider = new SubprocessFinanceStockDataProvider(bridge())
     await expect(provider.loadStockIntraday({ symbol: ' ', granularity: 'tick' }))
@@ -492,6 +531,42 @@ describe('registerStockTools', () => {
     expect(targetless.isError).toBe(true)
   })
 
+  it('registers the thematic-report tool', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    registerStockTools(ctx, new SubprocessFinanceStockDataProvider({
+      async run() {
+        return {
+          report: 'p03425',
+          truncated: false,
+          rows: [{ thscode: null, p03291_f002: '000001.SZ', p03291_f003: '平安银行' }],
+        }
+      },
+    }, { ifindTransport: () => 'http' }))
+
+    const published = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-data-pool' as never,
+      name: 'finance_stock_data_pool',
+      arguments: { report: 'p03425', fields: ['p03291_f002', 'p03291_f003'], parameters: ['date=20260923'] },
+    })
+    expect(published.isError).toBe(false)
+    expect(JSON.parse(textOf(published))).toMatchObject({
+      report: 'p03425',
+      truncated: false,
+      rows: [{ p03291_f002: '000001.SZ', p03291_f003: '平安银行' }],
+    })
+
+    const bare = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-data-pool-bare' as never,
+      name: 'finance_stock_data_pool',
+      arguments: { report: 'p03425', fields: ['p03291_f002'] },
+    })
+    expect(bare.isError).toBe(false)
+  })
+
   it('reports a provider that publishes no intraday or series table', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -523,6 +598,13 @@ describe('registerStockTools', () => {
       arguments: { symbol: '600519' },
     })
     expect(announcements.isError).toBe(true)
+    const published = await ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: 'stock-data-pool-stub' as never,
+      name: 'finance_stock_data_pool',
+      arguments: { report: 'p03425', fields: ['p03291_f002'] },
+    })
+    expect(published.isError).toBe(true)
   })
 
   it('exports stock research reports as Markdown and HTML', async () => {

@@ -362,6 +362,24 @@ export interface FinanceStockSeries {
 /** Whole-market announcement scopes the vendor publishes. */
 export type FinanceAnnouncementMarketMode = 'allAStock' | 'allBond' | 'allFund' | 'allHKStock'
 
+/** One published thematic-report request. */
+export interface FinanceStockDataPoolRequest {
+  /** Vendor report name, such as `p03425` for the whole A-share universe. */
+  readonly report: string
+  /** Report filters as `key=value` entries, keyed as the report page publishes them. */
+  readonly parameters?: readonly string[]
+  /** Field codes the report returns. */
+  readonly fields: readonly string[]
+}
+
+/** One published thematic report. */
+export interface FinanceStockDataPoolReport {
+  readonly report: string
+  readonly rows: readonly Readonly<Record<string, string | number | null>>[]
+  /** Whether the report published more rows than the bridge returned. */
+  readonly truncated: boolean
+}
+
 /** One announcement query: one symbol, or one whole market. */
 export interface FinanceStockAnnouncementRequest {
   /** Six-digit A-share symbol, with or without exchange suffix. */
@@ -489,6 +507,8 @@ export interface FinanceStockDataProvider {
   loadStockIntraday?(request: FinanceStockIntradayRequest, signal?: AbortSignal): Promise<FinanceStockIntraday>
   /** Load one published indicator's history when the upstream publishes one. */
   loadStockSeries?(request: FinanceStockSeriesRequest, signal?: AbortSignal): Promise<FinanceStockSeries>
+  /** Load one published thematic report when the upstream publishes them. */
+  loadStockDataPool?(request: FinanceStockDataPoolRequest, signal?: AbortSignal): Promise<FinanceStockDataPoolReport>
 }
 
 /** Replacing this provider changes the data source without changing the tools. */
