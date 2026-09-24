@@ -1,6 +1,6 @@
 # 报告类型 E2E 结果(真实数据)
 
-共 33 类报告;宏观上下文 26 条,美股指标 88 条,币圈指标 28 条,A股指标 21 条。
+共 33 类报告;宏观上下文 28 条,美股指标 90 条,币圈指标 28 条,A股指标 21 条。
 
 “完整数据”表示该章节全部内容来自上游数据；“部分数据”表示章节已渲染可用数据，并在正文标注仍缺哪些输入；“缺输入”表示该章节只能列出所需输入。
 
@@ -16,7 +16,7 @@
 | industry-deep-dive | industry | deep-dive | 15 | 15 | 0 | 0 | — | — |
 | industry-thematic | industry | thematic | 14 | 14 | 0 | 0 | — | — |
 | equity-flash | equity | flash | 6 | 6 | 0 | 0 | — | — |
-| equity-deep-dive | equity | deep-dive | 20 | 20 | 0 | 0 | — | — |
+| equity-deep-dive | equity | deep-dive | 21 | 21 | 0 | 0 | — | — |
 | equity-event | equity | event | 16 | 15 | 1 | 0 | — | 事件背景 |
 | equity-earnings | equity | earnings | 15 | 15 | 0 | 0 | — | — |
 | fund-weekly | fund | weekly | 13 | 13 | 0 | 0 | — | — |
@@ -45,8 +45,8 @@
 | 报告类型 | 标的 | 章节 | 状态 | 报告内标注 |
 |---|---|---|---|---|
 | equity-event | AAPL | 事件背景 | 部分数据 | 本节仍缺以下输入：事件时间线与公告原文 |
-| commodity-fx-weekly | GLD | 供需平衡 | 部分数据 | 本节仍缺以下输入：能源库存与供需平衡表, 成本曲线与期限结构 |
-| commodity-fx-deep-dive | GLD | 供需平衡 | 部分数据 | 本节仍缺以下输入：能源库存与供需平衡表, 成本曲线与期限结构 |
+| commodity-fx-weekly | GLD | 供需平衡 | 部分数据 | 本节仍缺以下输入：成本曲线与期限结构 |
+| commodity-fx-deep-dive | GLD | 供需平衡 | 部分数据 | 本节仍缺以下输入：成本曲线与期限结构 |
 | strategy-weekly | SPY | 配置与风险预算 | 部分数据 | 本节仍缺以下输入：指数估值与盈利, 资金流与仓位, 宏观状态序列 |
 | strategy-monthly | SPY | 配置与风险预算 | 部分数据 | 本节仍缺以下输入：指数估值与盈利, 资金流与仓位, 宏观状态序列 |
 | strategy-deep-dive | SPY | 配置与风险预算 | 部分数据 | 本节仍缺以下输入：指数估值与盈利, 资金流与仓位, 宏观状态序列 |
