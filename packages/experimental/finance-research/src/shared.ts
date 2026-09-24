@@ -28,7 +28,6 @@ export interface DashboardQuote {
   readonly currency: string
 }
 
-/** One dashboard market response. */
 /** Compact research summary the dashboard shows beside the chart. */
 export interface DashboardResearch {
   /** Upstream the figures came from. */
@@ -49,7 +48,6 @@ export interface DashboardResearch {
   readonly ratios: readonly { readonly id: ValuationRatioId; readonly value: number | undefined }[]
 }
 
-/** One normalized dashboard answer: the bars, the quote, and any research summary beside them. */
 /** One macro reading the dashboard strip prints. */
 export interface DashboardMacroEntry {
   /** Catalog indicator id, which the client maps to its own label. */
@@ -68,6 +66,7 @@ export interface DashboardEvent {
   readonly source: string
 }
 
+/** One normalized dashboard answer: the bars, the quote, and any research summary beside them. */
 export interface DashboardMarketResponse {
   readonly asset: DashboardAsset
   readonly symbol: string

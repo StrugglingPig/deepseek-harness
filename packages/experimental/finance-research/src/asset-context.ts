@@ -3,7 +3,7 @@
 import { githubSlug } from './github.ts'
 import type {
   FinanceCoinGeckoCommunity, FinanceCoinGeckoGlobal, FinanceCoinMarketCapQuote, FinanceGithubRepo,
-  FinanceStockFundamentals, FinanceStockValuation, FinanceUsFundamentals,
+  FinanceStockAnnouncement, FinanceStockFundamentals, FinanceStockValuation, FinanceUsFundamentals,
 } from './types.ts'
 
 /**
@@ -24,7 +24,7 @@ export const REPORT_METRIC_KEYS = [
   'atlChangePercentage', 'btcDominance', 'epsSurprise', 'ethDominance', 'githubLatestRelease',
   'githubReleases1y', 'insiderBoughtShares', 'insiderNetShares', 'insiderSentiment', 'insiderSoldShares',
   'latestFilingDate', 'latestFilingForm', 'netIncome', 'newsHeadlines', 'nextEarnings',
-  'reportedFinancials', 'revenue',
+  'recentAnnouncements', 'reportedFinancials', 'revenue',
   // Reported statement lines the financial-quality block quotes.
   'buybacks', 'capex', 'cash', 'currentAssets', 'currentLiabilities', 'depreciation', 'dividendsPaid', 'equity',
   'freeCashFlow', 'grossProfit', 'interestExpense', 'liabilities', 'operatingCashFlow', 'operatingIncome',
@@ -90,6 +90,28 @@ export function equityMetricsFromFundamentals(
     const value = latest.metrics[key]
     return value === undefined ? [] : [{ group, key, value, unit, asOf: latest.period, source: 'akshare' }]
   })
+}
+
+/** How many recent announcements one catalyst row quotes. */
+const ANNOUNCEMENT_METRIC_LIMIT = 3
+
+/** The exchange prefixes each title with the issuer name the report header already states. */
+const ANNOUNCEMENT_ISSUER_PREFIX = /^[^：:]{1,24}[：:]\s*/
+
+/**
+ * Turn published company announcements into the catalyst metric a report quotes.
+ * @param announcements - Normalized announcements, newest first.
+ * @returns One catalyst metric; empty when the upstream published nothing.
+ */
+export function equityMetricsFromAnnouncements(
+  announcements: readonly FinanceStockAnnouncement[],
+): AssetMetric[] {
+  const recent = announcements.slice(0, ANNOUNCEMENT_METRIC_LIMIT)
+  if (recent.length === 0) return []
+  const text = recent
+    .map(item => `${item.announcedAt.slice(0, 10)} ${item.title.replace(ANNOUNCEMENT_ISSUER_PREFIX, '')}`)
+    .join(' / ')
+  return [METRIC_TEXT('catalyst', 'recentAnnouncements', text, 'ifind')]
 }
 
 /** Market fields a CoinMarketCap quote contributes, with their dimension and unit. */
@@ -517,6 +539,11 @@ function METRIC(
 }
 
 /** One textual metric record. */
-function METRIC_TEXT(group: AssetMetricGroup, key: ReportMetricKey, text: string): AssetMetric {
-  return { group, key, value: 0, text, unit: '', asOf: '', source: 'finnhub' }
+function METRIC_TEXT(
+  group: AssetMetricGroup,
+  key: ReportMetricKey,
+  text: string,
+  source = 'finnhub',
+): AssetMetric {
+  return { group, key, value: 0, text, unit: '', asOf: '', source }
 }

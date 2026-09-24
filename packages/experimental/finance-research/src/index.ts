@@ -34,7 +34,8 @@ import { VALUATION_VALIDATION } from './validation-record.ts'
 import { VALUATION_PARAMETERS, type ValuationParameters } from './valuation.ts'
 import { buildMethodologyAnalysis } from './methodology.ts'
 import {
-  cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromFundamentals,
+  cryptoMetricsForSymbol, cryptoMetricsFromGlobal, cryptoQuotesFromSources, equityMetricsFromAnnouncements,
+  equityMetricsFromFundamentals,
   equityMetricsFromValuation, usComparableMetrics, usMetricsFromFundamentals, type AssetMetric, type ReportAssetContext,
 } from './asset-context.ts'
 import { dashboardResearchLoader, loadDashboardEvents, loadDashboardMacroStrip, registerFinanceDashboardRoutes } from './dashboard.ts'
@@ -1418,6 +1419,11 @@ export function apply(ctx: Context, config: Config): void {
         metrics.push(...equityMetricsFromValuation(valuation))
       } catch {
         // Valuation and industry data are optional for the same reason.
+      }
+      try {
+        metrics.push(...equityMetricsFromAnnouncements(await fundamentalsSource.loadStockAnnouncements(query)))
+      } catch {
+        // Announcements are optional for the same reason as valuation and industry data.
       }
       return metrics
     }, valuationParameters)

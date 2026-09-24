@@ -301,6 +301,19 @@ export interface FinanceStockValuation {
   }
 }
 
+/** One company announcement published for a mainland stock. */
+export interface FinanceStockAnnouncement {
+  readonly symbol: string
+  /** Announcement title exactly as the issuer filed it. */
+  readonly title: string
+  /** Announcement date the issuer states, as an ISO 8601 instant. */
+  readonly announcedAt: string
+  /** Publication timestamp of the source document, when the upstream publishes one. */
+  readonly publishedAt?: string
+  /** Link to the source document, when the upstream publishes one. */
+  readonly url?: string
+}
+
 /** One Finnhub US equity lookup. */
 export interface FinanceUsFundamentalsRequest {
   /** Ticker symbol, such as `AAPL`. */
@@ -382,6 +395,8 @@ export interface FinanceStockDataProvider {
   loadStockFundamentals?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockFundamentals[]>
   /** Load reported valuation multiples and the industry baseline when available. */
   loadStockValuation?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockValuation[]>
+  /** Load published company announcements when the upstream publishes them. */
+  loadStockAnnouncements?(request: FinanceStockQuoteRequest, signal?: AbortSignal): Promise<readonly FinanceStockAnnouncement[]>
 }
 
 /** Replacing this provider changes the data source without changing the tools. */

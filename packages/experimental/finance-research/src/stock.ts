@@ -18,6 +18,7 @@ import { ANALYSIS_OUTPUT_PROPERTIES, METHODOLOGY_OUTPUT_PROPERTIES, STOCK_INPUT_
 import { REPORT_EVIDENCE_PROPERTY, REPORT_REQUEST_PARAMETERS, REPORT_SECTIONS_PROPERTY, REPORT_SUMMARY_PROPERTIES, reportExportValue, reportRequest, reportValue } from './report-tool.ts'
 import type { ReportLanguage } from './report-language.ts'
 import type {
+  FinanceStockAnnouncement,
   FinanceStockDataProvider,
   FinanceStockProviderSelector,
   FinanceStockFundamentals,
@@ -54,6 +55,15 @@ const stockFundamentalsSchema = zod.object({
   periods: zod.array(zod.object({
     period: zod.string(),
     metrics: zod.record(zod.string(), zod.number()),
+  })),
+})
+const stockAnnouncementsSchema = zod.object({
+  symbol: zod.string(),
+  announcements: zod.array(zod.object({
+    title: zod.string(),
+    announcedAt: zod.string(),
+    publishedAt: zod.string().nullable(),
+    url: zod.string().nullable(),
   })),
 })
 const stockValuationSchema = zod.object({
@@ -101,7 +111,7 @@ const bridgeFailureSchema = zod.object({
 
 /** One request sent to the bundled Python stock bridge. */
 export interface FinanceStockBridgeRequest {
-  readonly action: 'stock_history' | 'stock_quote' | 'stock_fundamentals' | 'stock_valuation'
+  readonly action: 'stock_history' | 'stock_quote' | 'stock_fundamentals' | 'stock_valuation' | 'stock_announcements'
   readonly provider: 'akshare' | 'ifind'
   readonly symbol?: string
   readonly symbols?: readonly string[]
@@ -505,6 +515,37 @@ export class SubprocessFinanceStockDataProvider implements FinanceStockDataProvi
       symbol: symbol.replace(/[^0-9]/g, ''),
     }, signal))
     return [{ symbol: data.symbol, periods: data.periods }]
+  }
+
+  /**
+   * Load published company announcements for one mainland symbol, newest first.
+   * @param request - Provider and symbols; only the first symbol is read.
+   * @param signal - optional caller cancellation.
+   * @returns The normalized announcement list; empty when the caller asked for a provider that
+   * publishes no announcement table.
+   */
+  async loadStockAnnouncements(
+    request: FinanceStockQuoteRequest,
+    signal?: AbortSignal,
+  ): Promise<readonly FinanceStockAnnouncement[]> {
+    // Only the iFinD bridge publishes this table, so `auto` resolves to it.
+    if (request.provider === 'akshare') return []
+    const symbol = request.symbols[0]?.trim().toUpperCase()
+    if (symbol === undefined || symbol.length === 0) return []
+    this.assertEnabled('ifind')
+    const data = stockAnnouncementsSchema.parse(await this.bridge.run({
+      action: 'stock_announcements',
+      provider: 'ifind',
+      transport: this.ifindTransport(),
+      symbol: symbol.replace(/[^0-9]/g, ''),
+    }, signal))
+    return data.announcements.map(item => ({
+      symbol: data.symbol,
+      title: item.title,
+      announcedAt: item.announcedAt,
+      ...item.publishedAt === null ? {} : { publishedAt: item.publishedAt },
+      ...item.url === null ? {} : { url: item.url },
+    }))
   }
 }
 

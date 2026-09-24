@@ -738,6 +738,54 @@ def ifind_quotes(request: dict) -> dict:
     raise RuntimeError(f"INVALID_STOCK_TRANSPORT: unsupported iFinD transport {transport}")
 
 
+# The announcement query reads one published report type; 901 is what the web console's
+# "全部" option selects, so no per-category enumeration is needed here.
+IFIND_ANNOUNCEMENT_TYPE = "901"
+IFIND_ANNOUNCEMENT_FIELDS = "reportDate:Y,thscode:Y,secName:Y,ctime:Y,reportTitle:Y,pdfURL:Y,seq:Y"
+IFIND_ANNOUNCEMENT_WINDOW_DAYS = 180
+IFIND_ANNOUNCEMENT_LIMIT = 5
+
+
+def ifind_announcements_http(request: dict) -> dict:
+    """Read the published announcement list for one symbol through the iFinD HTTP report query."""
+    symbol = normalize_symbol(request["symbol"])
+    end = normalize_date(request.get("endDate") or date.today().isoformat())
+    default_start = date.today() - timedelta(days=IFIND_ANNOUNCEMENT_WINDOW_DAYS)
+    start = normalize_date(request.get("startDate") or default_start.isoformat())
+    payload = {
+        "codes": symbol,
+        "functionpara": {"reportType": IFIND_ANNOUNCEMENT_TYPE},
+        "beginrDate": start,
+        "endrDate": end,
+        "outputpara": IFIND_ANNOUNCEMENT_FIELDS,
+    }
+    access_token = ifind_http_access_token()
+    response = ifind_http_request("report_query", payload, access_token)
+    announcements = []
+    for row in ifind_tables(response):
+        title = text_value(row.get("reportTitle"))
+        announced = iso_timestamp(row.get("reportDate"))
+        if title is None or announced is None:
+            continue
+        announcements.append({
+            "title": title,
+            "announcedAt": announced,
+            "publishedAt": iso_timestamp(row.get("ctime")),
+            "url": text_value(row.get("pdfURL")),
+        })
+    if not announcements:
+        raise RuntimeError("IFIND_EMPTY_RESPONSE: iFinD returned no announcements")
+    announcements.sort(key=lambda item: item["announcedAt"], reverse=True)
+    return {"symbol": bare_symbol(symbol), "announcements": announcements[:IFIND_ANNOUNCEMENT_LIMIT]}
+
+
+def ifind_announcements(request: dict) -> dict:
+    transport = request.get("transport")
+    if transport == "http":
+        return ifind_announcements_http(request)
+    raise RuntimeError(f"INVALID_STOCK_TRANSPORT: iFinD announcements require the HTTP transport, not {transport}")
+
+
 FUNDAMENTAL_METRICS = (
     ("eps", "摊薄每股收益(元)"),
     ("bookValuePerShare", "每股净资产_调整前(元)"),
@@ -996,6 +1044,8 @@ def main() -> None:
             emit({"ok": True, "data": ifind_quotes(request)})
         elif action == "stock_valuation" and provider == "akshare":
             emit({"ok": True, "data": ak_valuation(request)})
+        elif action == "stock_announcements" and provider == "ifind":
+            emit({"ok": True, "data": ifind_announcements(request)})
         elif action == "stock_fundamentals" and provider == "akshare":
             emit({"ok": True, "data": ak_fundamentals(request)})
         elif action == "macro_series":

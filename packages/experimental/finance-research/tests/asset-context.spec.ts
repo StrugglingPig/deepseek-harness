@@ -3,7 +3,8 @@ import {
   cryptoMetricsFromGlobal, cryptoMetricsForSymbol, cryptoMetricsFromCommunity, cryptoMetricsFromGithub,
   cryptoMetricsFromQuote,
   cryptoQuotesFromSources,
-  equityMetricsFromFundamentals, equityMetricsFromValuation, usComparableMetrics, usMetricsFromFundamentals,
+  equityMetricsFromAnnouncements, equityMetricsFromFundamentals, equityMetricsFromValuation,
+  usComparableMetrics, usMetricsFromFundamentals,
 } from '../src/asset-context.ts'
 
 describe('asset metric context', () => {
@@ -28,6 +29,30 @@ describe('asset metric context', () => {
   it('reports nothing without a series or without a reported period', () => {
     expect(equityMetricsFromFundamentals(undefined)).toEqual([])
     expect(equityMetricsFromFundamentals({ symbol: '600519', periods: [] })).toEqual([])
+  })
+
+  it('quotes the newest announcements with the issuer prefix removed', () => {
+    expect(equityMetricsFromAnnouncements([])).toEqual([])
+    expect(equityMetricsFromAnnouncements([
+      { symbol: '600519', title: '贵州茅台：贵州茅台2026年半年度报告', announcedAt: '2026-08-15T00:00:00.000Z' },
+      {
+        symbol: '600519',
+        title: '贵州茅台：关于召开业绩说明会的公告',
+        announcedAt: '2026-08-14T00:00:00.000Z',
+        publishedAt: '2026-08-14T20:41:43.000Z',
+        url: 'http://ft.10jqka.com.cn/report',
+      },
+      { symbol: '600519', title: '第五届董事会决议公告', announcedAt: '2026-08-13T00:00:00.000Z' },
+      { symbol: '600519', title: '第四份公告', announcedAt: '2026-08-12T00:00:00.000Z' },
+    ])).toEqual([{
+      group: 'catalyst',
+      key: 'recentAnnouncements',
+      value: 0,
+      text: '2026-08-15 贵州茅台2026年半年度报告 / 2026-08-14 关于召开业绩说明会的公告 / 2026-08-13 第五届董事会决议公告',
+      unit: '',
+      asOf: '',
+      source: 'ifind',
+    }])
   })
 })
 

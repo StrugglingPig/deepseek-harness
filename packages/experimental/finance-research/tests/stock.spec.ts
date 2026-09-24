@@ -107,6 +107,47 @@ describe('SubprocessFinanceStockDataProvider', () => {
     expect(requests[0]).toMatchObject({ provider: 'ifind', transport: 'local' })
   })
 
+  it('loads iFinD announcements and skips a provider that publishes none', async () => {
+    const requests: unknown[] = []
+    const provider = new SubprocessFinanceStockDataProvider({
+      async run(raw) {
+        requests.push(raw)
+        return {
+          symbol: '600519',
+          announcements: [{
+            title: '贵州茅台2026年半年度报告',
+            announcedAt: '2026-08-15T00:00:00.000Z',
+            publishedAt: '2026-08-14T20:41:43.000Z',
+            url: 'http://ft.10jqka.com.cn/report',
+          }, {
+            title: '贵州茅台关于召开业绩说明会的公告',
+            announcedAt: '2026-08-15T00:00:00.000Z',
+            publishedAt: null,
+            url: null,
+          }],
+        }
+      },
+    }, { ifindTransport: () => 'http' })
+    await expect(provider.loadStockAnnouncements({ provider: 'auto', symbols: ['600519'] }))
+      .resolves.toEqual([{
+        symbol: '600519',
+        title: '贵州茅台2026年半年度报告',
+        announcedAt: '2026-08-15T00:00:00.000Z',
+        publishedAt: '2026-08-14T20:41:43.000Z',
+        url: 'http://ft.10jqka.com.cn/report',
+      }, {
+        symbol: '600519',
+        title: '贵州茅台关于召开业绩说明会的公告',
+        announcedAt: '2026-08-15T00:00:00.000Z',
+      }])
+    expect(requests[0]).toMatchObject({
+      action: 'stock_announcements', provider: 'ifind', transport: 'http', symbol: '600519',
+    })
+    await expect(provider.loadStockAnnouncements({ provider: 'akshare', symbols: ['600519'] }))
+      .resolves.toEqual([])
+    await expect(provider.loadStockAnnouncements({ provider: 'ifind', symbols: [] })).resolves.toEqual([])
+  })
+
   it('rejects invalid, disabled, and insufficient stock requests', async () => {
     const provider = new SubprocessFinanceStockDataProvider(bridge(), {
       enabled: provider => provider === 'ifind',
