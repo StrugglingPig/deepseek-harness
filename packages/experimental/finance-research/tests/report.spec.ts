@@ -36,7 +36,7 @@ describe('finance research report', () => {
     expect(report.sections.map(section => section.title)).toEqual([
       'Investment View', 'Summary', 'Research Question', 'Macro Drivers', 'Market Snapshot', 'Price Action',
       'Industry Landscape', 'Valuation Framework', 'Model Valuation And Reference Range', 'Earnings Review',
-      'Financial Quality', 'Competitive Position', 'Ownership And Insiders', 'Technical Indicators',
+      'Financial Quality', 'Competitive Position', 'Ownership And Insiders', 'Catalysts', 'Technical Indicators',
       'Multi-Indicator Synthesis', 'Methodology Coverage',
       'Investor Lenses', 'Scenario Analysis', 'Strategy Gaps', 'Risk And Limitations',
     ])
@@ -597,7 +597,7 @@ describe('finance research report', () => {
     expect(report.sections.map(section => section.title)).toEqual([
       '投资结论', '摘要', '研究问题', '宏观驱动', '行情快照', '价格行为',
       '行业格局', '估值框架', '模型估值与参考价值区间', '业绩点评', '财务质量', '竞争格局', '股权与内部人',
-      '技术指标', '多指标综合',
+      '催化剂', '技术指标', '多指标综合',
       '方法论覆盖', '投资大师视角', '情景分析', '策略缺口', '风险与限制',
     ])
     expect(report.markdown).toContain('Apple Inc. (AAPL) 呈')
